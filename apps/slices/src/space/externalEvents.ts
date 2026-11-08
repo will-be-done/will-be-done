@@ -64,9 +64,17 @@ const parseSeries = (ics: string): ParsedSeries | null => {
   if (vevents.length === 0) return null;
 
   const masterComponent = vevents.find((c) => !c.hasProperty("recurrence-id"));
-  const overrides = vevents
-    .filter((c) => c.hasProperty("recurrence-id"))
-    .map((c) => new ICAL.Event(c));
+  const uid = masterComponent?.getFirstPropertyValue("uid");
+  const overrides: ICAL.Event[] = [];
+  for (const component of vevents) {
+    if (!component.hasProperty("recurrence-id")) continue;
+    if (masterComponent && component.getFirstPropertyValue("uid") !== uid) {
+      // The master relates its siblings and throws on another UID's instance.
+      root.removeSubcomponent(component);
+      continue;
+    }
+    overrides.push(new ICAL.Event(component));
+  }
   if (!masterComponent) return { master: null, overrides };
   const master = new ICAL.Event(masterComponent, { strictExceptions: true });
   for (const override of overrides) master.relateException(override);
@@ -218,8 +226,18 @@ const organizerOf = (event: ICAL.Event) => {
   return prop ? personFrom(prop) : null;
 };
 
-const attendeesOf = (event: ICAL.Event) =>
-  event.component.getAllProperties("attendee").map(personFrom);
+// Servers can list an address twice; an entry without one names nobody.
+const attendeesOf = (event: ICAL.Event) => {
+  const seen = new Set<string>();
+  return event.component
+    .getAllProperties("attendee")
+    .map(personFrom)
+    .filter((person) => {
+      if (person.email === "" || seen.has(person.email)) return false;
+      seen.add(person.email);
+      return true;
+    });
+};
 
 const ownerEmailsOf = (calendar: ExternalCalendar | undefined) =>
   new Set<string>(calendar ? JSON.parse(calendar.ownerEmails) : []);
@@ -345,14 +363,19 @@ export function externalEventSeriesBounds(
   let seriesEnd = -Infinity;
   let count = 0;
   let ruleCount = 0;
-  for (const occurrence of iterateOccurrences(series)) {
-    const { startMs: start, endMs: end } = occurrenceMs(occurrence, "utc");
-    seriesStart = Math.min(seriesStart, start);
-    seriesEnd = Math.max(seriesEnd, end);
-    count += 1;
-    if (!occurrence.fromRule) continue;
-    if (unbounded) break;
-    ruleCount += 1;
+  try {
+    for (const occurrence of iterateOccurrences(series)) {
+      const { startMs: start, endMs: end } = occurrenceMs(occurrence, "utc");
+      seriesStart = Math.min(seriesStart, start);
+      seriesEnd = Math.max(seriesEnd, end);
+      count += 1;
+      if (!occurrence.fromRule) continue;
+      if (unbounded) break;
+      ruleCount += 1;
+    }
+  } catch {
+    // ical.js validates rules (e.g. BYMONTHDAY in WEEKLY) only when iterating.
+    return null;
   }
   if (count === 0) return null;
   // Iterations also include overridden instances that were skipped.
@@ -396,6 +419,21 @@ export function expandExternalEvent(
   if (!series) return [];
   if (series.master && isCancelled(series.master)) return [];
 
+  try {
+    return expandSeries(row, series, fromMs, toMs, ownerEmails);
+  } catch {
+    // A rule ical.js refuses; such rows predate the bounds check.
+    return [];
+  }
+}
+
+function expandSeries(
+  row: ExternalEvent,
+  series: ParsedSeries,
+  fromMs: number,
+  toMs: number,
+  ownerEmails: ReadonlySet<string>,
+) {
   const result: Omit<ExternalEventOccurrence, "calendarName" | "color">[] = [];
   for (const occurrence of iterateOccurrences(series, fromMs)) {
     const bounds = occurrenceMs(occurrence, "local");
@@ -498,17 +536,24 @@ const urlsIn = (text: string) =>
     url.replace(/[).,;:!?]+$/, ""),
   );
 
+const MAX_CODE_POINT = 0x10ffff;
+
 const decodeEntities = (text: string) =>
-  text.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (_, code) => {
-    const lower = String(code).toLowerCase();
-    if (lower.startsWith("#x"))
-      return String.fromCodePoint(parseInt(lower.slice(2), 16));
-    if (lower.startsWith("#"))
-      return String.fromCodePoint(Number(lower.slice(1)));
-    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }[
-      lower
-    ]!;
-  });
+  text.replace(
+    /&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,
+    (entity, code) => {
+      const lower = String(code).toLowerCase();
+      if (lower.startsWith("#")) {
+        const point = lower.startsWith("#x")
+          ? parseInt(lower.slice(2), 16)
+          : Number(lower.slice(1));
+        return point <= MAX_CODE_POINT ? String.fromCodePoint(point) : entity;
+      }
+      return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }[
+        lower
+      ]!;
+    },
+  );
 
 // Google and Outlook send HTML descriptions; show them as plain text.
 const descriptionText = (raw: string) => {
@@ -597,21 +642,40 @@ const seriesSpan = (bounds: { seriesStart: number; seriesEnd: number }) =>
     ? ("short" as const)
     : ("long" as const);
 
+const RESOURCE_PAGE = 500;
+
+// Resources from `from` on, inclusive.
+const resourcePage = (calendarId: string, from: string | null) =>
+  selectFrom(externalEventsTable, "byCalendarResource")
+    .where((q) =>
+      from === null
+        ? q.eq("calendarId", calendarId)
+        : q.eq("calendarId", calendarId).gte("resource", from),
+    )
+    .limit(RESOURCE_PAGE);
+
 export const externalEventResources = selector({
   name: "externalEventResources",
   args: { sourceId: v.string(), calendarKey: v.string() },
   handler: function* externalEventResources({ sourceId, calendarKey }) {
     const calendarId = yield* calendarIdFor(sourceId, calendarKey);
-    const rows = yield* selectFrom(
-      externalEventsTable,
-      "byCalendarResource",
-    ).where((q) => q.eq("calendarId", calendarId));
-    return new Map(
-      rows.map((row) => [
-        row.resource,
-        { etag: row.etag, seriesEnd: row.seriesEnd },
-      ]),
-    );
+    const resources = new Map<
+      string,
+      { etag: string | null; seriesEnd: number }
+    >();
+    // Reads in pages so the server never holds every ICS body at once.
+    let from: string | null = null;
+    while (true) {
+      const rows: ExternalEvent[] = yield* resourcePage(calendarId, from);
+      for (const row of rows) {
+        resources.set(row.resource, {
+          etag: row.etag,
+          seriesEnd: row.seriesEnd,
+        });
+      }
+      if (rows.length < RESOURCE_PAGE) return resources;
+      from = rows.at(-1)!.resource;
+    }
   },
 });
 

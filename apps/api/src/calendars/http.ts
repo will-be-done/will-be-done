@@ -15,6 +15,8 @@ import { getDomain } from "tldts";
 export class CalendarFetchError extends Data.TaggedError("CalendarFetchError")<{
   readonly message: string;
   readonly status?: number;
+  // The response passed the size cap.
+  readonly tooLarge?: boolean;
 }> {}
 
 export type CalendarHttpOptions = {
@@ -55,6 +57,8 @@ export function isPrivateAddress(ip: string): boolean {
   if (family === 0) return true;
   return privateRanges.check(ip, family === 6 ? "ipv6" : "ipv4");
 }
+
+class ResponseTooLargeError extends Error {}
 
 class PrivateHostError extends Error {
   constructor(host: string) {
@@ -159,12 +163,20 @@ export const guardedHttpClient = ({
           size += chunk.byteLength;
           if (size > maxBytes) {
             response.destroy();
-            fail("Calendar response is too large");
+            fail("Calendar response is too large", new ResponseTooLargeError());
             return;
           }
           chunks.push(chunk);
         });
+        let ended = false;
+        // A connection dropped mid-body closes the response without "end".
+        response.on("error", () => {});
+        response.on("close", () => {
+          if (ended || size > maxBytes || signal.aborted) return;
+          fail(`Lost the connection to ${url.host}`);
+        });
         response.on("end", () => {
+          ended = true;
           if (size > maxBytes) return;
           const status = response.statusCode ?? 0;
           const headers = new Headers();
@@ -189,10 +201,15 @@ export const guardedHttpClient = ({
     }),
   );
 
-const describe = (error: HttpClientError.HttpClientError) =>
-  error.reason._tag === "TransportError" && error.reason.description
-    ? error.reason.description
-    : error.message;
+const fetchError = (error: HttpClientError.HttpClientError) =>
+  error.reason._tag === "TransportError"
+    ? new CalendarFetchError({
+        message: error.reason.description ?? error.message,
+        ...(error.reason.cause instanceof ResponseTooLargeError
+          ? { tooLarge: true }
+          : {}),
+      })
+    : new CalendarFetchError({ message: error.message });
 
 // Sends a calendar request through the current HttpClient, following
 // redirects itself: `authorization` goes only to hosts `mayShareCredentials`
@@ -238,7 +255,7 @@ export const sendCalendarRequest = (
         ),
     }),
     Effect.catchTag("HttpClientError", (error) =>
-      Effect.fail(new CalendarFetchError({ message: describe(error) })),
+      Effect.fail(fetchError(error)),
     ),
   );
 
@@ -246,6 +263,6 @@ export const sendCalendarRequest = (
 export const responseText = (response: HttpClientResponse.HttpClientResponse) =>
   response.text.pipe(
     Effect.catchTag("HttpClientError", (error) =>
-      Effect.fail(new CalendarFetchError({ message: describe(error) })),
+      Effect.fail(fetchError(error)),
     ),
   );

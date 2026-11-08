@@ -187,28 +187,29 @@ const mirrorSource = (source: CalendarSource, now: number) =>
     let calendars: DiscoveredCalendar[];
     if (source.kind === "ics") {
       const cursor = cursorFor(ICS_CALENDAR_KEY);
+      // Null when unchanged since `cursor`, which only an enabled feed has.
       const feed = yield* fetchIcsFeed(secret.url, cursor);
-      if (!feed) {
-        return {
-          calendars: previous,
-          cursors: cursor ? { [ICS_CALENDAR_KEY]: cursor } : {},
-        };
-      }
-      const calendar: DiscoveredCalendar = {
-        key: ICS_CALENDAR_KEY,
-        name: feed.name ?? source.name,
-        color: normalizeColor(feed.color),
-      };
+      const calendar: DiscoveredCalendar = feed
+        ? {
+            key: ICS_CALENDAR_KEY,
+            name: feed.name ?? source.name,
+            color: normalizeColor(feed.color),
+          }
+        : (previous[0] ?? {
+            key: ICS_CALENDAR_KEY,
+            name: source.name,
+            color: null,
+          });
       calendars = [calendar];
       if (!disabled.has(calendar.key)) {
-        const events = feed.events.flatMap(({ uid, ics }) => {
+        const local = yield* localResources(calendar.key);
+        const events = (feed?.events ?? []).flatMap(({ uid, ics }) => {
           const prepared = prepareEventIcs(ics, notBefore);
           return prepared
             ? [{ ...prepared, resource: uid, uid, etag: null }]
             : [];
         });
         const kept = new Set(events.map((event) => event.resource));
-        const local = yield* localResources(calendar.key);
         yield* dispatch(
           spaceDb,
           applyExternalCalendar({
@@ -217,17 +218,18 @@ const mirrorSource = (source: CalendarSource, now: number) =>
             name: calendar.name,
             color: calendar.color,
             // Google names a primary calendar's feed after its owner's address.
-            ownerEmails:
-              feed.name && EMAIL.test(feed.name)
-                ? [feed.name.toLowerCase()]
-                : [],
+            ownerEmails: EMAIL.test(calendar.name)
+              ? [calendar.name.toLowerCase()]
+              : [],
             events,
-            removed: [...local.keys()].filter(
-              (resource) => !kept.has(resource),
-            ),
+            removed: feed
+              ? [...local.keys()].filter((resource) => !kept.has(resource))
+              : agedOut(local, notBefore, kept),
           }),
         );
-        cursors[calendar.key] = { ...stamp, ...feed.validators };
+        cursors[calendar.key] = feed
+          ? { ...stamp, ...feed.validators }
+          : cursor!;
       }
     } else {
       const client = caldavClient(secret);
@@ -249,22 +251,15 @@ const mirrorSource = (source: CalendarSource, now: number) =>
           changes.changed.length > 0
             ? yield* client.fetchEvents(calendar.key, changes.changed)
             : [];
-        const changed = new Set(changes.changed);
-        // Neither a sync token nor an unchanged listing reports events that
-        // have aged out of the window.
-        const agedOut = [...local]
-          .filter(
-            ([resource, { seriesEnd }]) =>
-              notBefore !== null &&
-              seriesEnd < notBefore &&
-              !changed.has(resource),
-          )
-          .map(([resource]) => resource);
         // A fetched body that can't be stored drops the old row instead of
         // leaving a stale version visible.
-        const removed = [...changes.removed, ...agedOut];
+        const removed = [
+          ...changes.removed,
+          ...agedOut(local, notBefore, new Set(changes.changed)),
+        ];
         const events = fetched.flatMap(({ resource, etag, ics }) => {
-          const prepared = prepareEventIcs(ics, notBefore);
+          const prepared =
+            ics === null ? null : prepareEventIcs(ics, notBefore);
           if (!prepared) {
             removed.push(resource);
             return [];
@@ -302,6 +297,22 @@ const mirrorSource = (source: CalendarSource, now: number) =>
     );
     return { calendars, cursors };
   });
+
+// Neither a sync token nor an unchanged feed reports events that have aged
+// out of the window.
+const agedOut = (
+  local: Map<string, { seriesEnd: number }>,
+  notBefore: number | null,
+  refetched: ReadonlySet<string>,
+) =>
+  notBefore === null
+    ? []
+    : [...local]
+        .filter(
+          ([resource, { seriesEnd }]) =>
+            seriesEnd < notBefore && !refetched.has(resource),
+        )
+        .map(([resource]) => resource);
 
 // What changed in a CalDAV calendar since the mirrored `syncToken`. Without
 // one, or when the server refuses it, the full listing is compared against
@@ -426,6 +437,8 @@ const syncLock = (sourceId: string) => {
 export const syncCalendarSource = (sourceId: string) =>
   Semaphore.withPermit(syncLock(sourceId), runSync(sourceId));
 
+// Saves a source once its server answers; its first sync is left to the
+// caller.
 export const addCalendarSource = (input: {
   userId: string;
   spaceId: string;
@@ -497,7 +510,6 @@ export const addCalendarSource = (input: {
         },
       }),
     );
-    yield* syncCalendarSource(id);
     return id;
   });
 

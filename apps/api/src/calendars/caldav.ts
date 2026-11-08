@@ -1,5 +1,9 @@
 import { Effect } from "effect";
-import { HttpClientRequest, type HttpMethod } from "effect/http";
+import {
+  type HttpClient,
+  HttpClientRequest,
+  type HttpMethod,
+} from "effect/http";
 import { XMLParser } from "fast-xml-parser";
 import {
   CalendarFetchError,
@@ -16,6 +20,12 @@ export type CalDavAccount = {
 };
 
 type DavProps = Record<string, unknown>;
+// `ics` is null for a resource too large to fetch.
+type FetchedEvent = {
+  resource: string;
+  etag: string | null;
+  ics: string | null;
+};
 type DavResponse = { href: string; status: string | null; props: DavProps };
 
 const MULTIGET_BATCH = 100;
@@ -319,30 +329,50 @@ export const makeCalDavClient = (account: CalDavAccount) => {
       return etags;
     });
 
-  const fetchEvents = (calendarUrl: string, paths: string[]) =>
-    Effect.gen(function* () {
-      const result: { resource: string; etag: string; ics: string }[] = [];
-      for (let i = 0; i < paths.length; i += MULTIGET_BATCH) {
-        const hrefs = paths
-          .slice(i, i + MULTIGET_BATCH)
-          .map((path) => `<d:href>${escapeXml(path)}</d:href>`)
-          .join("");
-        const { responses } = yield* request(
-          "REPORT",
-          calendarUrl,
-          "1",
-          `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>${hrefs}</c:calendar-multiget>`,
-        );
-        for (const { href, props } of responses) {
+  // A batch answered past the size cap is halved; a single resource still too
+  // large comes back without a body.
+  const multiget = (
+    calendarUrl: string,
+    paths: string[],
+  ): Effect.Effect<FetchedEvent[], CalendarFetchError, HttpClient.HttpClient> =>
+    request(
+      "REPORT",
+      calendarUrl,
+      "1",
+      `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>${paths
+        .map((path) => `<d:href>${escapeXml(path)}</d:href>`)
+        .join("")}</c:calendar-multiget>`,
+    ).pipe(
+      Effect.map(({ responses }) =>
+        responses.flatMap(({ href, props }) => {
           const etag = text(props.getetag);
           const ics = text(props["calendar-data"]);
-          if (!etag || !ics) continue;
-          result.push({
-            resource: new URL(href, calendarUrl).pathname,
-            etag,
-            ics,
-          });
+          if (!etag || !ics) return [];
+          return [{ resource: new URL(href, calendarUrl).pathname, etag, ics }];
+        }),
+      ),
+      Effect.catchTag("CalendarFetchError", (error) => {
+        if (!error.tooLarge) return Effect.fail(error);
+        if (paths.length === 1) {
+          return Effect.succeed([
+            { resource: paths[0]!, etag: null, ics: null },
+          ]);
         }
+        const half = Math.ceil(paths.length / 2);
+        return Effect.all([
+          multiget(calendarUrl, paths.slice(0, half)),
+          multiget(calendarUrl, paths.slice(half)),
+        ]).pipe(Effect.map((parts) => parts.flat()));
+      }),
+    );
+
+  const fetchEvents = (calendarUrl: string, paths: string[]) =>
+    Effect.gen(function* () {
+      const result: FetchedEvent[] = [];
+      for (let i = 0; i < paths.length; i += MULTIGET_BATCH) {
+        result.push(
+          ...(yield* multiget(calendarUrl, paths.slice(i, i + MULTIGET_BATCH))),
+        );
       }
       return result;
     });

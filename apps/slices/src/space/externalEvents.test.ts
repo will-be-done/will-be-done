@@ -224,6 +224,19 @@ describe("expandExternalEvent", () => {
     ]);
   });
 
+  it("expands nothing for a rule ical.js refuses", () => {
+    const ics = vcalendar(
+      vevent(
+        "UID:a",
+        "DTSTART:20261110T100000Z",
+        "RRULE:FREQ=WEEKLY;BYMONTHDAY=1",
+      ),
+    );
+    expect(
+      expandExternalEvent(row(ics), 0, utc("2027-01-01T00:00:00Z")),
+    ).toEqual([]);
+  });
+
   it("skips cancelled series and cancelled instances", () => {
     const cancelled = vcalendar(
       vevent(
@@ -498,7 +511,7 @@ describe("externalEventDetails", () => {
                 "SUMMARY:Call",
                 "DTSTART:20261110T100000Z",
                 "DTEND:20261110T110000Z",
-                "DESCRIPTION:<p>Agenda &amp; notes<br>Join: https://us02web.zoom.us/j/123?pwd=abc</p>",
+                "DESCRIPTION:<p>Agenda &amp; notes &#1114112;<br>Join: https://us02web.zoom.us/j/123?pwd=abc</p>",
                 "URL:https://example.com/event",
               ),
             ),
@@ -522,12 +535,63 @@ describe("externalEventDetails", () => {
       }),
     ).toEqual({
       description:
-        "Agenda & notes\nJoin: https://us02web.zoom.us/j/123?pwd=abc",
+        "Agenda & notes &#1114112;\nJoin: https://us02web.zoom.us/j/123?pwd=abc",
       url: "https://example.com/event",
       meetingUrl: "https://us02web.zoom.us/j/123?pwd=abc",
       organizer: null,
       attendees: [],
     });
+  });
+
+  it("lists each guest address once", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        sourceId: "source",
+        calendarKey: "/cal/work/",
+        name: "Work",
+        color: null,
+        ownerEmails: [],
+        removed: [],
+        events: [
+          {
+            resource: "call.ics",
+            uid: "call",
+            etag: null,
+            ics: vcalendar(
+              vevent(
+                "UID:call",
+                "SUMMARY:Call",
+                "DTSTART:20261110T100000Z",
+                "DTEND:20261110T110000Z",
+                "ATTENDEE;CN=Ann;PARTSTAT=ACCEPTED:mailto:ann@example.com",
+                "ATTENDEE;PARTSTAT=DECLINED:mailto:Ann@example.com",
+                "ATTENDEE;CN=Nobody:",
+                "ATTENDEE;CN=Bob:mailto:bob@example.com",
+              ),
+            ),
+            seriesStart: 0,
+            seriesEnd: Number.MAX_SAFE_INTEGER,
+          },
+        ],
+      }),
+    );
+    const [occurrence] = selectSync(db, {
+      selector: externalEventOccurrencesInRange,
+      args: { fromMs: 0, toMs: utc("2027-01-01T00:00:00Z") },
+    });
+    const details = selectSync(db, {
+      selector: externalEventDetails,
+      args: {
+        eventId: occurrence!.eventId,
+        recurrenceKey: occurrence!.recurrenceKey,
+      },
+    });
+    expect(details?.attendees.map((a) => [a.email, a.response])).toEqual([
+      ["ann@example.com", "accepted"],
+      ["bob@example.com", "needs-action"],
+    ]);
   });
 });
 
@@ -586,6 +650,31 @@ describe("externalEventSeriesBounds", () => {
   it("rejects resources without a usable event", () => {
     expect(externalEventSeriesBounds("not ical")).toBeNull();
     expect(externalEventSeriesBounds(vcalendar())).toBeNull();
+    expect(
+      externalEventSeriesBounds(
+        vcalendar(
+          vevent(
+            "UID:a",
+            "DTSTART:20261110T100000Z",
+            "RRULE:FREQ=WEEKLY;BYYEARDAY=1",
+          ),
+        ),
+      ),
+    ).toBeNull();
+  });
+
+  it("ignores an override that belongs to another UID", () => {
+    const ics = vcalendar(
+      vevent("UID:a", "DTSTART:20261110T100000Z", "DTEND:20261110T110000Z"),
+      vevent(
+        "UID:b",
+        "RECURRENCE-ID:20261112T100000Z",
+        "DTSTART:20261112T120000Z",
+      ),
+    );
+    expect(externalEventSeriesBounds(ics)?.seriesEnd).toBe(
+      utc("2026-11-10T11:00:00Z") + 14 * HOUR,
+    );
   });
 });
 
@@ -781,6 +870,22 @@ describe("applyExternalCalendar", () => {
       },
     }).map((o) => o.title);
     expect(titles.sort()).toEqual(["meeting", "sabbatical", "trip", "weekly"]);
+  });
+
+  it("lists every resource of a calendar larger than one read page", () => {
+    const db = createDB();
+    const events = Array.from({ length: 1201 }, (_, i) =>
+      input(`${String(i).padStart(4, "0")}.ics`, `e${i}`, "20261110T100000Z"),
+    );
+    syncDispatch(
+      db,
+      applyExternalCalendar({ ...calendar, removed: [], events }),
+    );
+    const resources = selectSync(db, {
+      selector: externalEventResources,
+      args: { sourceId: "source", calendarKey: "/cal/work/" },
+    });
+    expect([...resources.keys()]).toEqual(events.map((e) => e.resource));
   });
 
   it("keeps an event's id by UID when its resource path changes", () => {

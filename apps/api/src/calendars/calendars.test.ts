@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/await-thenable -- Bun's rejects matchers
+   are thenable at runtime, despite their current type declaration. */
 import {
   afterAll,
   afterEach,
@@ -9,6 +11,7 @@ import {
   spyOn,
   test,
 } from "bun:test";
+import { type AddressInfo, createServer } from "node:net";
 import {
   createAction,
   createSelector,
@@ -82,17 +85,28 @@ const config: CalendarSettings = {
   syncIntervalMs: 15 * 60_000,
 };
 
-const run = <A, E>(mainDB: DB, effect: Effect.Effect<A, E, CalendarServices>) =>
+const run = <A, E>(
+  mainDB: DB,
+  effect: Effect.Effect<A, E, CalendarServices>,
+  http: Partial<CalendarHttpOptions> = {},
+) =>
   Effect.runPromise(
     effect.pipe(
       Effect.provideContext(
         Context.make(MainDatabase, mainDB).pipe(
           Context.add(CalendarConfig, config),
-          Context.add(HttpClient.HttpClient, guardedHttpClient(config)),
+          Context.add(
+            HttpClient.HttpClient,
+            guardedHttpClient({ ...config, ...http }),
+          ),
         ),
       ),
     ),
   );
+
+// What connecting does, with the first sync awaited instead of forked.
+const addAndSync = (input: Parameters<typeof addCalendarSource>[0]) =>
+  addCalendarSource(input).pipe(Effect.tap(syncCalendarSource));
 
 const vevent = (uid: string, summary: string, start: string) =>
   [
@@ -440,7 +454,7 @@ describe("CalDAV sources", () => {
 
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -515,7 +529,7 @@ describe("CalDAV sources", () => {
     const connect = () =>
       run(
         mainDB,
-        addCalendarSource({
+        addAndSync({
           userId: "user",
           spaceId: "space-1",
           kind: "caldav",
@@ -561,7 +575,7 @@ describe("CalDAV sources", () => {
 
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -626,7 +640,7 @@ describe("CalDAV sources", () => {
     const { mainDB } = setup();
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -651,7 +665,7 @@ describe("CalDAV sources", () => {
     });
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -674,7 +688,7 @@ describe("CalDAV sources", () => {
     const { mainDB, userDb } = setup();
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -691,10 +705,10 @@ describe("CalDAV sources", () => {
 
   test("rejects wrong credentials before saving the source", async () => {
     const { mainDB } = setup();
-    expect(
+    await expect(
       run(
         mainDB,
-        addCalendarSource({
+        addAndSync({
           userId: "user",
           spaceId: "space-1",
           kind: "caldav",
@@ -708,7 +722,7 @@ describe("CalDAV sources", () => {
     const { mainDB } = setup();
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -733,7 +747,7 @@ describe("CalDAV source safety", () => {
     const { mainDB } = setup();
     const error = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -756,7 +770,7 @@ describe("CalDAV source safety", () => {
     });
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -783,6 +797,37 @@ describe("CalDAV source safety", () => {
     );
   });
 
+  test("splits a multiget answered too large and drops only an oversized event", async () => {
+    const { mainDB, spaceDb } = setup();
+    const href = (name: string) => `/dav/calendars/me/work/${name}.ics`;
+    for (const name of ["a", "b", "c", "d"]) {
+      davState.events.set(href(name), {
+        etag: '"1"',
+        ics: ics(name, name.repeat(600), "20991110T100000Z"),
+      });
+    }
+    davState.events.set(href("huge"), {
+      etag: '"1"',
+      ics: ics("huge", "h".repeat(5000), "20991110T100000Z"),
+    });
+    const id = await run(
+      mainDB,
+      addAndSync({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+      { maxBytes: 4000 },
+    );
+    expect(source(mainDB, id).status).toBe("ok");
+    expect(
+      selectSync(spaceDb, { selector: allEvents, args: {} })
+        .map((e) => e.resource)
+        .sort(),
+    ).toEqual([href("a"), href("b"), href("c"), href("d")]);
+  });
+
   test("drops an event whose update can no longer be stored", async () => {
     const { mainDB, spaceDb } = setup();
     davState.events.set("/dav/calendars/me/work/a.ics", {
@@ -791,7 +836,7 @@ describe("CalDAV source safety", () => {
     });
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -854,7 +899,7 @@ describe("ICS sources", () => {
 
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "ics",
@@ -880,7 +925,7 @@ describe("ICS sources", () => {
     davState.feedEtag = '"1"';
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "ics",
@@ -907,10 +952,10 @@ describe("ICS sources", () => {
   test("rejects an address that is not a calendar", async () => {
     const { mainDB } = setup();
     davState.feed = "<html>nope</html>";
-    expect(
+    await expect(
       run(
         mainDB,
-        addCalendarSource({
+        addAndSync({
           userId: "user",
           spaceId: "space-1",
           kind: "ics",
@@ -952,7 +997,7 @@ describe("sync window", () => {
 
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "caldav",
@@ -980,6 +1025,30 @@ describe("sync window", () => {
     expect(resources(spaceDb)).toEqual([href("soon")]);
   });
 
+  test("drops an aged-out event from a feed the server reports unchanged", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.feed = vcalendar(
+      vevent("soon", "Soon", "20991110T100000Z"),
+      vevent("recent", "Recent", utc(Date.now() - 20 * DAY)),
+    );
+    davState.feedEtag = '"1"';
+    const id = await run(
+      mainDB,
+      addAndSync({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "ics",
+        secret: { url: `${baseUrl}/feed.ics` },
+      }),
+    );
+    expect(resources(spaceDb)).toEqual(["recent", "soon"]);
+
+    setSystemTime(new Date(Date.now() + 15 * DAY));
+    await run(mainDB, syncCalendarSource(id));
+    expect(source(mainDB, id).status).toBe("ok");
+    expect(resources(spaceDb)).toEqual(["soon"]);
+  });
+
   test("re-reads an unchanged feed when the window widens", async () => {
     const { mainDB, spaceDb } = setup();
     davState.feed = vcalendar(
@@ -989,7 +1058,7 @@ describe("sync window", () => {
     davState.feedEtag = '"1"';
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "ics",
@@ -1009,7 +1078,7 @@ describe("syncDueCalendarSources", () => {
     davState.feed = ics("a", "A", "20991110T100000Z");
     const id = await run(
       mainDB,
-      addCalendarSource({
+      addAndSync({
         userId: "user",
         spaceId: "space-1",
         kind: "ics",
@@ -1048,7 +1117,7 @@ describe("syncDueCalendarSources", () => {
     const connect = (path: string) =>
       run(
         mainDB,
-        addCalendarSource({
+        addAndSync({
           userId: "user",
           spaceId: "space-1",
           kind: "ics",
@@ -1114,25 +1183,45 @@ describe("guarded calendar HTTP", () => {
 
   test("refuses private hosts unless allowed", async () => {
     const blocked = { allowPrivateNetworks: false };
-    expect(send(`${baseUrl}/big`, blocked)).rejects.toThrow(
+    await expect(send(`${baseUrl}/big`, blocked)).rejects.toThrow(
       "private network address",
     );
-    expect(
+    await expect(
       send(`http://[::ffff:127.0.0.1]:${server.port}/big`, blocked),
     ).rejects.toThrow("private network address");
     // Resolved names are checked by the lookup the connection itself uses.
-    expect(
+    await expect(
       send(`http://localhost:${server.port}/big`, blocked),
     ).rejects.toThrow("private network address");
-    expect(
+    await expect(
       send("file:///etc/passwd", { allowPrivateNetworks: true }),
     ).rejects.toBeInstanceOf(CalendarFetchError);
   });
 
   test("caps the response size", async () => {
-    expect(
+    await expect(
       send(`${baseUrl}/big`, { allowPrivateNetworks: true, maxBytes: 1024 }),
     ).rejects.toThrow("too large");
+  });
+
+  test("fails a response cut off mid-body without waiting for the timeout", async () => {
+    const dropping = createServer((socket) => {
+      socket.once("data", () => {
+        socket.write("HTTP/1.1 200 OK\r\ncontent-length: 100\r\n\r\npartial");
+        socket.destroy();
+      });
+    });
+    await new Promise<void>((resolve) =>
+      dropping.listen(0, "127.0.0.1", resolve),
+    );
+    const { port } = dropping.address() as AddressInfo;
+    try {
+      await expect(
+        send(`http://127.0.0.1:${port}/`, { allowPrivateNetworks: true }),
+      ).rejects.toThrow("Lost the connection");
+    } finally {
+      dropping.close();
+    }
   });
 
   test("drops credentials when redirected to another site", async () => {

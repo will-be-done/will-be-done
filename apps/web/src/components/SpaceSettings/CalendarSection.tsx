@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
+import {
+  formatDistanceToNow,
+  formatDuration,
+  intervalToDuration,
+} from "date-fns";
 import {
   AlertTriangle,
   CalendarDays,
@@ -50,7 +54,14 @@ export function CalendarSection() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const listQuery = useQuery(trpc.calendars.list.queryOptions({ spaceId }));
+  const listQuery = useQuery({
+    ...trpc.calendars.list.queryOptions({ spaceId }),
+    // A new source's first sync runs after connecting returns.
+    refetchInterval: (query) =>
+      query.state.data?.sources.some((source) => source.status === "pending")
+        ? 2000
+        : false,
+  });
   const refetch = async () => {
     await listQuery.refetch();
   };
@@ -113,6 +124,7 @@ export function CalendarSection() {
     setSyncWindow.error?.message;
   const enabled = listQuery.data?.enabled ?? true;
   const sources = listQuery.data?.sources ?? [];
+  const syncIntervalMs = listQuery.data?.syncIntervalMs ?? null;
 
   return (
     <div className="flex flex-col gap-3 px-5 py-5">
@@ -123,7 +135,10 @@ export function CalendarSection() {
         <h3 className="text-[13px] font-semibold text-content">Calendars</h3>
         <p className="mt-1 text-[12px] leading-relaxed text-content-tinted">
           Show events from your calendars on the Calendar, Today and Timeline
-          pages. Events are read-only and refresh every 15 minutes.
+          pages. Events are read-only
+          {syncIntervalMs !== null &&
+            ` and refresh every ${formatDuration(intervalToDuration({ start: 0, end: syncIntervalMs }))}`}
+          .
         </p>
         <div className="clear-both" />
 
@@ -258,9 +273,11 @@ export function CalendarSection() {
                         {source.kind === "caldav" ? "CalDAV" : "ICS link"} ·{" "}
                         {source.status === "error"
                           ? source.lastError
-                          : source.lastSyncedAt
-                            ? `Updated ${formatDistanceToNow(source.lastSyncedAt, { addSuffix: true })}`
-                            : "Not synced yet"}
+                          : source.status === "pending"
+                            ? "Syncing…"
+                            : source.lastSyncedAt
+                              ? `Updated ${formatDistanceToNow(source.lastSyncedAt, { addSuffix: true })}`
+                              : "Not synced yet"}
                       </p>
                     </div>
                     <button

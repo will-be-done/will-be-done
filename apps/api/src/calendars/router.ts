@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { selectAsync, type DB } from "@will-be-done/hyperdb";
-import { Effect, type Context } from "effect";
+import { Context, Effect } from "effect";
 import { z } from "zod";
 import { MainDatabase } from "../db/mainDatabase";
 import { enforceRateLimit, protectedProcedure, router } from "../trpc";
@@ -8,6 +8,7 @@ import type { CalendarFetchError } from "./http";
 import type { CalendarServices } from "./scheduler";
 import {
   addCalendarSource,
+  CalendarConfig,
   publicCalendarSource,
   removeCalendarSource,
   setCalendarEnabled,
@@ -64,6 +65,15 @@ export function calendarsRouter(
     );
   };
 
+  // The first sync of a large account can take long; the source shows as
+  // pending until it finishes.
+  const connect = (input: Parameters<typeof addCalendarSource>[0]) =>
+    run(
+      addCalendarSource(input).pipe(
+        Effect.tap((id) => Effect.forkDetach(syncCalendarSource(id))),
+      ),
+    );
+
   return router({
     list: protectedProcedure
       .input(z.object({ spaceId: z.string() }))
@@ -75,6 +85,9 @@ export function calendarsRouter(
         });
         return {
           enabled: calendars !== undefined,
+          syncIntervalMs: calendars
+            ? Context.get(calendars, CalendarConfig).syncIntervalMs
+            : null,
           sources: sources
             .filter((source) => source.userId === ctx.user.id)
             .map(publicCalendarSource),
@@ -93,18 +106,16 @@ export function calendarsRouter(
       .use(enforceRateLimit("calendarConnect"))
       .mutation(async ({ ctx, input }) => {
         await checkSpaceAccess(input.spaceId, ctx.user.id);
-        const id = await run(
-          addCalendarSource({
-            userId: ctx.user.id,
-            spaceId: input.spaceId,
-            kind: "caldav",
-            secret: {
-              url: input.url,
-              username: input.username,
-              password: input.password,
-            },
-          }),
-        );
+        const id = await connect({
+          userId: ctx.user.id,
+          spaceId: input.spaceId,
+          kind: "caldav",
+          secret: {
+            url: input.url,
+            username: input.username,
+            password: input.password,
+          },
+        });
         return { id };
       }),
 
@@ -113,14 +124,12 @@ export function calendarsRouter(
       .use(enforceRateLimit("calendarConnect"))
       .mutation(async ({ ctx, input }) => {
         await checkSpaceAccess(input.spaceId, ctx.user.id);
-        const id = await run(
-          addCalendarSource({
-            userId: ctx.user.id,
-            spaceId: input.spaceId,
-            kind: "ics",
-            secret: { url: input.url },
-          }),
-        );
+        const id = await connect({
+          userId: ctx.user.id,
+          spaceId: input.spaceId,
+          kind: "ics",
+          secret: { url: input.url },
+        });
         return { id };
       }),
 
