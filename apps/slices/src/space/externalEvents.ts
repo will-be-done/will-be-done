@@ -14,6 +14,7 @@ import {
 // device is within 14 hours of UTC.
 const FLOATING_PADDING_MS = 14 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SHORT_SERIES_MS = 7 * DAY_MS;
 const MAX_OCCURRENCES = 50_000;
 const UNBOUNDED = Number.MAX_SAFE_INTEGER;
 
@@ -121,10 +122,8 @@ const zonedWallTimeToMs = (time: ICAL.Time, tzid: string) => {
 
 type FloatingMode = "local" | "utc";
 
-const unresolvedTzid = (event: ICAL.Event) => {
-  const tzid = event.component
-    .getFirstProperty("dtstart")
-    ?.getParameter("tzid");
+const unresolvedTzid = (event: ICAL.Event, property = "dtstart") => {
+  const tzid = event.component.getFirstProperty(property)?.getParameter("tzid");
   return typeof tzid === "string" && isValidTimeZone(tzid) ? tzid : null;
 };
 
@@ -146,6 +145,28 @@ const timeToMs = (
     );
   }
   return time.toJSDate().getTime();
+};
+
+// When DTEND names another unresolved zone than DTSTART, ical.js measures the
+// duration between the two wall times, so the real duration is applied.
+const occurrenceMs = (occurrence: RawOccurrence, floating: FloatingMode) => {
+  const { item } = occurrence;
+  const tzid = unresolvedTzid(item);
+  const endTzid = unresolvedTzid(item, "dtend");
+  const dtend = item.component.getFirstPropertyValue("dtend");
+  const startMs = timeToMs(occurrence.start, tzid, floating);
+  if (
+    !endTzid ||
+    endTzid === tzid ||
+    !(dtend instanceof ICAL.Time) ||
+    dtend.isDate
+  ) {
+    return { startMs, endMs: timeToMs(occurrence.end, tzid, floating) };
+  }
+  const durationMs =
+    timeToMs(dtend, endTzid, floating) -
+    timeToMs(item.startDate, tzid, floating);
+  return { startMs, endMs: startMs + durationMs };
 };
 
 type RawOccurrence = {
@@ -321,9 +342,7 @@ export function externalEventSeriesBounds(
   let count = 0;
   let ruleCount = 0;
   for (const occurrence of iterateOccurrences(series)) {
-    const tzid = unresolvedTzid(occurrence.item);
-    const start = timeToMs(occurrence.start, tzid, "utc");
-    const end = timeToMs(occurrence.end, tzid, "utc");
+    const { startMs: start, endMs: end } = occurrenceMs(occurrence, "utc");
     seriesStart = Math.min(seriesStart, start);
     seriesEnd = Math.max(seriesEnd, end);
     count += 1;
@@ -375,11 +394,11 @@ export function expandExternalEvent(
 
   const result: Omit<ExternalEventOccurrence, "calendarName" | "color">[] = [];
   for (const occurrence of iterateOccurrences(series, fromMs)) {
-    const tzid = unresolvedTzid(occurrence.item);
-    const startMs = timeToMs(occurrence.start, tzid, "local");
+    const bounds = occurrenceMs(occurrence, "local");
+    const { startMs } = bounds;
     // A day of slack covers RANGE=THISANDFUTURE shifts and floating times.
     if (occurrence.fromRule && startMs > toMs + DAY_MS) break;
-    const endMs = Math.max(timeToMs(occurrence.end, tzid, "local"), startMs);
+    const endMs = Math.max(bounds.endMs, startMs);
     if (isCancelled(occurrence.item)) continue;
     const overlaps =
       startMs < toMs &&
@@ -413,11 +432,20 @@ export const externalEventOccurrencesInRange = selector({
   name: "externalEventOccurrencesInRange",
   args: { fromMs: v.number(), toMs: v.number() },
   handler: function* externalEventOccurrencesInRange({ fromMs, toMs }) {
-    // Rows whose series ended before the range are skipped by the index;
-    // the rest are the still-running series, a small set.
-    const rows = (yield* selectFrom(externalEventsTable, "bySeriesEnd").where(
-      (q) => q.gte("seriesEnd", fromMs),
-    )).filter((row) => row.seriesStart < toMs);
+    const startingNear = yield* selectFrom(
+      externalEventsTable,
+      "bySeriesStart",
+    ).where((q) =>
+      q.gte("seriesStart", fromMs - SHORT_SERIES_MS).lt("seriesStart", toMs),
+    );
+    // Long series that are still running: mostly open-ended repeats.
+    const long = yield* selectFrom(externalEventsTable, "bySpanEnd").where(
+      (q) => q.eq("span", "long").gte("seriesEnd", fromMs),
+    );
+    const rows = [
+      ...startingNear.filter((row) => row.span === "short"),
+      ...long,
+    ].filter((row) => row.seriesEnd >= fromMs && row.seriesStart < toMs);
     if (rows.length === 0) return [];
 
     const calendars = new Map(
@@ -560,6 +588,11 @@ const externalEventInput = v.object({
   seriesEnd: v.number(),
 });
 
+const seriesSpan = (bounds: { seriesStart: number; seriesEnd: number }) =>
+  bounds.seriesEnd - bounds.seriesStart <= SHORT_SERIES_MS
+    ? ("short" as const)
+    : ("long" as const);
+
 export const externalEventResources = selector({
   name: "externalEventResources",
   args: { sourceId: v.string(), calendarKey: v.string() },
@@ -666,7 +699,13 @@ export const applyExternalCalendar = action({
       ) {
         return;
       }
-      changed.push({ type: externalEventType, id, calendarId, ...event });
+      changed.push({
+        type: externalEventType,
+        id,
+        calendarId,
+        ...event,
+        span: seriesSpan(event),
+      });
     });
     if (changed.length > 0) yield* upsert(externalEventsTable, changed);
 

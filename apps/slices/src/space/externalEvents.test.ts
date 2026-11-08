@@ -71,6 +71,7 @@ const row = (ics: string, id = "event") => ({
   ics,
   seriesStart: 0,
   seriesEnd: Number.MAX_SAFE_INTEGER,
+  span: "long" as const,
 });
 
 const utc = (iso: string) => new Date(iso).getTime();
@@ -185,6 +186,42 @@ describe("expandExternalEvent", () => {
     const [call] = expandExternalEvent(row(ics), 0, Number.MAX_SAFE_INTEGER);
     expect(call!.startMs).toBe(utc("2026-07-15T13:00:00Z"));
     expect(call!.endMs).toBe(utc("2026-07-15T14:00:00Z"));
+  });
+
+  it("ends an event in its DTEND zone when it differs from DTSTART's", () => {
+    const flight = (...extra: string[]) =>
+      vcalendar(
+        vevent(
+          "UID:flight",
+          "SUMMARY:Flight",
+          "DTSTART;TZID=Europe/London:20260715T100000",
+          "DTEND;TZID=America/New_York:20260715T130000",
+          ...extra,
+        ),
+      );
+    process.env.TZ = "Asia/Tokyo";
+    const [once] = expandExternalEvent(
+      row(flight()),
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+    expect(once).toMatchObject({
+      startMs: utc("2026-07-15T09:00:00Z"),
+      endMs: utc("2026-07-15T17:00:00Z"),
+    });
+    expect(externalEventSeriesBounds(flight())!.seriesEnd).toBeGreaterThan(
+      utc("2026-07-15T17:00:00Z"),
+    );
+
+    const weekly = expandExternalEvent(
+      row(flight("RRULE:FREQ=WEEKLY;COUNT=2")),
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+    expect(weekly.map((o) => o.endMs - o.startMs)).toEqual([
+      8 * HOUR,
+      8 * HOUR,
+    ]);
   });
 
   it("skips cancelled series and cancelled instances", () => {
@@ -675,6 +712,52 @@ describe("applyExternalCalendar", () => {
         startMs: utc("2026-11-10T12:00:00Z"),
       },
     ]);
+  });
+
+  it("finds short, multi-day and repeating events overlapping a range", () => {
+    const db = createDB();
+    const event = (uid: string, ...lines: string[]) => {
+      const ics = vcalendar(vevent(`UID:${uid}`, `SUMMARY:${uid}`, ...lines));
+      return {
+        resource: `${uid}.ics`,
+        uid,
+        etag: null,
+        ics,
+        ...externalEventSeriesBounds(ics)!,
+      };
+    };
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        ...calendar,
+        removed: [],
+        events: [
+          event("meeting", "DTSTART:20261111T100000Z", "DURATION:PT1H"),
+          event("trip", "DTSTART:20261107T100000Z", "DURATION:P5D"),
+          event(
+            "sabbatical",
+            "DTSTART;VALUE=DATE:20260901",
+            "DTEND;VALUE=DATE:20270101",
+          ),
+          event(
+            "weekly",
+            "DTSTART:20250101T090000Z",
+            "DURATION:PT1H",
+            "RRULE:FREQ=WEEKLY",
+          ),
+          event("before", "DTSTART:20261101T100000Z", "DURATION:PT1H"),
+          event("later", "DTSTART:20261201T100000Z", "DURATION:PT1H"),
+        ],
+      }),
+    );
+    const titles = selectSync(db, {
+      selector: externalEventOccurrencesInRange,
+      args: {
+        fromMs: utc("2026-11-10T00:00:00Z"),
+        toMs: utc("2026-11-12T00:00:00Z"),
+      },
+    }).map((o) => o.title);
+    expect(titles.sort()).toEqual(["meeting", "sabbatical", "trip", "weekly"]);
   });
 
   it("keeps an event's id by UID when its resource path changes", () => {

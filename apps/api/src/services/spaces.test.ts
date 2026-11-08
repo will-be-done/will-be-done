@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { DB, execSync, selectSync } from "@will-be-done/hyperdb";
+import { DB, execSync, selectSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { spacesTable } from "@will-be-done/slices/user";
+import {
+  calendarSourcesBySpace,
+  saveCalendarSource,
+} from "../calendars/sources";
+import { calendarSourcesTable } from "../calendars/tables";
 import * as databases from "../db/db";
 import { dbsTable, getDbById } from "../slices/dbSlice";
 import {
@@ -21,7 +26,7 @@ describe("space service", () => {
     const userDB = new DB(new BptreeInmemDriver());
     const mainDB = new DB(new BptreeInmemDriver());
     execSync(userDB.loadTables([spacesTable]));
-    execSync(mainDB.loadTables([dbsTable]));
+    execSync(mainDB.loadTables([dbsTable, calendarSourcesTable]));
     spyOn(databases, "getHyperDB").mockImplementation(
       () =>
         ({ db: userDB }) as unknown as ReturnType<typeof databases.getHyperDB>,
@@ -59,9 +64,35 @@ describe("space service", () => {
         name: "Missing",
       }),
     ).toBeNull();
+    syncDispatch(
+      mainDB,
+      saveCalendarSource({
+        source: {
+          id: "source-1",
+          userId: "user-1",
+          spaceId: created.id,
+          kind: "ics",
+          name: "Feed",
+          secret: "sealed",
+          calendars: "[]",
+          disabledCalendarKeys: "[]",
+          status: "ok",
+          lastError: null,
+          lastSyncedAt: null,
+          nextSyncAt: 0,
+          createdAt: 0,
+        },
+      }),
+    );
     expect(
       await deleteUserSpace({ userId: "user-1", spaceId: created.id, mainDB }),
     ).toBe(true);
+    expect(
+      selectSync(mainDB, {
+        selector: calendarSourcesBySpace,
+        args: { spaceId: created.id },
+      }),
+    ).toEqual([]);
     expect(await listUserSpaces({ userId: "user-1" })).toEqual([]);
     expect(
       selectSync(mainDB, {

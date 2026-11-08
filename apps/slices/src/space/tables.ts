@@ -280,10 +280,14 @@ export const externalEventsTable = defineTable("external_events", {
   // series never ends.
   seriesStart: v.number(),
   seriesEnd: v.number(),
+  // "short" when the bounds span at most SHORT_SERIES_MS, so a range read can
+  // seek short series by start and scan only the few long ones by end.
+  span: v.union(v.literal("short"), v.literal("long")),
 })
   .index("byIds", ["id"])
   .index("byCalendarResource", ["calendarId", "resource"])
-  .index("bySeriesEnd", ["seriesEnd", "id"]);
+  .index("bySeriesStart", ["seriesStart", "id"])
+  .index("bySpanEnd", ["span", "seriesEnd", "id"]);
 registerSpaceSyncableTable(externalEventsTable, externalEventType, {
   serverOwned: true,
 });

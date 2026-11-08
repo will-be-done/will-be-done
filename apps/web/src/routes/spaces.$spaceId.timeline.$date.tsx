@@ -87,14 +87,12 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
       );
     }
 
-    for (const date of dates) {
-      appendPromise(
-        preloadSelectorAsync(db, {
-          selector: externalEventOccurrencesInRange,
-          args: externalEventsRange([new Date(date)]),
-        }),
-      );
-    }
+    appendPromise(
+      preloadSelectorAsync(db, {
+        selector: externalEventOccurrencesInRange,
+        args: externalEventsRange(dates.map((date) => new Date(date))),
+      }),
+    );
 
     for (const dailyList of dailyLists) {
       appendPromise(

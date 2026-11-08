@@ -28,8 +28,12 @@ import {
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
 import { dbIdTrait } from "@will-be-done/slices/traits";
+import {
+  deleteSpace,
+  spacesTable,
+  spacesTableType,
+} from "@will-be-done/slices/user";
 import * as databases from "../db/db";
-import { spaceDBConfig } from "../db/configs";
 import {
   CalendarFetchError,
   guardedFetch,
@@ -113,6 +117,9 @@ const davState = {
   changeLog: [] as string[],
   syncPageSize: Infinity,
   reports: [] as string[],
+  // Held requests to /held.ics wait for this; /feed.ics requests are reported.
+  heldFeed: Promise.resolve(),
+  onFeedRequest: () => {},
 };
 
 const putEvent = (href: string, event: FakeEvent) => {
@@ -141,7 +148,14 @@ beforeAll(() => {
     hostname: "127.0.0.1",
     async fetch(request) {
       const url = new URL(request.url);
+      if (url.pathname === "/held.ics") {
+        await davState.heldFeed;
+        return new Response(davState.feed, {
+          headers: { "content-type": "text/calendar" },
+        });
+      }
       if (url.pathname === "/feed.ics") {
+        davState.onFeedRequest();
         if (
           davState.feedEtag &&
           request.headers.get("if-none-match") === davState.feedEtag
@@ -320,13 +334,36 @@ const setup = () => {
     }),
   );
   execSync(spaceDb.loadTables(registeredSpaceSyncableTables));
-  spyOn(databases, "getHyperDB").mockResolvedValue({
-    db: spaceDb,
-    dbConfig: spaceDBConfig("space-1"),
-    nextClock: Object.assign(() => "", { observe: () => {} }),
-    clientId: "server",
-  } as never);
-  return { mainDB, spaceDb };
+  const userDb = new DB(new BptreeInmemDriver());
+  execSync(userDb.loadTables([spacesTable]));
+  syncDispatch(
+    userDb,
+    createAction()({
+      name: "insertSpaceForTest",
+      args: {},
+      handler: function* () {
+        yield* upsert(spacesTable, [
+          {
+            id: "space-1",
+            type: spacesTableType,
+            name: "Space",
+            createdAt: "",
+            updatedAt: "",
+          },
+        ]);
+      },
+    })({}),
+  );
+  spyOn(databases, "getHyperDB").mockImplementation(
+    async (dbConfig) =>
+      ({
+        db: dbConfig.dbType === "user" ? userDb : spaceDb,
+        dbConfig,
+        nextClock: Object.assign(() => "", { observe: () => {} }),
+        clientId: "server",
+      }) as never,
+  );
+  return { mainDB, spaceDb, userDb };
 };
 
 const source = (mainDB: DB, id: string) => {
@@ -349,6 +386,8 @@ afterEach(() => {
   davState.changeLog = [];
   davState.syncPageSize = Infinity;
   davState.reports = [];
+  davState.heldFeed = Promise.resolve();
+  davState.onFeedRequest = () => {};
 });
 
 const replaceSecret = (mainDB: DB, id: string, password: string) => {
@@ -478,6 +517,7 @@ describe("CalDAV sources", () => {
     expect(eventIds()).toEqual([eventId]);
 
     const workKey = `${baseUrl}/dav/calendars/me/work/`;
+    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "all");
     await setCalendarEnabled(
       mainDB,
       config,
@@ -489,6 +529,7 @@ describe("CalDAV sources", () => {
     expect(JSON.parse(source(mainDB, id).disabledCalendarKeys)).toEqual([
       workKey,
     ]);
+    expect(source(mainDB, id).syncWindow).toBe("all");
     expect(eventIds()).toEqual([]);
   });
 
@@ -563,6 +604,64 @@ describe("CalDAV sources", () => {
 
     await sync();
     expect(davState.reports).toEqual([]);
+  });
+
+  test("keeps both of two calendar toggles made at once", async () => {
+    const { mainDB } = setup();
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+    const snapshot = source(mainDB, id);
+    await Promise.all([
+      setCalendarEnabled(mainDB, config, snapshot, "first", false),
+      setCalendarEnabled(mainDB, config, snapshot, "second", false),
+    ]);
+    expect(
+      (JSON.parse(source(mainDB, id).disabledCalendarKeys) as string[]).sort(),
+    ).toEqual(["first", "second"]);
+  });
+
+  test("a sync queued while removing a source writes nothing", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.events.set("/dav/calendars/me/work/a.ics", {
+      etag: '"1"',
+      ics: ics("a", "A", "20991110T100000Z"),
+    });
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+
+    const running = syncCalendarSource(mainDB, id, config);
+    const removal = removeCalendarSource(mainDB, source(mainDB, id));
+    const queued = syncCalendarSource(mainDB, id, config);
+    await Promise.all([running, removal, queued]);
+
+    expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
+    expect(selectSync(spaceDb, { selector: allCalendars, args: {} })).toEqual(
+      [],
+    );
+  });
+
+  test("a source whose space was deleted removes itself on its next sync", async () => {
+    const { mainDB, userDb } = setup();
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+    syncDispatch(userDb, deleteSpace({ id: "space-1" }));
+
+    await syncCalendarSource(mainDB, id, config);
+    expect(
+      selectSync(mainDB, { selector: calendarSourceById, args: { id } }),
+    ).toBeUndefined();
   });
 
   test("rejects wrong credentials before saving the source", async () => {
@@ -882,6 +981,35 @@ describe("syncDueCalendarSources", () => {
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
       2,
     );
+  });
+
+  test("a slow source does not hold up the others", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.feed = ics("a", "A", "20991110T100000Z");
+    const connect = (path: string) =>
+      addCalendarSource(mainDB, config, {
+        userId: "user",
+        spaceId: "space-1",
+        kind: "ics",
+        secret: { url: `${baseUrl}${path}` },
+      });
+    await connect("/held.ics");
+    await connect("/feed.ics");
+    spyOn(databases, "getLoadedHyperDBs").mockReturnValue([
+      { database: "space-space-1", dbType: "space", db: spaceDb },
+    ]);
+
+    let release = () => {};
+    davState.heldFeed = new Promise((resolve) => {
+      release = resolve;
+    });
+    const feedRequested = new Promise<void>((resolve) => {
+      davState.onFeedRequest = resolve;
+    });
+    const pass = syncDueCalendarSources(mainDB, config, Infinity);
+    await feedRequested;
+    release();
+    await pass;
   });
 });
 

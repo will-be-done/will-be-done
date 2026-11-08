@@ -4,8 +4,9 @@ import {
   externalEventResources,
   removeExternalCalendars,
 } from "@will-be-done/slices/space";
+import { getSpaceById } from "@will-be-done/slices/user";
 import { v5 as uuidv5 } from "uuid";
-import { spaceDBConfig } from "../db/configs";
+import { spaceDBConfig, userDBConfig } from "../db/configs";
 import { getHyperDB } from "../db/db";
 import { getEnvConfig } from "../env";
 import {
@@ -24,6 +25,7 @@ import {
   calendarSourceById,
   deleteCalendarSource,
   saveCalendarSource,
+  setCalendarSourceCalendarEnabled,
   updateCalendarSource,
 } from "./sources";
 import type {
@@ -362,6 +364,15 @@ async function runSync(mainDB: DB, sourceId: string, config: CalendarConfig) {
     args: { id: sourceId },
   });
   if (!source) return;
+  const space = await selectAsync(
+    (await getHyperDB(userDBConfig(source.userId))).db,
+    { selector: getSpaceById, args: { id: source.spaceId } },
+  );
+  if (!space) {
+    // The space was deleted, so nobody can reach this connection any more.
+    await asyncDispatch(mainDB, deleteCalendarSource({ id: source.id }));
+    return;
+  }
   const now = Date.now();
   try {
     const { calendars, cursors } = await mirrorSource(source, config, now);
@@ -494,15 +505,9 @@ export async function setCalendarEnabled(
   calendarKey: string,
   enabled: boolean,
 ) {
-  const disabled = new Set(parseJson<string[]>(source.disabledCalendarKeys));
-  if (enabled) disabled.delete(calendarKey);
-  else disabled.add(calendarKey);
   await asyncDispatch(
     mainDB,
-    updateCalendarSource({
-      id: source.id,
-      patch: { disabledCalendarKeys: JSON.stringify([...disabled]) },
-    }),
+    setCalendarSourceCalendarEnabled({ id: source.id, calendarKey, enabled }),
   );
   await syncCalendarSource(mainDB, source.id, config);
 }
@@ -521,8 +526,12 @@ export async function setCalendarSyncWindow(
 }
 
 export async function removeCalendarSource(mainDB: DB, source: CalendarSource) {
-  await inFlight.get(source.id)?.catch(() => undefined);
   await asyncDispatch(mainDB, deleteCalendarSource({ id: source.id }));
+  // Runs that read the source before the delete may still write events;
+  // later ones find it gone.
+  for (let run = inFlight.get(source.id); run; run = inFlight.get(source.id)) {
+    await run.catch(() => undefined);
+  }
   const spaceDb = (await getHyperDB(spaceDBConfig(source.spaceId))).db;
   await asyncDispatch(
     spaceDb,

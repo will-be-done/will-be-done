@@ -9,6 +9,8 @@ import {
 import { calendarSourcesBySpace } from "./sources";
 
 const CHECK_INTERVAL_MS = 60_000;
+// A slow calendar server holds up only one of these.
+const SYNC_CONCURRENCY = 4;
 
 // Refreshes due sources of spaces this server has loaded. Spaces load when a
 // client syncs, so active spaces stay fresh without opening every database.
@@ -17,18 +19,24 @@ export async function syncDueCalendarSources(
   config: CalendarConfig,
   now = Date.now(),
 ) {
+  const due: string[] = [];
   for (const { dbType, database } of getLoadedHyperDBs()) {
     if (dbType !== "space") continue;
-    const spaceId = database.slice("space-".length);
     const sources = await selectAsync(mainDB, {
       selector: calendarSourcesBySpace,
-      args: { spaceId },
+      args: { spaceId: database.slice("space-".length) },
     });
     for (const source of sources) {
-      if (source.nextSyncAt > now) continue;
-      await syncCalendarSource(mainDB, source.id, config);
+      if (source.nextSyncAt <= now) due.push(source.id);
     }
   }
+  await Promise.all(
+    Array.from({ length: Math.min(SYNC_CONCURRENCY, due.length) }, async () => {
+      for (let id = due.shift(); id; id = due.shift()) {
+        await syncCalendarSource(mainDB, id, config);
+      }
+    }),
+  );
 }
 
 export const calendarSyncPlugin: FastifyPluginAsync<{ mainDB?: DB }> = async (

@@ -130,6 +130,8 @@ export function calendarsRouter(
           enabled: z.boolean(),
         }),
       )
+      // Each change runs a full sync of the source.
+      .use(enforceRateLimit("calendarRefresh"))
       .mutation(({ ctx, input }) =>
         run(async () => {
           const source = await ownedSource(input.sourceId, ctx.user.id);
@@ -151,6 +153,8 @@ export function calendarsRouter(
           syncWindow: z.enum(calendarSyncWindows),
         }),
       )
+      // Each change runs a full sync of the source.
+      .use(enforceRateLimit("calendarRefresh"))
       .mutation(({ ctx, input }) =>
         run(async () => {
           const source = await ownedSource(input.sourceId, ctx.user.id);
