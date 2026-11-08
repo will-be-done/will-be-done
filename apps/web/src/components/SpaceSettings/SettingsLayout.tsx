@@ -10,6 +10,7 @@ import {
 import {
   ArrowDownToLine,
   ArrowLeft,
+  CalendarDays,
   HardDrive,
   KeyRound,
   SlidersHorizontal,
@@ -32,6 +33,11 @@ const SECTIONS = [
     to: "/spaces/$spaceId/settings/account",
     label: "Account",
     icon: UserRound,
+  },
+  {
+    to: "/spaces/$spaceId/settings/calendars",
+    label: "Calendars",
+    icon: CalendarDays,
   },
   {
     to: "/spaces/$spaceId/settings/tokens",
@@ -61,7 +67,10 @@ export function SettingsLayout() {
     !isDemoMode() &&
     (authConfig.data?.emailEnabled || authConfig.data?.googleEnabled);
   const sections = SECTIONS.filter(
-    (section) => section.label !== "Account" || showAccount,
+    (section) =>
+      (section.label !== "Account" || showAccount) &&
+      // Calendars are fetched by the server, which demo mode does not have.
+      (section.label !== "Calendars" || !isDemoMode()),
   );
   const current = SECTIONS.find((section) => section.to === childRouteId);
   const spaceName = isDemoMode()

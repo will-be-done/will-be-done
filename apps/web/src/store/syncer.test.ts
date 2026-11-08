@@ -258,6 +258,51 @@ describe("sync status", () => {
     await stop(syncer, run);
   });
 
+  it("syncNow ignores a session that was already running", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    const firstCommit = deferred();
+    const secondCommit = deferred();
+    let commitCalls = 0;
+    stubSuccessfulSync(async () => {
+      commitCalls += 1;
+      if (commitCalls > 1) return secondCommit.promise;
+      await firstCommit.promise;
+      throw new TypeError("Failed to fetch");
+    });
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(syncer.status.get().phase).toBe("committing");
+
+    let settled = false;
+    const done = syncer.syncNow().then(() => {
+      settled = true;
+    });
+    firstCommit.resolve();
+    await vi.waitFor(() => expect(commitCalls).toBe(2));
+    expect(settled).toBe(false);
+
+    secondCommit.resolve();
+    await done;
+    expect(syncer.status.get().phase).toBe("synced");
+    await stop(syncer, run);
+  });
+
+  it("syncNow rejects when its session fails", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    stubSuccessfulSync();
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await statusReached(syncer, "synced");
+
+    stubFetch(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(syncer.syncNow()).rejects.toThrow(
+      "Could not reach the server",
+    );
+    await stop(syncer, run);
+  });
+
   it("retries a space the server did not know yet once the user database syncs", async () => {
     vi.useFakeTimers();
     let spaceOnServer = false;
@@ -1029,6 +1074,38 @@ describe("syncer notification baseline", () => {
 
     expect(sessions).toBe(1);
     expect(syncer.status.get().phase).toBe("synced");
+    await stop(syncer, run);
+  });
+
+  it("resubscribes after a failed subscription once a session completes", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    let sessions = 0;
+    vi.spyOn(
+      syncer as unknown as SyncerTestAccess,
+      "syncV4",
+    ).mockImplementation(() => {
+      sessions += 1;
+      return Effect.succeed(true);
+    });
+
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(env.serverChanges.watches()).toBe(1);
+
+    // A failure starts no session itself, so a server that keeps rejecting
+    // the subscription is retried at most once per session.
+    env.serverChanges.emit({ _tag: "Failed", cause: new Error("not found") });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sessions).toBe(1);
+
+    syncer.forceSync();
+    await vi.waitFor(() => expect(sessions).toBe(2));
+    await vi.waitFor(() => expect(env.serverChanges.watches()).toBe(2));
+
+    env.serverChanges.emit({ _tag: "ChangesAvailable" });
+    await vi.waitFor(() => expect(sessions).toBe(3));
+    expect(env.serverChanges.watches()).toBe(2);
     await stop(syncer, run);
   });
 

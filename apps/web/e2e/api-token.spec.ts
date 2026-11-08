@@ -12,6 +12,7 @@ import {
   taskItem,
   uniqueE2EName,
   signOutUser,
+  waitForSpaceOnServer,
 } from "./helpers";
 
 type Project = {
@@ -59,27 +60,7 @@ test("syncs API token writes and rejects the token after revocation", async ({
   await createSpace(page, spaceName);
   await openSpace(page, spaceName);
 
-  const spaceId = new URL(page.url()).pathname.split("/")[2];
-  expect(spaceId).toBeTruthy();
-  const sessionToken = await page.evaluate(() =>
-    localStorage.getItem("auth_token"),
-  );
-  expect(sessionToken).toBeTruthy();
-  await expect
-    .poll(
-      async () =>
-        (
-          await page.request.get(`/api/v1/spaces/${spaceId}/projects`, {
-            headers: { Authorization: `Bearer ${sessionToken}` },
-          })
-        ).status(),
-      { timeout: 10_000 },
-    )
-    .toBe(200);
-
-  // Recreate the socket after signup so it connects with the stored token.
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Add task" })).toBeVisible();
+  const { spaceId } = await waitForSpaceOnServer(page);
 
   const settings = await openSpaceSettings(page, "API tokens");
   await settings.getByRole("button", { name: "Create token" }).click();
@@ -166,24 +147,7 @@ test("downloads the client's own accepted changes after local database loss", as
   await openSpace(page, spaceName);
 
   const appUrl = page.url();
-  const spaceId = new URL(appUrl).pathname.split("/")[2];
-  const sessionToken = await page.evaluate(() =>
-    localStorage.getItem("auth_token"),
-  );
-  expect(sessionToken).toBeTruthy();
-  const authorization = { Authorization: `Bearer ${sessionToken}` };
-
-  await expect
-    .poll(
-      async () =>
-        (
-          await page.request.get(`/api/v1/spaces/${spaceId}/projects`, {
-            headers: authorization,
-          })
-        ).status(),
-      { timeout: 15_000 },
-    )
-    .toBe(200);
+  const { spaceId, authorization } = await waitForSpaceOnServer(page);
 
   await createTodayTask(page, taskTitle);
 
@@ -302,7 +266,7 @@ test("resends newer client state after server history loss and retries commit id
     {
       headers: authorization,
       data: {
-        syncVersion: 5,
+        syncVersion: 6,
         dbId: userId,
         dbType: "user",
         clientId,

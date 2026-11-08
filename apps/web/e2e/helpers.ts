@@ -191,6 +191,7 @@ export async function openSpaceSettings(
   section:
     | "General"
     | "Account"
+    | "Calendars"
     | "API tokens"
     | "Backup"
     | "Import" = "General",
@@ -211,6 +212,27 @@ export async function openSpaceSettings(
 
 export async function closeSpaceSettings(page: Page) {
   await page.getByRole("link", { name: "Back", exact: true }).click();
+}
+
+// A new space reaches the server with its first sync; server-side calls fail
+// with "Space not found" before that.
+export async function waitForSpaceOnServer(page: Page) {
+  const spaceId = new URL(page.url()).pathname.split("/")[2];
+  expect(spaceId).toBeTruthy();
+  await expect(
+    page
+      .getByRole("button", { name: "Sync status: All changes synced" })
+      .first(),
+  ).toBeVisible({ timeout: 15_000 });
+  const sessionToken = await page.evaluate(() =>
+    localStorage.getItem("auth_token"),
+  );
+  expect(sessionToken).toBeTruthy();
+
+  return {
+    spaceId,
+    authorization: { Authorization: `Bearer ${sessionToken}` },
+  };
 }
 
 export function taskItem(page: Page, title: string): Locator {

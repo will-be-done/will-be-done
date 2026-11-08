@@ -8,6 +8,7 @@ import {
 } from "@will-be-done/slices/user";
 import { userDBConfig } from "../db/configs";
 import { getHyperDB, getMainHyperDB } from "../db/db";
+import { deleteCalendarSourcesBySpace } from "../calendars/sources";
 import { deleteDb } from "../slices/dbSlice";
 import { getSpaceDatabase } from "./databaseAccess";
 
@@ -114,6 +115,10 @@ export async function deleteUserSpace({
   if (!space) return false;
 
   await asyncDispatch(resolvedMainDB, deleteDb({ id: spaceId, type: "space" }));
+  await asyncDispatch(
+    resolvedMainDB,
+    deleteCalendarSourcesBySpace({ spaceId }),
+  );
   return asyncDispatch(userDB, deleteSpace({ id: spaceId }));
 }
 

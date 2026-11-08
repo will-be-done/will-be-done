@@ -17,7 +17,9 @@ import {
   projectSectionsByProjectId,
   projectSectionItemsForDisplayChildren,
   projectsWithTaskStats,
+  externalEventOccurrencesInRange,
 } from "@will-be-done/slices/space";
+import { externalEventsRange } from "@/components/ExternalEvents/useExternalEvents.ts";
 
 const filterParams = z.object({
   projectId: z.string().default("inbox"),
@@ -84,6 +86,13 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
         }),
       );
     }
+
+    appendPromise(
+      preloadSelectorAsync(db, {
+        selector: externalEventOccurrencesInRange,
+        args: externalEventsRange(dates.map((date) => new Date(date))),
+      }),
+    );
 
     for (const dailyList of dailyLists) {
       appendPromise(

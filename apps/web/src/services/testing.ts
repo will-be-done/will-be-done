@@ -41,9 +41,14 @@ export const testAuthSession = (id = ":", token: string | null = null) =>
 
 export const makeTestServerChanges = () => {
   const events = Effect.runSync(PubSub.unbounded<ServerChangeEvent>());
+  let watches = 0;
   return {
+    watches: () => watches,
     layer: Layer.succeed(ServerChanges, {
-      watch: () => Stream.fromPubSub(events),
+      watch: () =>
+        Stream.fromPubSub(events).pipe(
+          Stream.onStart(Effect.sync(() => (watches += 1))),
+        ),
     }),
     emit: (event: ServerChangeEvent) => PubSub.publishUnsafe(events, event),
   };

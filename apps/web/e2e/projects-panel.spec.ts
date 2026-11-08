@@ -6,6 +6,7 @@ import {
   createTodayTask,
   dailyTaskItem,
   openSpace,
+  projectTaskItem,
   signupUser,
   uniqueE2EName,
   waitForSyncedText,
@@ -67,8 +68,23 @@ test("on a phone the projects list folds away and both panels resize by touch", 
   await synced;
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
+  const toggleSidebar = page
+    .getByRole("button", { name: "Toggle Sidebar" })
+    .first();
+  await toggleSidebar.tap();
+  await page.getByRole("link", { name: /^Inbox/ }).tap();
+  // The focused task's toolbar gives way to the sidebar drawn over it.
+  await projectTaskItem(page, "Plan week").tap();
+  // The open sidebar hides the rest of the page from the accessibility tree.
+  const toolbarDelete = page.getByRole("button", {
+    name: "Delete",
+    exact: true,
+    includeHidden: true,
+  });
+  await expect(toolbarDelete).toBeInViewport();
+  await toggleSidebar.tap();
+  await expect(toolbarDelete).not.toBeInViewport();
   // Phones reach the other views from the sidebar.
-  await page.getByRole("button", { name: "Toggle Sidebar" }).first().tap();
   await page.getByRole("link", { name: "Timeline", exact: true }).tap();
   await expect(page).toHaveURL(/\/timeline/);
 

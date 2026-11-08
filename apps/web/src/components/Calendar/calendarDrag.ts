@@ -61,6 +61,23 @@ export const useIsDropTarget = (date: string, time: null | undefined) =>
   );
 
 const activationDistance = 4;
+// A touch pans the page unless held still this long first.
+export const longPressMs = 300;
+const touchSlop = 8;
+
+let holdingTouch = false;
+
+// Ref callback for a draggable card. A touch pan can only be stopped from a
+// non-passive touchmove listener on the touched element, and React's are
+// passive; without it the browser scrolls and cancels the drag.
+export const holdTouchScroll = (el: HTMLElement | null) => {
+  if (!el) return;
+  const hold = (e: Event) => {
+    if (holdingTouch) e.preventDefault();
+  };
+  el.addEventListener("touchmove", hold, { passive: false });
+  return () => el.removeEventListener("touchmove", hold);
+};
 
 function gridMinutes(column: Element, clientY: number): number {
   const rect = column.getBoundingClientRect();
@@ -118,27 +135,40 @@ export function startCalendarDrag(
     grid && event.time !== null
       ? gridMinutes(grid, startY) - timeToMinutes(event.time)
       : 0;
+  const isTouch = e.pointerType === "touch";
   let active = false;
   // This gesture's own state; the store may still hold an earlier drop's
   // preview while its write is pending.
   let drag: CalendarDrag | null = null;
 
-  const onMove = (move: PointerEvent) => {
-    if (
-      !active &&
-      Math.hypot(move.clientX - startX, move.clientY - startY) <
-        activationDistance
-    ) {
-      return;
-    }
-    active = true;
-    move.preventDefault();
+  const longPress = isTouch
+    ? setTimeout(() => {
+        active = true;
+        holdingTouch = true;
+        update(startX, startY);
+      }, longPressMs)
+    : undefined;
 
+  const onMove = (move: PointerEvent) => {
+    const distance = Math.hypot(move.clientX - startX, move.clientY - startY);
+    if (!active) {
+      if (isTouch) {
+        if (distance > touchSlop) finish(false);
+        return;
+      }
+      if (distance < activationDistance) return;
+      active = true;
+    }
+    move.preventDefault();
+    update(move.clientX, move.clientY);
+  };
+
+  const update = (x: number, y: number) => {
     const base: CalendarDrag = {
       event,
       mode,
-      x: move.clientX,
-      y: move.clientY,
+      x,
+      y,
       target: null,
       durationMinutes: blockMinutes(event),
     };
@@ -149,10 +179,7 @@ export function startCalendarDrag(
       );
       if (!column || event.time === null) return;
       const start = timeToMinutes(event.time);
-      const end = Math.min(
-        minutesInDay,
-        snapToGrid(gridMinutes(column, move.clientY)),
-      );
+      const end = Math.min(minutesInDay, snapToGrid(gridMinutes(column, y)));
       drag = {
         ...base,
         target: { date: event.date, time: event.time },
@@ -161,17 +188,20 @@ export function startCalendarDrag(
     } else {
       drag = {
         ...base,
-        target: findTarget(base, move.clientX, move.clientY, grabOffsetMinutes),
+        target: findTarget(base, x, y, grabOffsetMinutes),
       };
     }
     useCalendarDrag.setState({ drag });
   };
 
   const finish = (commitDrag: boolean) => {
+    clearTimeout(longPress);
+    holdingTouch = false;
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     window.removeEventListener("pointercancel", onCancel);
     window.removeEventListener("keydown", onKeyDown, { capture: true });
+    window.removeEventListener("contextmenu", onContextMenu);
     if (!active) return;
 
     // The pointerup of a drag must not also click the card underneath. The
@@ -193,6 +223,10 @@ export function startCalendarDrag(
   };
   const onUp = () => finish(true);
   const onCancel = () => finish(false);
+  // Android opens a context menu on a long press.
+  const onContextMenu = (menu: Event) => {
+    if (active) menu.preventDefault();
+  };
   const onKeyDown = (key: KeyboardEvent) => {
     if (key.key !== "Escape") return;
     key.preventDefault();
@@ -204,4 +238,5 @@ export function startCalendarDrag(
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onCancel);
   window.addEventListener("keydown", onKeyDown, { capture: true });
+  window.addEventListener("contextmenu", onContextMenu);
 }

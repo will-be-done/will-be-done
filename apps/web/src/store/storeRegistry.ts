@@ -22,7 +22,7 @@ import { resetEmptyPersistedSyncCursor } from "./syncActions";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import { getDbName, initClock } from "./syncClock";
 import { Syncer, type SyncerServices } from "./syncer";
-import { syncStatusByDB } from "./syncStatus";
+import { syncByDB } from "./syncStatus";
 import type { SyncConfig } from "./syncTypes";
 
 export class StoreStorage extends Context.Service<
@@ -89,7 +89,7 @@ const startStore = (
       });
 
       if (!syncConfig.disableSync) {
-        syncStatusByDB.set(syncSubDb, syncer.status);
+        syncByDB.set(syncSubDb, syncer);
         syncer.startLoop();
         yield* makeAutoBackup(dbName, readSpaceBackup);
       }
