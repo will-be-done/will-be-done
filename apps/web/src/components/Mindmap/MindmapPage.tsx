@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { startOfDay } from "date-fns";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -37,6 +37,7 @@ import {
   useCreateMindmap,
   useCreatingMindmaps,
 } from "./useCreateMindmap.ts";
+import { useRecentMindmaps } from "./recentMindmaps.ts";
 
 export const MindmapPage = ({
   mindmapId,
@@ -52,6 +53,10 @@ export const MindmapPage = ({
   const deleteWithUndo = useUndoToast();
   const navigate = useNavigate();
   const { createAndOpen, preload } = useCreateMindmap();
+  const markOpened = useRecentMindmaps((s) => s.markOpened);
+  useEffect(() => {
+    markOpened(spaceId, mindmapId);
+  }, [markOpened, spaceId, mindmapId]);
   const today = useMemo(() => startOfDay(new Date()), []);
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
