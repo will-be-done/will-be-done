@@ -22,6 +22,7 @@ import {
   timeToMinutes,
 } from "./calendarModel";
 import {
+  holdTouchScroll,
   startCalendarDrag,
   useCalendarDrag,
   useIsDropTarget,
@@ -358,6 +359,7 @@ const TimedBlock = ({
 
   return (
     <div
+      ref={isDraggable(event) ? holdTouchScroll : undefined}
       role="button"
       tabIndex={0}
       data-focusable-key={event.focusKey}

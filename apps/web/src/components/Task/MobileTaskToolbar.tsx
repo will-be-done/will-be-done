@@ -150,6 +150,9 @@ export const MobileToolbar = ({
     className={cn(
       "fixed bottom-0 inset-x-0 z-[1060] transition-transform duration-200 ease-out",
       visible ? "translate-y-0" : "translate-y-full",
+      // It sits above floating buttons, so it would also cover any dialog,
+      // such as the phone sidebar; it gives way while one is open.
+      "[body:has([role=dialog][data-state=open])_&]:translate-y-full",
     )}
   >
     {/* Hairline top border */}

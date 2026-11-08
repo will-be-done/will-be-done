@@ -31,6 +31,7 @@ import {
 import { type DragCommit, useCalendarDrag } from "./calendarDrag";
 import { useCalendarEvents } from "./useCalendarEvents";
 import { useExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
+import { RefreshCalendarsButton } from "@/components/ExternalEvents/RefreshCalendarsButton.tsx";
 import {
   type DayActions,
   MonthCell,
@@ -206,8 +207,9 @@ export const CalendarPage = ({
             </span>
           </h1>
 
-          <div className="mt-2 ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2 [app-region:no-drag]">
-            <div className="flex items-center">
+          {/* Phones center the controls on their own lines below the title. */}
+          <div className="mt-2 ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2 [app-region:no-drag] max-sm:w-full max-sm:justify-center">
+            <div className="flex items-center max-sm:w-full max-sm:justify-center">
               <Link
                 {...linkTo(shiftAnchor(view, anchor, -1))}
                 className={navButtonClass}
@@ -244,9 +246,15 @@ export const CalendarPage = ({
               ))}
             </div>
 
-            <TooltipProvider>
-              <SyncIndicator />
-            </TooltipProvider>
+            <div className="flex items-center gap-x-1">
+              <RefreshCalendarsButton
+                spaceId={spaceId}
+                className={navButtonClass}
+              />
+              <TooltipProvider>
+                <SyncIndicator />
+              </TooltipProvider>
+            </div>
           </div>
         </header>
 

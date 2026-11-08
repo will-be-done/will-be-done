@@ -76,8 +76,9 @@ shows two weeks at a time.
 A task can have a start time and a duration. In Day and Week views, timed
 tasks appear as blocks on an hourly grid and tasks without a time sit in the
 all-day row. Drag a block to change its day or time, or drag its bottom edge to
-change its duration. Drag a task from a project section onto the calendar to
-schedule it. Set or clear the time and duration from the task details panel.
+change its duration. On a touch screen, press and hold a block briefly before
+dragging it. Drag a task from a project section onto the calendar to schedule
+it. Set or clear the time and duration from the task details panel.
 
 ## Calendar events
 

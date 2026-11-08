@@ -53,6 +53,7 @@ import { type CalendarServices, syncDueCalendarSources } from "./scheduler";
 import {
   addCalendarSource,
   CalendarConfig,
+  refreshSpaceCalendarSources,
   removeCalendarSource,
   setCalendarEnabled,
   setCalendarSyncWindow,
@@ -739,6 +740,52 @@ describe("CalDAV sources", () => {
     expect(failed.nextSyncAt).toBeGreaterThanOrEqual(
       before + config.syncIntervalMs,
     );
+  });
+
+  test("refreshing a space syncs the user's sources and reports failures", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.feed = ics("a", "A", "20991110T100000Z");
+    const add = (userId: string, kind: "caldav" | "ics") =>
+      run(
+        mainDB,
+        addAndSync({
+          userId,
+          spaceId: "space-1",
+          kind,
+          secret:
+            kind === "ics"
+              ? { url: `${baseUrl}/feed.ics` }
+              : { url: `${baseUrl}/`, username: "me", password: "secret" },
+        }),
+      );
+    const broken = await add("user", "caldav");
+    await add("user", "ics");
+    const othersId = await add("other", "caldav");
+    replaceSecret(mainDB, broken, "old");
+    replaceSecret(mainDB, othersId, "old");
+    davState.feed = vcalendar(
+      vevent("a", "A", "20991110T100000Z"),
+      vevent("b", "B", "20991111T100000Z"),
+    );
+
+    const failed = await run(
+      mainDB,
+      refreshSpaceCalendarSources({ spaceId: "space-1", userId: "user" }),
+    );
+
+    expect(failed).toEqual([
+      {
+        id: broken,
+        name: source(mainDB, broken).name,
+        error: expect.stringContaining("rejected the username or password"),
+      },
+    ]);
+    expect(
+      selectSync(spaceDb, { selector: allEvents, args: {} }).map(
+        (event) => event.resource,
+      ),
+    ).toEqual(expect.arrayContaining(["a", "b"]));
+    expect(source(mainDB, othersId).status).toBe("ok");
   });
 });
 

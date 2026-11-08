@@ -23,6 +23,7 @@ import { prepareEventIcs, splitIcsFeed } from "./ics";
 import { decryptSecret, encryptSecret } from "./secrets";
 import {
   calendarSourceById,
+  calendarSourcesBySpace,
   deleteCalendarSource,
   saveCalendarSource,
   setCalendarSourceCalendarEnabled,
@@ -447,6 +448,38 @@ const syncLock = (sourceId: string) => {
 // run and then starts a fresh one so it sees the latest settings.
 export const syncCalendarSource = (sourceId: string) =>
   Semaphore.withPermit(syncLock(sourceId), runSync(sourceId));
+
+// Syncs the user's sources in a space and returns the ones that failed.
+export const refreshSpaceCalendarSources = (input: {
+  spaceId: string;
+  userId: string;
+}) =>
+  Effect.gen(function* () {
+    const mainDB = yield* MainDatabase;
+    const sources = yield* Effect.promise(() =>
+      selectAsync(mainDB, {
+        selector: calendarSourcesBySpace,
+        args: { spaceId: input.spaceId },
+      }),
+    );
+    const synced = yield* Effect.forEach(
+      sources.filter((source) => source.userId === input.userId),
+      (source) =>
+        syncCalendarSource(source.id).pipe(Effect.andThen(sourceById(source.id))),
+      { concurrency: "unbounded" },
+    );
+    return synced.flatMap((source) =>
+      source?.status === "error"
+        ? [
+            {
+              id: source.id,
+              name: source.name,
+              error: source.lastError ?? "Could not read this calendar",
+            },
+          ]
+        : [],
+    );
+  });
 
 // Saves a source once its server answers; its first sync is left to the
 // caller.

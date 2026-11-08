@@ -206,6 +206,30 @@ export class Syncer {
     }
   }
 
+  // Resolves once a session that started after this call has applied and
+  // persisted everything; a session already running may predate the caller's
+  // server-side change.
+  syncNow(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.terminal) {
+        reject(new Error("Update the app to resume syncing."));
+        return;
+      }
+      let started = false;
+      const unsubscribe = this.status.subscribe(({ phase, error }) => {
+        if (phase === "connecting") started = true;
+        if (phase === "update-required" || (started && phase === "error")) {
+          unsubscribe();
+          reject(new Error(error ?? "Update the app to resume syncing."));
+        } else if (started && phase === "synced") {
+          unsubscribe();
+          resolve();
+        }
+      });
+      this.forceSync();
+    });
+  }
+
   private receiveStatus(message: SyncStatusMessage) {
     if (message.type === "status") {
       if (!this.leadership.isLeader() && !this.terminal) {

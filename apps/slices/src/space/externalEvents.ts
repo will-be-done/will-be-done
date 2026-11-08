@@ -480,6 +480,16 @@ function expandSeries(
   return result.sort((a, b) => a.startMs - b.startMs);
 }
 
+export const hasExternalCalendars = selector({
+  name: "hasExternalCalendars",
+  args: {},
+  handler: function* hasExternalCalendars() {
+    return (
+      (yield* selectFrom(externalCalendarsTable, "byIds").limit(1)).length > 0
+    );
+  },
+});
+
 // Occurrences overlapping [fromMs, toMs), sorted by start. Invitations the
 // account declined are left out.
 export const externalEventOccurrencesInRange = selector({

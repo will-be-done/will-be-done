@@ -10,6 +10,7 @@ import {
   addCalendarSource,
   CalendarConfig,
   publicCalendarSource,
+  refreshSpaceCalendarSources,
   removeCalendarSource,
   setCalendarEnabled,
   setCalendarSyncWindow,
@@ -171,6 +172,20 @@ export function calendarsRouter(
         const source = await ownedSource(input.sourceId, ctx.user.id);
         await run(syncCalendarSource(source.id));
         return { success: true };
+      }),
+
+    refreshSpace: protectedProcedure
+      .input(z.object({ spaceId: z.string() }))
+      .use(enforceRateLimit("calendarRefresh"))
+      .mutation(async ({ ctx, input }) => {
+        await checkSpaceAccess(input.spaceId, ctx.user.id);
+        const failed = await run(
+          refreshSpaceCalendarSources({
+            spaceId: input.spaceId,
+            userId: ctx.user.id,
+          }),
+        );
+        return { failed };
       }),
 
     // Works with calendars turned off, so a source can still be removed.
