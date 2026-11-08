@@ -52,11 +52,9 @@ const readServerRevision = selector({
   name: "readServerStartupRevision",
   args: {},
   handler: function* () {
-    return (
-      yield* selectFrom(serverSyncStateTable, "byId")
-        .where((q) => q.eq("id", SERVER_SYNC_STATE_ID))
-        .first()
-    )?.currentRevision;
+    return (yield* selectFrom(serverSyncStateTable, "byId")
+      .where((q) => q.eq("id", SERVER_SYNC_STATE_ID))
+      .first())?.currentRevision;
   },
 });
 
@@ -68,10 +66,7 @@ describe("server database startup", () => {
     );
     syncDispatch(db, seedLegacyChange({}));
     expect(syncDispatch(db, initializeServerSyncFeed({}))).toBe(1);
-    syncDispatch(
-      db.withTraits({ type: "skip-sync" }),
-      migrateSyncV4Clocks({}),
-    );
+    syncDispatch(db.withTraits({ type: "skip-sync" }), migrateSyncV4Clocks({}));
     expect(syncDispatch(db, readServerRevision({}))).toBe(1);
 
     installServerChangeFeedHook(db);

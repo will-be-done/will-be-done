@@ -8,6 +8,8 @@ export type RateLimitPolicy =
   | "login"
   | "register"
   | "todoistImport"
+  | "calendarConnect"
+  | "calendarRefresh"
   | "accountEmailSend"
   | "accountEmailConsume";
 
@@ -40,6 +42,8 @@ const defaultPolicies: Record<RateLimitPolicy, PolicyConfig> = {
     timeWindow: "1 hour",
     identity: "user",
   },
+  calendarConnect: { max: 10, timeWindow: "10 minutes", identity: "user" },
+  calendarRefresh: { max: 30, timeWindow: "10 minutes", identity: "user" },
 };
 
 const defaultGlobalPolicy: WindowLimitConfig = {

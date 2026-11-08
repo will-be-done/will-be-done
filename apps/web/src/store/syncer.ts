@@ -65,7 +65,6 @@ const SYNC_START_DELAY_MS = 2000;
 const SYNC_REQUEST_TIMEOUT_MS = 5 * 60_000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
-const SERVER_WATCH_RETRY_MS = 10_000;
 
 // A space created moments ago reaches the server with the next user sync.
 const completedUserSyncs = new State(0);
@@ -209,6 +208,30 @@ export class Syncer {
     }
   }
 
+  // Resolves once a session that started after this call has applied and
+  // persisted everything; a session already running may predate the caller's
+  // server-side change.
+  syncNow(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.terminal) {
+        reject(new Error("Update the app to resume syncing."));
+        return;
+      }
+      let started = false;
+      const unsubscribe = this.status.subscribe(({ phase, error }) => {
+        if (phase === "connecting") started = true;
+        if (phase === "update-required" || (started && phase === "error")) {
+          unsubscribe();
+          reject(new Error(error ?? "Update the app to resume syncing."));
+        } else if (started && phase === "synced") {
+          unsubscribe();
+          resolve();
+        }
+      });
+      this.forceSync();
+    });
+  }
+
   private receiveStatus(message: SyncStatusMessage) {
     if (message.type === "status") {
       if (!this.leadership.isLeader() && !this.terminal) {
@@ -267,12 +290,9 @@ export class Syncer {
           ),
         ),
       UpdateRequired: () => Effect.sync(() => this.stopForRequiredUpdate()),
+      // Waking here would loop against a server that keeps rejecting it.
       Failed: ({ cause }) =>
-        Effect.logError("Server change subscription failed", cause).pipe(
-          Effect.tap(
-            Effect.sync(() => Queue.offerUnsafe(this.wakes, undefined)),
-          ),
-        ),
+        Effect.logError("Server change subscription failed", cause),
     }),
   );
 
@@ -290,28 +310,16 @@ export class Syncer {
         Effect.sync(() => this.leader.set(false)),
       );
       const serverChanges = yield* ServerChanges;
-      // A subscription that fails or completes is only a lost hint source, so
-      // watch again after a pause. A space the server did not know yet exists
-      // once the user database syncs, which is not caused by this watch.
-      yield* Effect.gen({ self: this }, function* () {
-        const userSyncVersion = completedUserSyncs.get();
-        yield* serverChanges
-          .watch({
-            dbId: this.syncConfig.dbId,
-            dbType: this.syncConfig.dbType,
-          })
-          .pipe(Stream.runForEach(this.onServerChange));
-        yield* Effect.raceAll([
-          Effect.sleep(SERVER_WATCH_RETRY_MS),
-          ...(this.syncConfig.dbType === "space"
-            ? [
-                completedUserSyncs.waitFor(
-                  (version) => version > userSyncVersion,
-                ),
-              ]
-            : []),
-        ]);
-      }).pipe(Effect.forever, Effect.forkScoped);
+      const watchServerChanges = serverChanges
+        .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
+        .pipe(
+          // A failed subscription is over, e.g. for a space the server did not
+          // have yet; the next completed session subscribes again.
+          Stream.takeUntil((event) => event._tag === "Failed"),
+          Stream.runForEach(this.onServerChange),
+          Effect.forkScoped,
+        );
+      let watcher = yield* watchServerChanges;
 
       // let's delay so faster startup
       yield* Effect.sleep(SYNC_START_DELAY_MS);
@@ -340,6 +348,9 @@ export class Syncer {
           );
           if (completed && this.syncConfig.dbType === "user") {
             completedUserSyncs.modify((version) => version + 1);
+          }
+          if (completed && watcher.pollUnsafe()) {
+            watcher = yield* watchServerChanges;
           }
         } else {
           this.setStatus({

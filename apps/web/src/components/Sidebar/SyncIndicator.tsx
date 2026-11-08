@@ -7,9 +7,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useOnline } from "@/hooks/useOnline";
 import {
   initialSyncStatus,
-  syncStatusByDB,
+  syncByDB,
   type SyncPhase,
 } from "@/store/syncStatus";
 import {
@@ -51,7 +52,7 @@ function SyncingDot() {
 
 export function SyncIndicator() {
   const db = useDB();
-  const store = syncStatusByDB.get(db);
+  const store = syncByDB.get(db);
   const status = useSyncExternalStore(
     (listener) => store?.status.subscribe(listener) ?? (() => {}),
     () => store?.status.get() ?? initialSyncStatus,
@@ -64,23 +65,13 @@ export function SyncIndicator() {
     subscribeSyncUpdateRequired,
     getSyncUpdateRequired,
   );
-  const [online, setOnline] = useState(() => navigator.onLine);
+  const online = useOnline();
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(Date.now);
   const changeOpen = (nextOpen: boolean) => {
     setNow(Date.now());
     setOpen(nextOpen);
   };
-
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
 
   useEffect(() => {
     if (!open) return;

@@ -16,6 +16,8 @@ describe("environment config", () => {
       WBD_RATE_LIMIT_NAMESPACE: "wbd:rate-limit:v1:",
       WBD_TASK_GENERATION_INTERVAL_MS: 60_000,
       WBD_POSTHOG_HOST: "https://eu.i.posthog.com",
+      WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: false,
+      WBD_CALENDAR_SYNC_INTERVAL_MS: 900_000,
       PORT: 3000,
     });
   });
@@ -48,6 +50,7 @@ describe("environment config", () => {
     ["a non-numeric limit", { WBD_RATE_LIMIT_GLOBAL_MAX: "many" }],
     ["a blank instance id", { WBD_INSTANCE_ID: "   " }],
     ["an invalid PostHog URL", { WBD_POSTHOG_HOST: "not a url" }],
+    ["a short calendar key", { WBD_CALENDAR_ENCRYPTION_KEY: "short" }],
   ])("rejects %s", (_label, env) => {
     expect(() => parseEnvConfig(env)).toThrow();
   });

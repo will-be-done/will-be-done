@@ -7,6 +7,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const apiPort = process.env.PLAYWRIGHT_API_PORT ?? "3200";
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? "5174";
+const caldavPort = process.env.PLAYWRIGHT_CALDAV_PORT ?? "5233";
 const e2eDbPath =
   process.env.WBD_E2E_DB_PATH ?? path.join(repoRoot, "db", "e2e");
 
@@ -34,6 +35,11 @@ function spawnService(
   });
 
   children.add(child);
+
+  child.on("error", (error) => {
+    console.error(`[${name}] failed to start: ${error.message}`);
+    shutdown(1);
+  });
 
   child.stdout?.on("data", (data: Buffer) => {
     process.stdout.write(`[${name}] ${data.toString()}`);
@@ -98,6 +104,25 @@ async function waitForReady(name: string, url: string, timeoutMs: number) {
 }
 
 async function main() {
+  // Real CalDAV server for calendar specs. Auth type "none" accepts any
+  // username, so each test gets its own Radicale user.
+  console.log(`Starting Radicale on http://127.0.0.1:${caldavPort}`);
+  spawnService(
+    "radicale",
+    "radicale",
+    [
+      "--server-hosts",
+      `127.0.0.1:${caldavPort}`,
+      "--storage-filesystem-folder",
+      path.join(e2eDbPath, "radicale"),
+      "--auth-type",
+      "none",
+      "--logging-level",
+      "warning",
+    ],
+    { cwd: repoRoot },
+  );
+
   console.log(`Starting API on http://127.0.0.1:${apiPort}`);
   console.log(`Using E2E DB path: ${e2eDbPath}`);
 
@@ -127,6 +152,8 @@ async function main() {
         WBD_EMAIL_RESEND_API_KEY: "",
         WBD_EMAIL_FROM: "",
         WBD_EMAIL_PUBLIC_APP_URL: "",
+        WBD_CALENDAR_ENCRYPTION_KEY: "e2e-calendar-encryption-key-0123456789",
+        WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: "true",
       },
     },
   );
@@ -136,6 +163,11 @@ async function main() {
       "api",
       `http://127.0.0.1:${apiPort}/api/health`,
       120_000,
+    );
+    await waitForReady(
+      "radicale",
+      `http://127.0.0.1:${caldavPort}/.web/`,
+      30_000,
     );
   } catch (error) {
     console.error(error);

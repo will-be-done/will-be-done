@@ -1,4 +1,4 @@
-import { reconnectWsClient, resetWsClient } from "./trpc";
+import { resetWsClient } from "./trpc";
 import { queryClient } from "./query";
 import { resetWebAnalytics } from "./analytics";
 
@@ -19,9 +19,8 @@ export const authUtils = {
   setToken: (token: string): void => {
     localStorage.setItem(AUTH_TOKEN_KEY, token);
     notifyAuthListeners();
-    // The socket authenticates with the token in its URL, so a connection
-    // opened before sign-in must reconnect to receive sync notifications.
-    reconnectWsClient();
+    // The socket authenticates once, by the token in its URL.
+    resetWsClient();
   },
 
   setUserId: (userId: string): void => {

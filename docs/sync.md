@@ -5,9 +5,11 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 5, carried over the v4 transport routes. Version 5
-added restore clocks; a v4 client would treat a restored entity as still deleted,
-so the server rejects it and the client must update. v3 upload and download
+The current sync version is 6, carried over the v4 transport routes. Version 5
+added restore clocks; a v4 client would treat a restored entity as still deleted.
+Version 6 added the server-owned external calendar tables, which a v5 client
+cannot apply. The server rejects older clients and they must update. A new
+synced table always needs a version bump for the same reason. v3 upload and download
 procedures must not be reintroduced as an alternate path.
 
 ## Required Server-Backup Recovery Guarantee
@@ -114,7 +116,11 @@ This check does not change sync clocks or cursors.
 
 The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
-authority.
+authority. A rejected subscription (a space the server does not know yet)
+wakes nothing and is re-established only after the next session completes, so
+a server that keeps rejecting it is retried at most once per session. Every
+started subscription, including one resent after a reconnect, wakes a session
+for changes made before the server registered it.
 
 Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
 after the originating tab has persisted its changes. UI subscribers observe
@@ -126,12 +132,8 @@ without echoes, is described in Cross-window visibility. The broadcast is not
 authoritative and does not replace persisted sync state.
 
 The WebSocket authenticates with the token in its URL, so storing a new token
-reconnects it. A subscription that fails or completes ends its stream, and
-the leader watches again after a pause rather than staying deaf until a reload
-or leader handoff. A space watch also retries when the same tab's user database
-next syncs, for the same reason as the 404 wake-up below. The retry must not
-wait on the space's own sessions: a failed watch wakes a session, so a session
-trigger would re-watch without any pause.
+resets it. A subscription that completes, such as one closed by that reset, is
+re-established after the next session like a rejected one.
 
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
@@ -392,6 +394,13 @@ must never expose a partially applied logical sync response.
   user-deletable, and replacement imports preserve existing DailyLists while
   upserting the canonical lists contained in the backup. Backup omission must
   never create a DailyList tombstone.
+- Server-owned tables (`external_calendars`, `external_events`) have the
+  server's calendar fetcher as their only writer; clients have no action that
+  writes them. The server still merges uploaded rows for them, because server
+  backup recovery resends canonical rows clients received, and the next fetch
+  corrects anything stale. Backup load and export skip them, so a restore
+  cannot tombstone every event. The fetcher writes only rows whose content
+  changed, so an unchanged refresh adds nothing to the feed.
 - Dependency-bearing table types are committed in a stable order: parents and
   lists first, tasks/templates next, then checklist and entry/projection rows.
 - Receipt metadata such as a newly generated `updatedAt` must not by itself

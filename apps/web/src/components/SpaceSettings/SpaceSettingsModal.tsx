@@ -10,14 +10,22 @@ import {
   ArrowDownToLine,
   SlidersHorizontal,
   KeyRound,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BackupSection } from "./BackupSection";
 import { GeneralSection } from "./GeneralSection";
 import { ImportSection } from "./ImportSection";
 import { TokenSection } from "./TokenSection";
+import { CalendarSection } from "./CalendarSection";
 
-type Section = "account" | "general" | "tokens" | "data" | "import";
+type Section =
+  | "account"
+  | "general"
+  | "calendars"
+  | "tokens"
+  | "data"
+  | "import";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: "account", label: "Account", icon: <KeyRound className="h-5 w-5" /> },
@@ -25,6 +33,11 @@ const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
     id: "general",
     label: "General",
     icon: <SlidersHorizontal className="h-5 w-5" />,
+  },
+  {
+    id: "calendars",
+    label: "Calendars",
+    icon: <CalendarDays className="h-5 w-5" />,
   },
   {
     id: "tokens",
@@ -58,8 +71,14 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
   const showAccount =
     !isDemoMode() &&
     (authConfig.data?.emailEnabled || authConfig.data?.googleEnabled);
-  const visibleSection =
-    activeSection === "account" && !showAccount ? "general" : activeSection;
+  // Calendars are fetched by the server, which demo mode does not have.
+  const hiddenSections = new Set<Section>([
+    ...(showAccount ? [] : (["account"] as const)),
+    ...(isDemoMode() ? (["calendars"] as const) : []),
+  ]);
+  const visibleSection = hiddenSections.has(activeSection)
+    ? "general"
+    : activeSection;
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
@@ -93,25 +112,25 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
 
           {/* Top tab nav */}
           <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-1 scrollbar-none flex-shrink-0">
-            {SECTIONS.filter(
-              (section) => section.id !== "account" || showAccount,
-            ).map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl cursor-pointer transition-colors min-w-[72px] flex-shrink-0",
-                  visibleSection === s.id
-                    ? "bg-dialog-item-active text-content"
-                    : "text-content-tinted/60 hover:text-content-tinted hover:bg-white/5",
-                )}
-              >
-                {s.icon}
-                <span className="text-[11px] font-medium leading-none">
-                  {s.label}
-                </span>
-              </button>
-            ))}
+            {SECTIONS.filter((section) => !hiddenSections.has(section.id)).map(
+              (s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl cursor-pointer transition-colors min-w-[72px] flex-shrink-0",
+                    visibleSection === s.id
+                      ? "bg-dialog-item-active text-content"
+                      : "text-content-tinted/60 hover:text-content-tinted hover:bg-white/5",
+                  )}
+                >
+                  {s.icon}
+                  <span className="text-[11px] font-medium leading-none">
+                    {s.label}
+                  </span>
+                </button>
+              ),
+            )}
           </div>
 
           {/* Divider */}
@@ -125,6 +144,7 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
               </div>
             )}
             {visibleSection === "general" && <GeneralSection />}
+            {visibleSection === "calendars" && <CalendarSection />}
             {visibleSection === "tokens" && <TokenSection />}
             {visibleSection === "data" && <BackupSection />}
             {visibleSection === "import" && <ImportSection />}

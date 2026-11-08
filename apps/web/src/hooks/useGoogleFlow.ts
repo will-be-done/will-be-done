@@ -10,7 +10,7 @@ import {
   Queue,
   Stream,
 } from "effect";
-import { trpcClient, resetWsClient } from "@/lib/trpc";
+import { trpcClient } from "@/lib/trpc";
 import { authUtils } from "@/lib/auth";
 import {
   captureWebAnalytics,
@@ -162,7 +162,6 @@ export function useGoogleFlow(
       queryClient.clear();
       authUtils.setToken(outcome.token);
       authUtils.setUserId(outcome.userId);
-      resetWsClient();
       identifyWebAnalyticsUser(outcome.userId);
       setBusy(false);
       void navigate({ to: "/spaces" });

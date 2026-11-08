@@ -38,6 +38,9 @@ import {
 } from "./email/service";
 
 import { googleRouter } from "./google/router";
+import type { Context } from "effect";
+import { calendarsRouter } from "./calendars/router";
+import type { CalendarServices } from "./calendars/scheduler";
 import type { GoogleService } from "./google/service";
 
 const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
@@ -48,6 +51,8 @@ export interface AppRouterDependencies {
   analytics?: BackendAnalytics;
   accountEmail?: AccountEmailService;
   google?: GoogleService;
+  // Absent when calendar connections are turned off.
+  calendars?: Context.Context<CalendarServices>;
 }
 
 export function createAppRouter({
@@ -56,6 +61,7 @@ export function createAppRouter({
   analytics = noopBackendAnalytics,
   accountEmail,
   google,
+  calendars,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -74,6 +80,9 @@ export function createAppRouter({
 
   return router({
     google: googleRouter(mainDB, google, analytics),
+    calendars: calendarsRouter(mainDB, calendars, (spaceId, userId) =>
+      checkDatabaseAccess(spaceId, "space", userId),
+    ),
     getAuthConfig: publicProcedure.query(() => ({
       emailEnabled: accountEmail?.enabled ?? false,
       googleEnabled: Boolean(google),

@@ -12,7 +12,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { type Context, Effect, Exit, Layer, Scope, Stream } from "effect";
+import { type Context, Effect, Exit, Layer, Scope } from "effect";
 import { Digest } from "effect/crypto";
 import {
   makeTestLogger,
@@ -23,7 +23,6 @@ import {
   testAuthSession,
   testHttpClient,
 } from "@/services/testing";
-import { ServerChanges, type ServerChangeEvent } from "@/services/browser";
 import {
   changesTable,
   createHlcClock,
@@ -256,6 +255,51 @@ describe("sync status", () => {
     syncer.forceSync();
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
     expect(syncer.status.get().error).toBeNull();
+    await stop(syncer, run);
+  });
+
+  it("syncNow ignores a session that was already running", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    const firstCommit = deferred();
+    const secondCommit = deferred();
+    let commitCalls = 0;
+    stubSuccessfulSync(async () => {
+      commitCalls += 1;
+      if (commitCalls > 1) return secondCommit.promise;
+      await firstCommit.promise;
+      throw new TypeError("Failed to fetch");
+    });
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(syncer.status.get().phase).toBe("committing");
+
+    let settled = false;
+    const done = syncer.syncNow().then(() => {
+      settled = true;
+    });
+    firstCommit.resolve();
+    await vi.waitFor(() => expect(commitCalls).toBe(2));
+    expect(settled).toBe(false);
+
+    secondCommit.resolve();
+    await done;
+    expect(syncer.status.get().phase).toBe("synced");
+    await stop(syncer, run);
+  });
+
+  it("syncNow rejects when its session fails", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    stubSuccessfulSync();
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await statusReached(syncer, "synced");
+
+    stubFetch(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(syncer.syncNow()).rejects.toThrow(
+      "Could not reach the server",
+    );
     await stop(syncer, run);
   });
 
@@ -1033,62 +1077,36 @@ describe("syncer notification baseline", () => {
     await stop(syncer, run);
   });
 
-  const failingWatches = () => {
-    const watches = { space: 0, user: 0 };
-    const failed: ServerChangeEvent = {
-      _tag: "Failed",
-      cause: new Error("UNAUTHORIZED"),
-    };
-    env.serverChanges = {
-      layer: Layer.succeed(ServerChanges, {
-        watch: ({ dbType }): Stream.Stream<ServerChangeEvent> => {
-          watches[dbType] += 1;
-          return Stream.make(failed);
-        },
-      }),
-      emit: () => true,
-    };
-    return watches;
-  };
-  const succeedSessions = (syncer: Syncer) =>
-    vi
-      .spyOn(syncer as unknown as SyncerTestAccess, "syncV4")
-      .mockImplementation(() => Effect.succeed(true));
-
-  it("pauses between watches that keep failing while sessions succeed", async () => {
+  it("resubscribes after a failed subscription once a session completes", async () => {
     vi.useFakeTimers();
-    const watches = failingWatches();
     const { syncer } = createSyncer();
-    const sessions = succeedSessions(syncer);
+    let sessions = 0;
+    vi.spyOn(
+      syncer as unknown as SyncerTestAccess,
+      "syncV4",
+    ).mockImplementation(() => {
+      sessions += 1;
+      return Effect.succeed(true);
+    });
 
     const run = syncer.run();
-    await vi.advanceTimersByTimeAsync(9_999);
-    expect(watches.user).toBe(1);
-    expect(sessions).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(watches.user).toBe(2);
-    await vi.advanceTimersByTimeAsync(30_000);
-    expect(watches.user).toBe(5);
-    await stop(syncer, run);
-  });
-
-  it("watches a space again once the user database syncs", async () => {
-    vi.useFakeTimers();
-    const watches = failingWatches();
-    const { syncer: space } = createSyncer({ ...config, dbType: "space" });
-    succeedSessions(space);
-    const spaceRun = space.run();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(watches.space).toBe(1);
-
-    const { syncer: user } = createSyncer();
-    succeedSessions(user);
-    const userRun = user.run();
-    // The user session runs after the start delay, well before the pause.
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(watches.space).toBe(2);
-    await stop(user, userRun);
-    await stop(space, spaceRun);
+    expect(env.serverChanges.watches()).toBe(1);
+
+    // A failure starts no session itself, so a server that keeps rejecting
+    // the subscription is retried at most once per session.
+    env.serverChanges.emit({ _tag: "Failed", cause: new Error("not found") });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sessions).toBe(1);
+
+    syncer.forceSync();
+    await vi.waitFor(() => expect(sessions).toBe(2));
+    await vi.waitFor(() => expect(env.serverChanges.watches()).toBe(2));
+
+    env.serverChanges.emit({ _tag: "ChangesAvailable" });
+    await vi.waitFor(() => expect(sessions).toBe(3));
+    expect(env.serverChanges.watches()).toBe(2);
+    await stop(syncer, run);
   });
 
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
