@@ -4,6 +4,7 @@ import {
   createSpace,
   dailyTaskItem,
   openSpace,
+  closeSpaceSettings,
   openSpaceSettings,
   openTaskDetails,
   projectSidebarLink,
@@ -35,8 +36,7 @@ test("restores a JSON backup through settings", async ({ page }) => {
     checklistItem,
   });
 
-  const settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Backup" }).click();
+  const settings = await openSpaceSettings(page, "Backup");
 
   const restoreInput = page.getByTestId("backup-restore-input");
   const confirmationPromise = page.waitForEvent("dialog");
@@ -53,7 +53,7 @@ test("restores a JSON backup through settings", async ({ page }) => {
 
   await expect(settings.getByText("Restored successfully")).toBeVisible();
 
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
 
   await expect(projectSidebarLink(page, projectTitle, 1)).toBeVisible();
   await expect(dailyTaskItem(page, taskTitle)).toBeVisible();

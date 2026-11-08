@@ -11,6 +11,7 @@ import {
   createSpace,
   openSpace,
   openSpaceSettings,
+  closeSpaceSettings,
 } from "./helpers";
 
 test.skip(
@@ -30,8 +31,7 @@ async function openGoogleSettings(
     const spaceName = `Google settings ${randomUUID()}`;
     await createSpace(page, spaceName);
     await openSpace(page, spaceName);
-    const dialog = await openSpaceSettings(page);
-    await dialog.getByRole("button", { name: "Account", exact: true }).click();
+    await openSpaceSettings(page, "Account");
   } else {
     await page.goto("/account");
   }
@@ -120,7 +120,7 @@ for (const settings of ["account page", "space settings"] as const) {
       page.getByLabel("Password is required to proceed"),
     ).toHaveCount(0);
     if (settings === "space settings") {
-      await page.getByRole("button", { name: "Close settings" }).click();
+      await closeSpaceSettings(page);
       await page.goto("/spaces");
     } else {
       await page.getByRole("link", { name: "Back to spaces" }).click();
@@ -174,7 +174,7 @@ for (const settings of ["account page", "space settings"] as const) {
         .getByText(user.email, { exact: true }),
     ).toBeVisible();
     if (settings === "space settings") {
-      await page.getByRole("button", { name: "Close settings" }).click();
+      await closeSpaceSettings(page);
       await page.goto("/spaces");
     } else {
       await page.getByRole("link", { name: "Back to spaces" }).click();

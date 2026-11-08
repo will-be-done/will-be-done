@@ -3,23 +3,14 @@ import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { authUtils } from "@/lib/auth";
 import { isDemoMode } from "@/lib/demoMode";
-import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
-import { useSidebar } from "@/components/ui/sidebar.tsx";
 import { SyncIndicator } from "./SyncIndicator";
 
 export function SpaceBlock() {
   const { spaceId } = Route.useParams();
-  const openSettings = useSpaceSettingsStore((s) => s.openSettings);
-  const { isMobile, setOpenMobile } = useSidebar();
 
   const spaceName = isDemoMode()
     ? "Demo Space"
     : (authUtils.getSpaceName(spaceId) ?? spaceId);
-
-  const handleSettingsClick = () => {
-    if (isMobile) setOpenMobile(false);
-    openSettings(spaceName);
-  };
 
   return (
     <div className="group/space w-full flex items-center gap-3 px-4 py-3 border-t border-ring/40 bg-white/[0.02]">
@@ -46,14 +37,14 @@ export function SpaceBlock() {
       </Link>
 
       {/* Settings */}
-      <button
-        type="button"
+      <Link
+        to="/spaces/$spaceId/settings/general"
+        params={{ spaceId }}
         aria-label="Space settings"
-        onClick={handleSettingsClick}
         className="flex-shrink-0 cursor-pointer text-content-tinted/40 hover:text-accent transition-colors"
       >
         <Settings className="h-3.5 w-3.5" />
-      </button>
+      </Link>
     </div>
   );
 }

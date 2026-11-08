@@ -4,6 +4,7 @@ import {
   createSpace,
   dailyTaskItem,
   openSpace,
+  closeSpaceSettings,
   openSpaceSettings,
   projectSidebarLink,
   projectTaskItem,
@@ -33,8 +34,7 @@ test("imports a TickTick CSV through settings", async ({ page }) => {
     dueDate: `${currentDate}T09:00:00+0000`,
   });
 
-  const settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Import" }).click();
+  const settings = await openSpaceSettings(page, "Import");
 
   const importInput = page.getByTestId("ticktick-import-input");
   const confirmationPromise = page.waitForEvent("dialog");
@@ -51,7 +51,7 @@ test("imports a TickTick CSV through settings", async ({ page }) => {
 
   await expect(settings.getByText("Imported successfully")).toBeVisible();
 
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
 
   await expect(projectSidebarLink(page, projectTitle, 1)).toBeVisible();
   await expect(dailyTaskItem(page, taskTitle)).toBeVisible();

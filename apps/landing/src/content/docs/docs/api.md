@@ -41,7 +41,7 @@ changes from a newer release.
 
 1. Sign in and open a space.
 2. Open **Space Settings**.
-3. Select **Tokens**.
+3. Select **API tokens**.
 4. Select **Create token**.
 5. Copy the token and store it securely.
 
@@ -107,7 +107,7 @@ that range are kept, along with edits made to them at the same time.
 
 ## Revoke a token
 
-1. Open **Space Settings → Tokens**.
+1. Open **Space Settings → API tokens**.
 2. Delete the token used by the integration.
 3. Confirm deletion.
 
