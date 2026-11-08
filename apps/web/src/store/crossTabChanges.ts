@@ -57,7 +57,10 @@ export const makeCrossTabChanges = ({
         };
         const merge =
           syncConfig.dbType === "space" ? mergeSpaceChanges : mergeChanges;
-        yield* database.dispatch<unknown>(merge(mergeArgs), { skipSync: true });
+        yield* database.dispatch<unknown>(merge(mergeArgs), {
+          skipSync: true,
+          fromOtherTab: true,
+        });
         yield* database.waitForPersistence;
         // A status-channel wake-up can finish before this asynchronous merge.
         // Wake again only once the incoming changes are visible to sync reads.

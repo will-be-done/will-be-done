@@ -124,6 +124,12 @@ them with `skip-sync`, which prevents a duplicate local change-log entry (see
 Cross-window visibility). The broadcast is not authoritative and does not
 replace persisted sync state.
 
+The WebSocket authenticates with the token in its URL, so storing a new token
+reconnects it. A subscription that fails or completes ends its stream; the
+leader watches again as soon as a session succeeds (a space that did not exist
+on the server yet does by then) or after a pause, rather than staying deaf
+until a reload or leader handoff.
+
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the
@@ -207,7 +213,12 @@ reload or lost response.
 ### Cross-window visibility
 
 Browser windows sharing one persistent database publish committed local
-changesets over the versioned BroadcastChannel. A receiving window observes the
+changesets over the versioned BroadcastChannel. The leader's applied server
+downloads are published the same way: every durable transaction that writes
+`changes` records reaches the other tabs, except a merge that itself came from
+another tab (the `cross-tab` trait), which would only echo. Each tab keeps its
+own in-memory copy of the database, so without this publication a follower
+would show server changes only after a reload. A receiving window observes the
 incoming clocks and runs the normal idempotent merge with `skip-sync`, so this
 coordination path cannot create another local change record or an upload echo.
 

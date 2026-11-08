@@ -12,7 +12,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { type Context, Effect, Exit, Layer, Scope } from "effect";
+import { type Context, Effect, Exit, Layer, Scope, Stream } from "effect";
 import { Digest } from "effect/crypto";
 import {
   makeTestLogger,
@@ -23,6 +23,7 @@ import {
   testAuthSession,
   testHttpClient,
 } from "@/services/testing";
+import { ServerChanges, type ServerChangeEvent } from "@/services/browser";
 import {
   changesTable,
   createHlcClock,
@@ -1031,6 +1032,46 @@ describe("syncer notification baseline", () => {
     expect(syncer.status.get().phase).toBe("synced");
     await stop(syncer, run);
   });
+
+  it.each([
+    ["as soon as a session succeeds", Effect.succeed(true), 0],
+    [
+      "after a pause while sessions keep failing",
+      Effect.fail(new SyncNetworkError({ cause: "offline" })),
+      10_000,
+    ],
+  ])(
+    "watches server changes again %s after the subscription ends",
+    async (_case, session, delayMs) => {
+      vi.useFakeTimers();
+      let watches = 0;
+      const failed: ServerChangeEvent = {
+        _tag: "Failed",
+        cause: new Error("UNAUTHORIZED"),
+      };
+      env.serverChanges = {
+        layer: Layer.succeed(ServerChanges, {
+          watch: (): Stream.Stream<ServerChangeEvent> => {
+            watches += 1;
+            return watches === 1 ? Stream.make(failed) : Stream.never;
+          },
+        }),
+        emit: () => true,
+      };
+      const { syncer } = createSyncer();
+      vi.spyOn(
+        syncer as unknown as SyncerTestAccess,
+        "syncV4",
+      ).mockImplementation(() => session);
+
+      const run = syncer.run();
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(watches).toBe(1);
+      await vi.advanceTimersByTimeAsync(1 + delayMs);
+      expect(watches).toBe(2);
+      await stop(syncer, run);
+    },
+  );
 
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {

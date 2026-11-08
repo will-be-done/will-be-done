@@ -36,19 +36,23 @@ const wsClient = createWSClient({
   lazy: { enabled: isDemoMode(), closeMs: 0 },
 });
 
+// Drops the current socket so the client reconnects with a fresh URL and
+// resends live subscriptions. The synthetic close event makes that happen at
+// once instead of after the close handshake.
+export function reconnectWsClient(): void {
+  wsClient.connection?.ws?.dispatchEvent(new CloseEvent("close"));
+  wsClient.connection?.ws?.close();
+}
+
 document.addEventListener("visibilitychange", () => {
   // Let's reconnect on visibility change,
   // Cause, for example, iOS safari connection may hang
   // https://github.com/trpc/trpc/issues/4078
-  if (document.visibilityState === "visible") {
-    wsClient?.connection?.ws?.dispatchEvent(new CloseEvent("close"));
-    wsClient?.connection?.ws?.close();
-  }
+  if (document.visibilityState === "visible") reconnectWsClient();
 });
 
-// Reset WebSocket client (e.g., on logout/login)
+// Closes the client on logout; the next subscription reopens it.
 export function resetWsClient(): void {
-  // Close and let it reconnect with new auth token
   void wsClient.close();
 }
 

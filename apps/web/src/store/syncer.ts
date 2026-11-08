@@ -65,6 +65,7 @@ const SYNC_START_DELAY_MS = 2000;
 const SYNC_REQUEST_TIMEOUT_MS = 5 * 60_000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
+const SERVER_WATCH_RETRY_MS = 10_000;
 
 // A space created moments ago reaches the server with the next user sync.
 const completedUserSyncs = new State(0);
@@ -94,6 +95,8 @@ const sha256 = (value: string) =>
 
 export class Syncer {
   readonly status = new State<SyncStatus>({ ...initialSyncStatus });
+  // Whether this tab runs sync for every open tab of this database.
+  readonly leader = new State(false);
   private loop: Fiber.Fiber<unknown, unknown> | undefined;
   private terminal = false;
   private applySyncV4Download: ReturnType<typeof createApplySyncV4Download>;
@@ -101,6 +104,7 @@ export class Syncer {
   // A wake-up that arrives during a session stays queued, so the next session
   // starts as soon as this one ends.
   private wakes = Effect.runSync(Queue.sliding<void>(1));
+  private watchWakes = Effect.runSync(Queue.sliding<void>(1));
 
   private constructor(
     private clientId: string,
@@ -282,10 +286,28 @@ export class Syncer {
         yield* this.leadership.awaitLeadership;
       }
       yield* Effect.logInfo("This tab leads sync");
+      this.leader.set(true);
       const serverChanges = yield* ServerChanges;
-      yield* serverChanges
-        .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
-        .pipe(Stream.runForEach(this.onServerChange), Effect.forkScoped);
+      // A subscription that fails or completes is only a lost hint source.
+      // Watch again once a session succeeds (a space the server did not know
+      // yet exists by then) or after a pause, so a lasting failure cannot spin.
+      yield* Effect.suspend(() =>
+        serverChanges
+          .watch({
+            dbId: this.syncConfig.dbId,
+            dbType: this.syncConfig.dbType,
+          })
+          .pipe(Stream.runForEach(this.onServerChange)),
+      ).pipe(
+        Effect.andThen(
+          Effect.raceAll([
+            Effect.sleep(SERVER_WATCH_RETRY_MS),
+            Queue.take(this.watchWakes),
+          ]),
+        ),
+        Effect.forever,
+        Effect.forkScoped,
+      );
 
       // let's delay so faster startup
       yield* Effect.sleep(SYNC_START_DELAY_MS);
@@ -312,6 +334,7 @@ export class Syncer {
           yield* Effect.logDebug(
             completed ? "sync session finished" : "sync session paused",
           );
+          if (completed) Queue.offerUnsafe(this.watchWakes, undefined);
           if (completed && this.syncConfig.dbType === "user") {
             completedUserSyncs.modify((version) => version + 1);
           }

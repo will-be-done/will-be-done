@@ -89,7 +89,10 @@ const startStore = (
       });
 
       if (!syncConfig.disableSync) {
-        syncStatusByDB.set(syncSubDb, syncer.status);
+        syncStatusByDB.set(syncSubDb, {
+          status: syncer.status,
+          leader: syncer.leader,
+        });
         syncer.startLoop();
         yield* makeAutoBackup(dbName, readSpaceBackup);
       }

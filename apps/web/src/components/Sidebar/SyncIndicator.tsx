@@ -53,8 +53,12 @@ export function SyncIndicator() {
   const db = useDB();
   const store = syncStatusByDB.get(db);
   const status = useSyncExternalStore(
-    (listener) => store?.subscribe(listener) ?? (() => {}),
-    () => store?.get() ?? initialSyncStatus,
+    (listener) => store?.status.subscribe(listener) ?? (() => {}),
+    () => store?.status.get() ?? initialSyncStatus,
+  );
+  const leader = useSyncExternalStore(
+    (listener) => store?.leader.subscribe(listener) ?? (() => {}),
+    () => store?.leader.get() ?? false,
   );
   const updateRequired = useSyncExternalStore(
     subscribeSyncUpdateRequired,
@@ -187,6 +191,11 @@ export function SyncIndicator() {
             <span className="mt-0.5 block">Not yet in this session</span>
           )}
         </div>
+        <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-content-tinted">
+          {leader
+            ? "This tab syncs for all open tabs."
+            : "Another open tab syncs for this one."}
+        </p>
       </TooltipContent>
     </Tooltip>
   );

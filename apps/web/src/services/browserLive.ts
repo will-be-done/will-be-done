@@ -29,6 +29,9 @@ export const AuthSessionLive = Layer.succeed(AuthSession, {
   id: Effect.sync(() => authUtils.sessionId()),
 });
 
+// The stream ends once the subscription fails or completes (for example when
+// the socket client is reset on sign-in); the subscriber decides whether to
+// watch again.
 export const ServerChangesLive = Layer.succeed(ServerChanges, {
   watch: ({ dbId, dbType }) =>
     Stream.callback((queue) =>
@@ -39,13 +42,16 @@ export const ServerChangesLive = Layer.succeed(ServerChanges, {
             {
               onData: () =>
                 Queue.offerUnsafe(queue, { _tag: "ChangesAvailable" }),
-              onError: (cause) =>
+              onError: (cause) => {
                 Queue.offerUnsafe(
                   queue,
                   isUnsupportedSyncVersionError(cause)
                     ? { _tag: "UpdateRequired" }
                     : { _tag: "Failed", cause },
-                ),
+                );
+                Queue.endUnsafe(queue);
+              },
+              onComplete: () => Queue.endUnsafe(queue),
             },
           ),
         ),
