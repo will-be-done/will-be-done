@@ -1033,45 +1033,63 @@ describe("syncer notification baseline", () => {
     await stop(syncer, run);
   });
 
-  it.each([
-    ["as soon as a session succeeds", Effect.succeed(true), 0],
-    [
-      "after a pause while sessions keep failing",
-      Effect.fail(new SyncNetworkError({ cause: "offline" })),
-      10_000,
-    ],
-  ])(
-    "watches server changes again %s after the subscription ends",
-    async (_case, session, delayMs) => {
-      vi.useFakeTimers();
-      let watches = 0;
-      const failed: ServerChangeEvent = {
-        _tag: "Failed",
-        cause: new Error("UNAUTHORIZED"),
-      };
-      env.serverChanges = {
-        layer: Layer.succeed(ServerChanges, {
-          watch: (): Stream.Stream<ServerChangeEvent> => {
-            watches += 1;
-            return watches === 1 ? Stream.make(failed) : Stream.never;
-          },
-        }),
-        emit: () => true,
-      };
-      const { syncer } = createSyncer();
-      vi.spyOn(
-        syncer as unknown as SyncerTestAccess,
-        "syncV4",
-      ).mockImplementation(() => session);
+  const failingWatches = () => {
+    const watches = { space: 0, user: 0 };
+    const failed: ServerChangeEvent = {
+      _tag: "Failed",
+      cause: new Error("UNAUTHORIZED"),
+    };
+    env.serverChanges = {
+      layer: Layer.succeed(ServerChanges, {
+        watch: ({ dbType }): Stream.Stream<ServerChangeEvent> => {
+          watches[dbType] += 1;
+          return Stream.make(failed);
+        },
+      }),
+      emit: () => true,
+    };
+    return watches;
+  };
+  const succeedSessions = (syncer: Syncer) =>
+    vi
+      .spyOn(syncer as unknown as SyncerTestAccess, "syncV4")
+      .mockImplementation(() => Effect.succeed(true));
 
-      const run = syncer.run();
-      await vi.advanceTimersByTimeAsync(1_999);
-      expect(watches).toBe(1);
-      await vi.advanceTimersByTimeAsync(1 + delayMs);
-      expect(watches).toBe(2);
-      await stop(syncer, run);
-    },
-  );
+  it("pauses between watches that keep failing while sessions succeed", async () => {
+    vi.useFakeTimers();
+    const watches = failingWatches();
+    const { syncer } = createSyncer();
+    const sessions = succeedSessions(syncer);
+
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(watches.user).toBe(1);
+    expect(sessions).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(watches.user).toBe(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watches.user).toBe(5);
+    await stop(syncer, run);
+  });
+
+  it("watches a space again once the user database syncs", async () => {
+    vi.useFakeTimers();
+    const watches = failingWatches();
+    const { syncer: space } = createSyncer({ ...config, dbType: "space" });
+    succeedSessions(space);
+    const spaceRun = space.run();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(watches.space).toBe(1);
+
+    const { syncer: user } = createSyncer();
+    succeedSessions(user);
+    const userRun = user.run();
+    // The user session runs after the start delay, well before the pause.
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(watches.space).toBe(2);
+    await stop(user, userRun);
+    await stop(space, spaceRun);
+  });
 
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {

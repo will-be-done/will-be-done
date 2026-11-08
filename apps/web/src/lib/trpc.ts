@@ -38,10 +38,17 @@ const wsClient = createWSClient({
 
 // Drops the current socket so the client reconnects with a fresh URL and
 // resends live subscriptions. The synthetic close event makes that happen at
-// once instead of after the close handshake.
+// once instead of after the close handshake, which can hang on iOS.
 export function reconnectWsClient(): void {
-  wsClient.connection?.ws?.dispatchEvent(new CloseEvent("close"));
-  wsClient.connection?.ws?.close();
+  const ws = wsClient.connection?.ws;
+  if (!ws) return;
+  ws.dispatchEvent(new CloseEvent("close"));
+  // The client already reconnected; the real close must not do it again.
+  ws.addEventListener("close", (event) => event.stopImmediatePropagation(), {
+    capture: true,
+    once: true,
+  });
+  ws.close();
 }
 
 document.addEventListener("visibilitychange", () => {

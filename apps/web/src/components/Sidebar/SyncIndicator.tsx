@@ -108,6 +108,7 @@ export function SyncIndicator() {
           data-sync-state={
             disconnected ? "disconnected" : syncing ? "syncing" : "synced"
           }
+          data-sync-role={leader ? "leader" : "follower"}
           onClick={(event) => {
             event.preventDefault();
             changeOpen(true);

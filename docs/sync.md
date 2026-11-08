@@ -101,9 +101,11 @@ Revision/feed writes occur in the same database transaction as the associated
 an atomic server operation; it must not treat an individual internal feed
 revision as a separately visible domain transaction.
 
-The `skip-sync` database trait has one narrow meaning: suppress generation of a
-new local `changes` record from a domain-table hook. It does not suppress feed
-publication when a merge explicitly writes a canonical `changes` record.
+The `skip-sync` database trait suppresses generation of a new local `changes`
+record from a domain-table hook. Such a write is not a local edit, so it also
+does not wake the upload after it persists. It does not suppress feed
+publication when a merge explicitly writes a canonical `changes` record, nor
+cross-tab publication (see Cross-window visibility).
 
 WebSocket authentication is revalidated before protected operations and before
 each notification is yielded. Revoking an account token prevents an existing
@@ -119,16 +121,17 @@ after the originating tab has persisted its changes. UI subscribers observe
 atomic memory commits before persistence completes. The publication queue
 waits for runtime durability before broadcasting or waking sync, and sync
 operations wait for durability before advancing transport or acknowledging a
-download. A receiving tab merges
-them with `skip-sync`, which prevents a duplicate local change-log entry (see
-Cross-window visibility). The broadcast is not authoritative and does not
-replace persisted sync state.
+download. Which writes are published, and how a receiving tab merges them
+without echoes, is described in Cross-window visibility. The broadcast is not
+authoritative and does not replace persisted sync state.
 
 The WebSocket authenticates with the token in its URL, so storing a new token
-reconnects it. A subscription that fails or completes ends its stream; the
-leader watches again as soon as a session succeeds (a space that did not exist
-on the server yet does by then) or after a pause, rather than staying deaf
-until a reload or leader handoff.
+reconnects it. A subscription that fails or completes ends its stream, and
+the leader watches again after a pause rather than staying deaf until a reload
+or leader handoff. A space watch also retries when the same tab's user database
+next syncs, for the same reason as the 404 wake-up below. The retry must not
+wait on the space's own sessions: a failed watch wakes a session, so a session
+trigger would re-watch without any pause.
 
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore

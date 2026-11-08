@@ -14,15 +14,8 @@ import {
 const syncIndicator = (page: Page) =>
   page.getByRole("button", { name: /^Sync status:/ });
 
-const expectSyncRole = async (page: Page, role: "leader" | "follower") => {
-  await syncIndicator(page).click();
-  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
-    role === "leader"
-      ? "This tab syncs for all open tabs."
-      : "Another open tab syncs for this one.",
-  );
-  await page.keyboard.press("Escape");
-};
+const expectSyncRole = (page: Page, role: "leader" | "follower") =>
+  expect(syncIndicator(page)).toHaveAttribute("data-sync-role", role);
 
 const openSecondTab = async (page: Page) => {
   const secondPage = await page.context().newPage();
