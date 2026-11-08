@@ -54,9 +54,6 @@ export const MindmapPage = ({
   const navigate = useNavigate();
   const { createAndOpen, preload } = useCreateMindmap();
   const markOpened = useRecentMindmaps((s) => s.markOpened);
-  useEffect(() => {
-    markOpened(spaceId, mindmapId);
-  }, [markOpened, spaceId, mindmapId]);
   const today = useMemo(() => startOfDay(new Date()), []);
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
@@ -75,6 +72,10 @@ export const MindmapPage = ({
       branches: [],
       floating: [],
     });
+  const exists = tree != null;
+  useEffect(() => {
+    if (exists) markOpened(spaceId, mindmapId);
+  }, [exists, markOpened, spaceId, mindmapId]);
   const { data: mindmaps = [] } = useAsyncSelector({
     selector: mindmapsWithTitles,
     args: {},
