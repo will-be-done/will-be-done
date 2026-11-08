@@ -4314,6 +4314,35 @@
                               "lastGeneratedAt"
                             ],
                             "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": { "type": "string", "enum": ["note"] },
+                              "id": {
+                                "type": "string",
+                                "description": "Note identifier"
+                              },
+                              "title": { "type": "string" },
+                              "content": { "type": "string" },
+                              "projectSectionId": {
+                                "type": "string",
+                                "description": "Parent project section identifier"
+                              },
+                              "createdAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "id",
+                              "title",
+                              "projectSectionId",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
                           }
                         ]
                       }
@@ -9006,6 +9035,1340 @@
         }
       }
     },
+    "/api/v1/spaces/{spaceId}/notes/{noteId}": {
+      "get": {
+        "operationId": "getNote",
+        "summary": "Get a note",
+        "tags": ["Notes"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "noteId",
+            "required": true,
+            "description": "Note identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["note"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Note identifier"
+                        },
+                        "title": { "type": "string" },
+                        "content": { "type": "string" },
+                        "projectSectionId": {
+                          "type": "string",
+                          "description": "Parent project section identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "title",
+                        "projectSectionId",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["note"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateNote",
+        "summary": "Update a note",
+        "tags": ["Notes"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string", "minLength": 1 },
+                  "content": { "type": "string" }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "noteId",
+            "required": true,
+            "description": "Note identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["note"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Note identifier"
+                        },
+                        "title": { "type": "string" },
+                        "content": { "type": "string" },
+                        "projectSectionId": {
+                          "type": "string",
+                          "description": "Parent project section identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "title",
+                        "projectSectionId",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["note"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteNote",
+        "summary": "Delete a note",
+        "tags": ["Notes"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "noteId",
+            "required": true,
+            "description": "Note identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Default Response" },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/notes/{noteId}/move": {
+      "post": {
+        "operationId": "moveNote",
+        "summary": "Move a note",
+        "tags": ["Notes"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectSectionId": { "type": "string", "minLength": 1 },
+                  "placement": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["first"] }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["last"] }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["before"] },
+                          "anchorId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Sibling to place the entity before"
+                          }
+                        },
+                        "required": ["kind", "anchorId"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["after"] },
+                          "anchorId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Sibling to place the entity after"
+                          }
+                        },
+                        "required": ["kind", "anchorId"],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "description": "Position within an ordered collection"
+                  }
+                },
+                "required": ["projectSectionId", "placement"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "noteId",
+            "required": true,
+            "description": "Note identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["note"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Note identifier"
+                        },
+                        "title": { "type": "string" },
+                        "content": { "type": "string" },
+                        "projectSectionId": {
+                          "type": "string",
+                          "description": "Parent project section identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "title",
+                        "projectSectionId",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["note"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/tasks/{taskId}/convert-to-note": {
+      "post": {
+        "operationId": "convertTaskToNote",
+        "summary": "Convert a task to a note",
+        "tags": ["Notes"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "description": "Task identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["note"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Note identifier"
+                        },
+                        "title": { "type": "string" },
+                        "content": { "type": "string" },
+                        "projectSectionId": {
+                          "type": "string",
+                          "description": "Parent project section identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "title",
+                        "projectSectionId",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["note"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/notes/{noteId}/convert-to-task": {
+      "post": {
+        "operationId": "convertNoteToTask",
+        "summary": "Convert a note to a task",
+        "tags": ["Notes"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "noteId",
+            "required": true,
+            "description": "Note identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Task details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["task"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Task identifier"
+                        },
+                        "title": { "type": "string" },
+                        "content": { "type": "string" },
+                        "state": { "type": "string", "enum": ["todo", "done"] },
+                        "projectSectionId": {
+                          "type": "string",
+                          "description": "Parent project section identifier"
+                        },
+                        "nature": {
+                          "type": "string",
+                          "enum": ["red", "green", "unknown"]
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Creation time as Unix milliseconds"
+                        },
+                        "lastToggledAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Last state change time as Unix milliseconds"
+                        },
+                        "scheduledDate": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "title",
+                        "state",
+                        "projectSectionId",
+                        "nature",
+                        "createdAt",
+                        "lastToggledAt",
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["task"],
+                  "additionalProperties": false,
+                  "description": "Task details"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/tasks/{taskId}/checklist-items": {
       "get": {
         "operationId": "listTaskChecklistItems",
@@ -12076,6 +13439,2387 @@
             }
           },
           "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/mindmaps": {
+      "get": {
+        "operationId": "listMindmaps",
+        "summary": "List mindmaps",
+        "tags": ["Mindmaps"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mindmaps": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["mindmap"] },
+                          "id": {
+                            "type": "string",
+                            "description": "Mindmap identifier"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "Name, plain text. Apps show the central topic's text while it is empty"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["type", "id", "title", "createdAt"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["mindmaps"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMindmap",
+        "summary": "Create a mindmap",
+        "tags": ["Mindmaps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "title": { "type": "string", "minLength": 1 } },
+                "required": ["title"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mindmap": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["mindmap"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Mindmap identifier"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Name, plain text. Apps show the central topic's text while it is empty"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["type", "id", "title", "createdAt"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["mindmap"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/mindmaps/{mindmapId}": {
+      "get": {
+        "operationId": "getMindmap",
+        "summary": "Get a mindmap with its nodes",
+        "tags": ["Mindmaps"],
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "mindmapId",
+            "required": true,
+            "description": "Mindmap identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mindmap": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["mindmap"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Mindmap identifier"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Name, plain text. Apps show the central topic's text while it is empty"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["type", "id", "title", "createdAt"],
+                      "additionalProperties": false
+                    },
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["mindmapNode"] },
+                          "id": {
+                            "type": "string",
+                            "description": "Mindmap node identifier"
+                          },
+                          "mindmapId": { "type": "string" },
+                          "parentId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }],
+                            "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": ["topic", "task", "note"],
+                            "description": "A topic owns its title; a task or note node shows that item"
+                          },
+                          "taskId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }]
+                          },
+                          "noteId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }]
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "Topic text, or the task's or note's title"
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": ["left", "right"],
+                            "description": "Side of its root a main branch sits on"
+                          },
+                          "position": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false,
+                                "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Set on floating topics only"
+                          },
+                          "collapsed": { "type": "boolean" },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id",
+                          "mindmapId",
+                          "parentId",
+                          "kind",
+                          "taskId",
+                          "noteId",
+                          "title",
+                          "side",
+                          "position",
+                          "collapsed",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Depth-first: each parent precedes its children, and siblings are in order"
+                    }
+                  },
+                  "required": ["mindmap", "nodes"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMindmap",
+        "summary": "Rename a mindmap",
+        "tags": ["Mindmaps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Empty clears the name, so apps show the central topic's text"
+                  }
+                },
+                "required": ["title"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "mindmapId",
+            "required": true,
+            "description": "Mindmap identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mindmap": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["mindmap"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Mindmap identifier"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Name, plain text. Apps show the central topic's text while it is empty"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["type", "id", "title", "createdAt"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["mindmap"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMindmap",
+        "summary": "Delete a mindmap",
+        "tags": ["Mindmaps"],
+        "description": "Deletes the mindmap and its nodes. Tasks on it stay in their projects.",
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "mindmapId",
+            "required": true,
+            "description": "Mindmap identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Default Response" },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/mindmaps/{mindmapId}/nodes": {
+      "post": {
+        "operationId": "createMindmapNode",
+        "summary": "Add a topic, task, or note to a mindmap",
+        "tags": ["Mindmaps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentId": {
+                    "description": "Parent node; the central topic (the mindmap ID) or omitted for a main branch",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "placement": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["first"] }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["last"] }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["before"] },
+                          "anchorId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Sibling to place the entity before"
+                          }
+                        },
+                        "required": ["kind", "anchorId"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["after"] },
+                          "anchorId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Sibling to place the entity after"
+                          }
+                        },
+                        "required": ["kind", "anchorId"],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "description": "Position within an ordered collection"
+                  },
+                  "position": {
+                    "description": "Creates a floating topic there instead of placing it under a parent",
+                    "type": "object",
+                    "properties": {
+                      "x": { "type": "number" },
+                      "y": { "type": "number" }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                  },
+                  "side": {
+                    "description": "Side for a main branch placed first or last; defaults to the side with fewer branches",
+                    "type": "string",
+                    "enum": ["left", "right"]
+                  },
+                  "title": {
+                    "description": "Creates a topic",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "taskId": {
+                    "description": "Adds a node for a task; a task can be on several nodes",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "noteId": {
+                    "description": "Adds a node for a note; a note can be on several nodes",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "mindmapId",
+            "required": true,
+            "description": "Mindmap identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "node": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["mindmapNode"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Mindmap node identifier"
+                        },
+                        "mindmapId": { "type": "string" },
+                        "parentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["topic", "task", "note"],
+                          "description": "A topic owns its title; a task or note node shows that item"
+                        },
+                        "taskId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
+                        "noteId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Topic text, or the task's or note's title"
+                        },
+                        "side": {
+                          "type": "string",
+                          "enum": ["left", "right"],
+                          "description": "Side of its root a main branch sits on"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false,
+                              "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Set on floating topics only"
+                        },
+                        "collapsed": { "type": "boolean" },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "mindmapId",
+                        "parentId",
+                        "kind",
+                        "taskId",
+                        "noteId",
+                        "title",
+                        "side",
+                        "position",
+                        "collapsed",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["node"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/mindmap-nodes/{nodeId}": {
+      "patch": {
+        "operationId": "updateMindmapNode",
+        "summary": "Update a mindmap node",
+        "tags": ["Mindmaps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "description": "Topics only",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "collapsed": { "type": "boolean" },
+                  "side": {
+                    "type": "string",
+                    "enum": ["left", "right"],
+                    "description": "Side of its root a main branch sits on"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "description": "Mindmap node identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "node": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["mindmapNode"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Mindmap node identifier"
+                        },
+                        "mindmapId": { "type": "string" },
+                        "parentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["topic", "task", "note"],
+                          "description": "A topic owns its title; a task or note node shows that item"
+                        },
+                        "taskId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
+                        "noteId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Topic text, or the task's or note's title"
+                        },
+                        "side": {
+                          "type": "string",
+                          "enum": ["left", "right"],
+                          "description": "Side of its root a main branch sits on"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false,
+                              "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Set on floating topics only"
+                        },
+                        "collapsed": { "type": "boolean" },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "mindmapId",
+                        "parentId",
+                        "kind",
+                        "taskId",
+                        "noteId",
+                        "title",
+                        "side",
+                        "position",
+                        "collapsed",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["node"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMindmapNode",
+        "summary": "Remove a node and its subtree from a mindmap",
+        "tags": ["Mindmaps"],
+        "description": "Tasks on the removed nodes stay in their projects.",
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "description": "Mindmap node identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Default Response" },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/mindmap-nodes/{nodeId}/move": {
+      "post": {
+        "operationId": "moveMindmapNode",
+        "summary": "Move a mindmap node and its subtree",
+        "tags": ["Mindmaps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentId": {
+                    "description": "New parent node; the central topic (the mindmap ID) for a main branch",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "placement": {
+                    "description": "Defaults to last",
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["first"] }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["last"] }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["before"] },
+                          "anchorId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Sibling to place the entity before"
+                          }
+                        },
+                        "required": ["kind", "anchorId"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "enum": ["after"] },
+                          "anchorId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Sibling to place the entity after"
+                          }
+                        },
+                        "required": ["kind", "anchorId"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "position": {
+                    "description": "Floats the topic there, out of its parent",
+                    "type": "object",
+                    "properties": {
+                      "x": { "type": "number" },
+                      "y": { "type": "number" }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                  },
+                  "side": {
+                    "type": "string",
+                    "enum": ["left", "right"],
+                    "description": "Side of its root a main branch sits on"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "description": "Mindmap node identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "node": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["mindmapNode"] },
+                        "id": {
+                          "type": "string",
+                          "description": "Mindmap node identifier"
+                        },
+                        "mindmapId": { "type": "string" },
+                        "parentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["topic", "task", "note"],
+                          "description": "A topic owns its title; a task or note node shows that item"
+                        },
+                        "taskId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
+                        "noteId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Topic text, or the task's or note's title"
+                        },
+                        "side": {
+                          "type": "string",
+                          "enum": ["left", "right"],
+                          "description": "Side of its root a main branch sits on"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false,
+                              "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Set on floating topics only"
+                        },
+                        "collapsed": { "type": "boolean" },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id",
+                        "mindmapId",
+                        "parentId",
+                        "kind",
+                        "taskId",
+                        "noteId",
+                        "title",
+                        "side",
+                        "position",
+                        "collapsed",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["node"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "Error response",
             "content": {
               "application/json": {

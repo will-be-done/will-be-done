@@ -1,26 +1,28 @@
-import { selectFrom, v } from "@will-be-done/hyperdb";
+import { selectFrom, v, type SelectorGenerator } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { createTask, taskById, defaultTask } from "./tasks";
 import { taskTemplateById } from "./taskTemplates";
+import { noteById } from "./notes";
 import { parse } from "date-fns";
 import {
   tasksTable,
   taskTemplatesTable,
+  notesTable,
   dailyEntriesTable,
   projectSectionsTable,
   projectsTable,
   dailyListsTable,
   checklistItemsTable,
+  item as itemSchema,
   listItem,
   dailyEntryType,
   stashEntryType,
   isDailyEntry,
   isStashEntry,
+  isNote,
   type ListItem,
-  type Task,
-  type TaskTemplate,
   type Project,
   type ProjectSection,
   type DailyList,
@@ -47,7 +49,7 @@ export const firstProjectSectionItem = selector({
   args: { projectSectionId: v.string() },
   handler: function* firstProjectSectionItem({
     projectSectionId,
-  }): Generator<unknown, Item, unknown> {
+  }): SelectorGenerator<Item> {
     const ids = yield* projectSectionItemIds({ projectSectionId });
     if (ids.length === 0) return defaultTask;
 
@@ -60,7 +62,7 @@ export const lastProjectSectionItem = selector({
   args: { projectSectionId: v.string() },
   handler: function* lastProjectSectionItem({
     projectSectionId,
-  }): Generator<unknown, Item, unknown> {
+  }): SelectorGenerator<Item> {
     const ids = yield* projectSectionItemIds({ projectSectionId });
     if (ids.length === 0) return defaultTask;
 
@@ -88,7 +90,12 @@ export const projectSectionItems = selector({
       "byProjectSectionIdOrderStates",
     ).where((q) => q.eq("projectSectionId", projectSectionId));
 
-    const allItems = [...tasks, ...templates];
+    const notes = yield* selectFrom(
+      notesTable,
+      "byProjectSectionIdOrder",
+    ).where((q) => q.eq("projectSectionId", projectSectionId));
+
+    const allItems = [...tasks, ...templates, ...notes];
 
     return allItems.sort((a, b) => {
       if (a.orderToken > b.orderToken) {
@@ -99,20 +106,20 @@ export const projectSectionItems = selector({
       }
 
       return 0;
-    }) as (Task | TaskTemplate)[];
+    }) as Item[];
   },
 });
 
 export const projectSectionItemsForDisplay = selector({
   name: "projectSectionItemsForDisplay",
   args: {
-    items: v.array(v.union(tasksTable.v(), taskTemplatesTable.v())),
+    items: v.array(itemSchema),
     listItems: v.array(listItem),
   },
   handler: function* projectSectionItemsForDisplay({
     items,
     listItems,
-  }): Generator<unknown, ItemForDisplay[], unknown> {
+  }): SelectorGenerator<ItemForDisplay[]> {
     const projectSectionIds = [
       ...new Set(items.map((item) => item.projectSectionId)),
     ];
@@ -169,9 +176,10 @@ export const projectSectionItemsForDisplay = selector({
       ]),
     );
 
-    const checklistItems = items.length
+    const checklistParents = items.filter((item) => !isNote(item));
+    const checklistItems = checklistParents.length
       ? yield* selectFrom(checklistItemsTable, "byParentOrder").where((q) =>
-          items.map((item) =>
+          checklistParents.map((item) =>
             q.eq("parentType", item.type).eq("parentId", item.id),
           ),
         )
@@ -275,12 +283,15 @@ export const projectSectionItemById = selector({
   args: { id: v.string() },
   handler: function* projectSectionItemById({
     id,
-  }): Generator<unknown, Item | undefined, unknown> {
+  }): SelectorGenerator<Item | undefined> {
     const task = yield* taskById({ id });
     if (task) return task;
 
     const template = yield* taskTemplateById({ id });
     if (template) return template;
+
+    const note = yield* noteById({ id });
+    if (note) return note;
 
     return undefined;
   },
@@ -291,7 +302,7 @@ export const projectSectionItemByIdOrDefault = selector({
   args: { id: v.string() },
   handler: function* projectSectionItemByIdOrDefault({
     id,
-  }): Generator<unknown, Item, unknown> {
+  }): SelectorGenerator<Item> {
     return (yield* projectSectionItemById({ id })) || defaultTask;
   },
 });
@@ -301,7 +312,7 @@ export const projectSectionItemSiblings = selector({
   args: { itemId: v.string() },
   handler: function* projectSectionItemSiblings({
     itemId,
-  }): Generator<unknown, [Item | undefined, Item | undefined], unknown> {
+  }): SelectorGenerator<[Item | undefined, Item | undefined]> {
     const item = yield* projectSectionItemByIdOrDefault({ id: itemId });
     if (!item) return [undefined, undefined];
 

@@ -5,6 +5,8 @@ import {
   selectFrom,
   upsert,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -36,6 +38,7 @@ import { dailyEntryByTaskId } from "./dailyEntries";
 import { stashEntryAllTaskIds } from "./stashEntries";
 import { taskById, updateTask } from "./tasks";
 import { updateTemplate } from "./taskTemplates";
+import { updateNote } from "./notes";
 import {
   firstProjectSectionItem,
   lastProjectSectionItem,
@@ -54,6 +57,7 @@ import {
   isDailyEntry,
   isTask,
   isTaskTemplate,
+  isNote,
 } from "./tables";
 
 export const defaultProject: Project = {
@@ -66,9 +70,7 @@ export const defaultProject: Project = {
   createdAt: 0,
 };
 
-function* projectTodoTaskIds(
-  projectId: string,
-): Generator<unknown, string[], unknown> {
+function* projectTodoTaskIds(projectId: string): SelectorGenerator<string[]> {
   const sections = yield* projectSectionsByProjectId({ projectId });
   const projectSectionIds = sections.map((section) => section.id);
   if (projectSectionIds.length === 0) return [];
@@ -128,7 +130,7 @@ export const projectCanDrop = selector({
     projectId,
     dropItemId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     // App drops unwrap stash entries before calling the item handler.
     if (dropModelType === "stashEntry") return false;
 
@@ -160,7 +162,7 @@ export const overdueTasksCountExceptDailiesCount = selector({
     projectId,
     exceptDailyListIds,
     currentDate,
-  }): Generator<unknown, number, unknown> {
+  }): SelectorGenerator<number> {
     const currentDay = startOfDay(new Date(currentDate));
 
     const taskIds = yield* dailyListAllTaskIds({
@@ -216,7 +218,7 @@ export const notDoneTasksCountExceptDailiesCount = selector({
   handler: function* notDoneTasksCountExceptDailiesCount({
     projectId,
     exceptDailyListIds,
-  }): Generator<unknown, number, unknown> {
+  }): SelectorGenerator<number> {
     const taskIds = yield* dailyListAllTaskIds({
       dailyListIds: exceptDailyListIds,
     });
@@ -238,7 +240,7 @@ export const overdueTasksCountExceptDailiesAndStashCount = selector({
     projectId,
     exceptDailyListIds,
     currentDate,
-  }): Generator<unknown, number, unknown> {
+  }): SelectorGenerator<number> {
     const currentDay = startOfDay(new Date(currentDate));
 
     const taskIds = yield* dailyListAllTaskIds({
@@ -295,7 +297,7 @@ export const notDoneTasksCountExceptDailiesAndStashCount = selector({
   handler: function* notDoneTasksCountExceptDailiesAndStashCount({
     projectId,
     exceptDailyListIds,
-  }): Generator<unknown, number, unknown> {
+  }): SelectorGenerator<number> {
     const taskIds = yield* dailyListAllTaskIds({
       dailyListIds: exceptDailyListIds,
     });
@@ -316,10 +318,13 @@ export const createProject = action({
   handler: function* createProject({
     project,
     position,
-  }): Generator<unknown, Project, unknown> {
+  }): ActionGenerator<Project> {
     const orderToken = yield* generateOrderTokenPositioned(
       "all-projects-list",
-      { firstChild: firstProjectChild, lastChild: lastProjectChild },
+      {
+        firstChild: () => firstProjectChild({}),
+        lastChild: () => lastProjectChild({}),
+      },
       normalizeOrderPosition(position),
     );
 
@@ -369,11 +374,7 @@ export const createProject = action({
 export const createInboxIfNotExists = action({
   name: "createInboxIfNotExists",
   args: {},
-  handler: function* createInboxIfNotExists(): Generator<
-    unknown,
-    Project,
-    unknown
-  > {
+  handler: function* createInboxIfNotExists(): ActionGenerator<Project> {
     const inbox = yield* projectById({ id: yield* inboxProjectId({}) });
     if (inbox) {
       return inbox;
@@ -399,10 +400,7 @@ export const updateProject = action({
     id: v.string(),
     project: v.partial(projectsTable.v()),
   },
-  handler: function* updateProject({
-    id,
-    project,
-  }): Generator<unknown, void, unknown> {
+  handler: function* updateProject({ id, project }): ActionGenerator<void> {
     const projectInState = yield* projectById({ id });
     if (!projectInState) throw new Error("Project not found");
 
@@ -413,9 +411,7 @@ export const updateProject = action({
 export const deleteProjects = action({
   name: "deleteProjects",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteProjects({
-    ids,
-  }): Generator<unknown, void, unknown> {
+  handler: function* deleteProjects({ ids }): ActionGenerator<void> {
     const projectSections = yield* projectSectionsByProjectIds({
       projectIds: ids,
     });
@@ -438,7 +434,7 @@ export const projectHandleDrop = action({
     dropItemId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const canDropResult = yield* projectCanDrop({
       projectId,
       dropItemId,
@@ -479,6 +475,7 @@ export const projectHandleDrop = action({
     } else if (
       isTask(dropItem) ||
       isTaskTemplate(dropItem) ||
+      isNote(dropItem) ||
       isDailyEntry(dropItem)
     ) {
       const section = yield* firstProjectSectionChild({
@@ -514,6 +511,14 @@ export const projectHandleDrop = action({
             orderToken,
           },
         });
+      } else if (isNote(dropItem)) {
+        yield* updateNote({
+          id: dropItem.id,
+          note: {
+            projectSectionId: section.id,
+            orderToken,
+          },
+        });
       } else if (isDailyEntry(dropItem)) {
         // When dropping a entry onto a project, move the underlying task
         const task = yield* taskById({ id: dropItem.taskId });
@@ -545,7 +550,7 @@ export const createProjectTask = action({
     projectId,
     position,
     taskAttrs,
-  }): Generator<unknown, Task, unknown> {
+  }): ActionGenerator<Task> {
     const project = yield* projectById({ id: projectId });
     if (!project) throw new Error("Project not found");
 
@@ -582,7 +587,7 @@ export const createProjectTaskIfNotExists = action({
     taskId,
     position,
     taskAttrs,
-  }): Generator<unknown, Task, unknown> {
+  }): ActionGenerator<Task> {
     const task = yield* taskById({ id: taskId });
     if (task) {
       return task;

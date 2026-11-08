@@ -4,8 +4,23 @@ import { isInputElement } from "@/utils/isInputElement.ts";
 import { getModelDropTarget, isModelDNDData } from "@/lib/dnd/models";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { appHandleDrop } from "@will-be-done/slices/space";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
-import { FocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
+import { replayAndFocus } from "@/store/undo";
+import {
+  FocusKey,
+  focusElementByKey,
+  useFocusStore,
+} from "@/store/focusSlice.ts";
+import { isApple } from "@/components/RichText/keys";
+import {
+  getDraggedSelectionKeys,
+  useSelectionActions,
+} from "@/components/Selection/useSelectionActions";
+import {
+  copyItems,
+  itemPasteOf,
+  useClipboardStore,
+} from "@/components/Selection/clipboard";
 import {
   getDOMSiblings,
   getDOMColumnSiblingFirstItems,
@@ -13,8 +28,12 @@ import {
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/KeyboardShortcutsDialog";
 import { QuickAddDialog } from "@/components/QuickAdd/QuickAddDialog";
 
+const hasEditHistoryMenu = () => !!window.desktopApi?.onEditHistory;
+
 export function GlobalListener() {
   const dispatch = useAsyncDispatch();
+  const db = useDB();
+  const selection = useSelectionActions();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -36,14 +55,18 @@ export function GlobalListener() {
         return;
       }
 
+      // The macOS desktop Edit menu owns these and calls onEditHistory.
+      if (e.code === "KeyZ" && e.metaKey && isApple && hasEditHistoryMenu()) {
+        return;
+      }
+
       // Handle undo (cmd+z/ctrl+z)
       if (
         ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && !e.shiftKey) ||
         e.code === "KeyU"
       ) {
         e.preventDefault();
-        // TODO: return undo support
-        // undoManager.undo();
+        void replayAndFocus(db, "undo");
         return;
       }
 
@@ -53,7 +76,20 @@ export function GlobalListener() {
         (e.code === "KeyR" && e.ctrlKey)
       ) {
         e.preventDefault();
-        // TODO: return undo support
+        void replayAndFocus(db, "redo");
+        return;
+      }
+
+      if (e.code === "Escape" && focusState.selectedKeys.length > 0) {
+        focusState.clearSelection();
+        return;
+      }
+
+      if (
+        e.code === "Escape" &&
+        useClipboardStore.getState().clipboard?.mode === "cut"
+      ) {
+        useClipboardStore.setState({ clipboard: null });
         return;
       }
 
@@ -66,7 +102,7 @@ export function GlobalListener() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [db]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -83,17 +119,32 @@ export function GlobalListener() {
       // If it's an input, return early
       if (isInput) return;
 
-      const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
-      const isUp = (e.code === "ArrowUp" || e.code == "KeyK") && noModifiers;
-      const isDown =
-        e.code === "ArrowDown" || (e.code == "KeyJ" && noModifiers);
+      // Ctrl/Cmd combos move items; the item handlers own them.
+      if (e.ctrlKey || e.metaKey) return;
 
-      const isLeft =
-        e.code === "ArrowLeft" || (e.code == "KeyH" && noModifiers);
-      const isRight =
-        e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
+      const isUp = e.code === "ArrowUp" || e.code == "KeyK";
+      const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
+      const isLeft = e.code === "ArrowLeft" || e.code == "KeyH";
+      const isRight = e.code === "ArrowRight" || e.code == "KeyL";
 
       const focusItemKey = useFocusStore.getState().focusItemKey;
+      if (focusItemKey && e.shiftKey && (isUp || isDown)) {
+        e.preventDefault();
+
+        const [up, down] = getDOMSiblings(focusItemKey);
+        const next = isUp ? up : down;
+        if (!next) return;
+
+        useFocusStore.getState().selectRangeTo(next);
+        focusElementByKey(next);
+        return;
+      }
+      if (e.shiftKey) return;
+
+      if ((isUp || isDown || isLeft || isRight) && focusItemKey) {
+        useFocusStore.getState().clearSelection();
+      }
+
       if (focusItemKey && (isUp || isDown)) {
         e.preventDefault();
 
@@ -148,9 +199,55 @@ export function GlobalListener() {
     };
   }, []);
 
+  useEffect(
+    () =>
+      window.desktopApi?.onEditHistory?.((direction) => {
+        const active = document.activeElement;
+        if (
+          useFocusStore.getState().isFocusDisabled ||
+          (active && isInputElement(active))
+        ) {
+          return false;
+        }
+        void replayAndFocus(db, direction);
+        return true;
+      }),
+    [db],
+  );
+
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => copyItems(e, "copy");
+    const handleCut = (e: ClipboardEvent) => copyItems(e, "cut");
+    const handlePaste = (e: ClipboardEvent) => {
+      const paste = itemPasteOf(e);
+      if (!paste) return;
+
+      if (paste.clipboard.mode === "cut") {
+        useClipboardStore.setState({ clipboard: null });
+        if (paste.clipboard.keys.includes(paste.targetKey)) return;
+      }
+      void selection.paste(paste.clipboard, paste.targetKey);
+    };
+
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("cut", handleCut);
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("cut", handleCut);
+      document.removeEventListener("paste", handlePaste);
+    };
+  }, [selection]);
+
   useEffect(() => {
     return monitorForElements({
+      onDragStart: ({ source }) => {
+        if (getDraggedSelectionKeys(source.data)) {
+          useFocusStore.getState().setIsDraggingSelection(true);
+        }
+      },
       onDrop: ({ location, source }) => {
+        useFocusStore.getState().setIsDraggingSelection(false);
         if (!isModelDNDData(source.data)) return;
         const target = getModelDropTarget(
           source.data,
@@ -167,6 +264,16 @@ export function GlobalListener() {
               ? "bottom"
               : closestEdge;
 
+        const selectionKeys = getDraggedSelectionKeys(source.data);
+        if (selectionKeys) {
+          void selection.dropOn(
+            selectionKeys,
+            { id: target.data.modelId, modelType: target.data.modelType },
+            edge || "top",
+          );
+          return;
+        }
+
         void dispatch(
           appHandleDrop({
             id: target.data.modelId,
@@ -178,7 +285,7 @@ export function GlobalListener() {
         );
       },
     });
-  }, [dispatch]);
+  }, [dispatch, selection]);
 
   return (
     <>

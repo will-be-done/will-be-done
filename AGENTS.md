@@ -6,7 +6,8 @@
 - TaskNature: the optional color/nature marker for a Task or TaskTemplate: `red`, `green`, or `unknown`.
 - TaskTemplate: a repeatable task blueprint that generates Tasks from a recurrence rule.
 - Project: a top-level container for organizing project sections; one Project can be the inbox.
-- Item: primary content shown in project sections. Currently a Task or TaskTemplate; may include other content such as Note in the future.
+- Note: a section item with a title and rich-text content but no state, schedule, stash entry, or checklist. Tasks and Notes convert into each other, which replaces the row with a new ID.
+- Item: primary content shown in project sections: a Task, TaskTemplate, or Note.
 - ProjectSection: an ordered section inside a Project that contains Items directly. Tasks and TaskTemplates store their section and section order. Its persisted discriminator is `projectSection`.
 - DailyList: a dated schedule list, identified by date, that contains DailyEntries.
 - DailyEntry: a scheduled appearance of a Task in a DailyList. It has its own `id`, references the Task through `taskId`, and stores the DailyList and order for that task on that date. Its persisted discriminator is `dailyEntry`.
@@ -95,6 +96,12 @@ backup recovery, tombstones, or sync persistence, read and follow @docs/sync.md.
 The consistency, recovery, echo-suppression, and idempotency rules in that document are
 mandatory invariants. A sync change must update the document and its regression tests when it
 changes protocol state or behavior; it must not introduce a path that bypasses those invariants.
+
+# Mindmaps
+
+Before changing mindmap schema, tree repair, placement, Task or Note links, the v1 mindmap API,
+or the canvas interaction model, read @docs/mindmap.md. Update it in the same change whenever
+mindmap behavior changes.
 
 # Query Performance
 

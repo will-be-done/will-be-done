@@ -2,9 +2,13 @@ import { deleteRows, insert, selectFrom, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { inboxProjectSectionId, projectSectionById } from "./projectSections";
 import { taskTemplateById } from "./taskTemplates";
+import { mindmapById } from "./mindmaps";
 import {
   checklistItemsTable,
   dailyEntriesTable,
+  type MindmapNode,
+  mindmapNodesTable,
+  notesTable,
   stashEntriesTable,
   tasksTable,
   trashedTasksTable,
@@ -33,6 +37,15 @@ export const trashedTasks = selector({
   },
 });
 
+// A node whose parent is gone shows as a main branch (see mindmapTree).
+function* restoreMindmapNodes(nodes: MindmapNode[]) {
+  const restored: MindmapNode[] = [];
+  for (const node of nodes) {
+    if (yield* mindmapById({ id: node.mindmapId })) restored.push(node);
+  }
+  if (restored.length > 0) yield* insert(mindmapNodesTable, restored);
+}
+
 export const restoreTrashedTasks = action({
   name: "restoreTrashedTasks",
   args: { ids: v.array(v.string()) },
@@ -42,7 +55,28 @@ export const restoreTrashedTasks = action({
       ids.map((id) => q.eq("id", id)),
     )).map(decodeTrashedTask);
 
-    for (const { task, checklistItems, dailyEntry, stashEntry } of rows) {
+    for (const row of rows) {
+      if ("note" in row) {
+        const section = yield* projectSectionById({
+          id: row.note.projectSectionId,
+        });
+        yield* insert(notesTable, [
+          {
+            ...row.note,
+            projectSectionId: section?.id ?? (yield* inboxProjectSectionId({})),
+          },
+        ]);
+        yield* restoreMindmapNodes(row.mindmapNodes ?? []);
+        continue;
+      }
+
+      const {
+        task,
+        checklistItems,
+        dailyEntry,
+        stashEntry,
+        mindmapNodes = [],
+      } = row;
       const section = yield* projectSectionById({ id: task.projectSectionId });
       const template = task.templateId
         ? yield* taskTemplateById({ id: task.templateId })
@@ -61,6 +95,7 @@ export const restoreTrashedTasks = action({
       // DailyLists are never deleted, so the entry's list still exists.
       if (dailyEntry) yield* insert(dailyEntriesTable, [dailyEntry]);
       if (stashEntry) yield* insert(stashEntriesTable, [stashEntry]);
+      yield* restoreMindmapNodes(mindmapNodes);
     }
 
     yield* deleteRows(

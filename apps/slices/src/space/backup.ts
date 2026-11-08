@@ -12,6 +12,7 @@ import { allProjectSections } from "./projectSections";
 import { allProjects } from "./projectsAll";
 import { allTasks } from "./tasks";
 import { allTaskTemplates } from "./taskTemplates";
+import { allNotes } from "./notes";
 import { dailyListAllIds, dailyListById, dailyListGetId } from "./dailyLists";
 import { dailyEntryAllIds, dailyEntryById } from "./dailyEntries";
 import { inboxProjectId as getInboxProjectId } from "./projects";
@@ -35,8 +36,16 @@ import {
   projectType,
   Task,
   DailyEntry,
+  type Mindmap,
+  type MindmapNode,
+  mindmapNodesTable,
+  mindmapNodeType,
+  mindmapsTable,
+  mindmapType,
   TaskTemplate,
   taskTemplateType,
+  Note,
+  noteType,
   taskType,
   trashedTasksTable,
   trashedTaskType,
@@ -110,6 +119,15 @@ interface TaskTemplateBackup {
   durationMinutes?: number;
 }
 
+interface NoteBackup {
+  id: string;
+  title: string;
+  content?: string;
+  orderToken: string;
+  createdAt: number;
+  projectSectionId: string;
+}
+
 interface ChecklistItemBackup {
   id: string;
   parentId: string;
@@ -119,6 +137,28 @@ interface ChecklistItemBackup {
   content: string;
   createdAt: number;
   checkedAt: number | null;
+}
+
+interface MindmapBackup {
+  id: string;
+  title: string;
+  orderToken: string;
+  createdAt: number;
+}
+
+interface MindmapNodeBackup {
+  id: string;
+  mindmapId: string;
+  parentId: string | null;
+  x?: number;
+  y?: number;
+  orderToken: string;
+  side: "left" | "right";
+  taskId: string | null;
+  noteId?: string;
+  title: string;
+  collapsed: boolean;
+  createdAt: number;
 }
 
 interface TrashedTaskBackup {
@@ -136,6 +176,9 @@ export interface Backup {
   dailyEntries?: DailyEntryBackup[];
   checklistItems?: ChecklistItemBackup[];
   trashedTasks?: TrashedTaskBackup[];
+  mindmaps?: MindmapBackup[];
+  mindmapNodes?: MindmapNodeBackup[];
+  notes?: NoteBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -268,6 +311,46 @@ const backupSchema = v.object({
         id: v.string(),
         trashedAt: v.number(),
         snapshot: v.string(),
+      }),
+    ),
+  ),
+  mindmaps: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        orderToken: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  ),
+  mindmapNodes: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        mindmapId: v.string(),
+        parentId: v.union(v.string(), v.null()),
+        x: v.optional(v.number()),
+        y: v.optional(v.number()),
+        orderToken: v.string(),
+        side: v.union(v.literal("left"), v.literal("right")),
+        taskId: v.union(v.string(), v.null()),
+        noteId: v.optional(v.string()),
+        title: v.string(),
+        collapsed: v.boolean(),
+        createdAt: v.number(),
+      }),
+    ),
+  ),
+  notes: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        content: v.optional(v.string()),
+        orderToken: v.string(),
+        createdAt: v.number(),
+        projectSectionId: v.string(),
       }),
     ),
   ),
@@ -425,9 +508,22 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
   }
   const result = trashSnapshot.normalize(parsed);
   if (result.ok && !result.omitted) {
-    const { task, checklistItems, dailyEntry, stashEntry } = result.value;
+    if ("note" in result.value) {
+      const { note, mindmapNodes } = result.value;
+      if (
+        note.id === id &&
+        (mindmapNodes ?? []).every((node) => node.noteId === id)
+      ) {
+        return result.value;
+      }
+      console.warn(`Invalid trash snapshot omitted for note ${id}`);
+      return undefined;
+    }
+    const { task, checklistItems, dailyEntry, stashEntry, mindmapNodes } =
+      result.value;
     const belongsToTask =
       task.id === id &&
+      (mindmapNodes ?? []).every((node) => node.taskId === id) &&
       checklistItems.every(
         (item) => item.parentType === taskType && item.parentId === id,
       ) &&
@@ -521,7 +617,9 @@ const getNewModels = action({
         type: taskType,
         id: taskBackup.id,
         title: taskBackup.title,
-        content: taskBackup.content,
+        ...(taskBackup.content === undefined
+          ? {}
+          : { content: taskBackup.content }),
         state: taskBackup.state,
         projectSectionId: taskBackup.projectSectionId,
         orderToken: taskBackup.orderToken,
@@ -579,7 +677,9 @@ const getNewModels = action({
         type: taskTemplateType,
         id: templateBackup.id,
         title: templateBackup.title,
-        content: templateBackup.content,
+        ...(templateBackup.content === undefined
+          ? {}
+          : { content: templateBackup.content }),
         orderToken: templateBackup.orderToken,
         repeatRule: templateBackup.repeatRule,
         repeatRuleDtStart:
@@ -592,6 +692,32 @@ const getNewModels = action({
       };
 
       models.push(template);
+    }
+
+    for (const noteBackup of backup.notes || []) {
+      const section = backup.projectSections.find(
+        (p) => p.id === noteBackup.projectSectionId,
+      );
+      if (!section) {
+        console.warn(
+          `Project section ${noteBackup.projectSectionId} not found for note ${noteBackup.id}`,
+        );
+        continue;
+      }
+
+      const note: Note = {
+        type: noteType,
+        id: noteBackup.id,
+        title: noteBackup.title,
+        ...(noteBackup.content === undefined
+          ? {}
+          : { content: noteBackup.content }),
+        orderToken: noteBackup.orderToken,
+        createdAt: noteBackup.createdAt,
+        projectSectionId: section.id,
+      };
+
+      models.push(note);
     }
 
     // Create entries from both independent-id backups and older task-id entries.
@@ -676,14 +802,25 @@ const getNewModels = action({
       }
     }
 
-    const liveTaskIds = new Set(
-      models.filter((model) => model.type === taskType).map(({ id }) => id),
+    const liveItemIds = new Set(
+      models
+        .filter((model) => model.type === taskType || model.type === noteType)
+        .map(({ id }) => id),
     );
     const trashedTasks: TrashedTaskRow[] = [];
     for (const row of backup.trashedTasks || []) {
-      if (liveTaskIds.has(row.id)) continue;
+      if (liveItemIds.has(row.id)) continue;
       const snapshot = parseTrashSnapshot(row);
       if (!snapshot) continue;
+      if ("note" in snapshot) {
+        trashedTasks.push({
+          type: trashedTaskType,
+          id: row.id,
+          trashedAt: row.trashedAt,
+          snapshot: JSON.stringify(snapshot satisfies TrashSnapshot),
+        });
+        continue;
+      }
 
       // DailyList IDs are derived per space, so remap like live entries.
       const { dailyEntry } = snapshot;
@@ -701,11 +838,31 @@ const getNewModels = action({
       });
     }
 
-    return { models, trashedTasks };
+    const mindmaps: Mindmap[] = (backup.mindmaps || []).map((mindmap) => ({
+      type: mindmapType,
+      ...mindmap,
+    }));
+    const mindmapIds = new Set(mindmaps.map(({ id }) => id));
+    const mindmapNodes: MindmapNode[] = [];
+    for (const node of backup.mindmapNodes || []) {
+      if (!mindmapIds.has(node.mindmapId)) {
+        console.warn(`Mindmap ${node.mindmapId} not found for node ${node.id}`);
+        continue;
+      }
+      // Its children then show as main branches, like any orphaned node.
+      const itemIds = [node.taskId, node.noteId].filter((id) => id);
+      if (itemIds.length > 0 && !itemIds.some((id) => liveItemIds.has(id!))) {
+        console.warn(`Items ${itemIds.join(", ")} not found for mindmap node`);
+        continue;
+      }
+      mindmapNodes.push({ type: mindmapNodeType, ...node });
+    }
+
+    return { models, trashedTasks, mindmaps, mindmapNodes };
   },
 });
 
-export const loadSpaceBackup = selector({
+export const loadSpaceBackup = action({
   name: "loadSpaceBackup",
   args: { backup: backupInputSchema },
   handler: function* loadSpaceBackup({ backup }) {
@@ -721,9 +878,10 @@ export const loadSpaceBackup = selector({
       yield* deleteRows(table, allIds);
     }
 
-    const { models, trashedTasks } = yield* getNewModels({
-      backup: normalizeSpaceBackup(backup),
-    });
+    const { models, trashedTasks, mindmaps, mindmapNodes } =
+      yield* getNewModels({
+        backup: normalizeSpaceBackup(backup),
+      });
     const modelsByTable = new Map<
       (typeof registeredSpaceSyncableTables)[number],
       AnyModel[]
@@ -744,6 +902,10 @@ export const loadSpaceBackup = selector({
       }
     }
     if (trashedTasks.length > 0) yield* insert(trashedTasksTable, trashedTasks);
+    if (mindmaps.length > 0) yield* insert(mindmapsTable, mindmaps);
+    if (mindmapNodes.length > 0) {
+      yield* insert(mindmapNodesTable, mindmapNodes);
+    }
   },
 });
 
@@ -754,8 +916,11 @@ export const getSpaceBackup = selector({
     const tasks: Task[] = yield* allTasks({});
     const projects: Project[] = yield* allProjects({});
     const taskTemplates: TaskTemplate[] = yield* allTaskTemplates({});
+    const notes: Note[] = yield* allNotes({});
     const checklistItems: ChecklistItem[] = yield* allChecklistItems({});
     const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
+    const mindmaps = yield* selectFrom(mindmapsTable, "byIds");
+    const mindmapNodes = yield* selectFrom(mindmapNodesTable, "byIds");
     const dailyLists: DailyList[] = [];
 
     // Get all daily lists
@@ -851,6 +1016,23 @@ export const getSpaceBackup = selector({
         id,
         trashedAt,
         snapshot,
+      })),
+      mindmaps: mindmaps.map(({ id, title, orderToken, createdAt }) => ({
+        id,
+        title,
+        orderToken,
+        createdAt,
+      })),
+      mindmapNodes: mindmapNodes.map(
+        ({ type: _type, titleDoc: _titleDoc, ...node }) => node,
+      ),
+      notes: notes.map((note) => ({
+        id: note.id,
+        title: note.title,
+        content: note.content || "",
+        orderToken: note.orderToken,
+        createdAt: note.createdAt,
+        projectSectionId: note.projectSectionId,
       })),
     } satisfies Backup;
   },

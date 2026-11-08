@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { format } from "date-fns";
+import type { FocusKey } from "@/store/focusSlice.ts";
 import {
+  adjacentTime,
+  type CalendarDirection,
   type CalendarEvent,
+  type CalendarView,
+  calendarNeighbor,
   calendarTitle,
   layoutSpans,
   shiftAnchor,
+  shownDayEvents,
   sortDayEvents,
   timedEventSpan,
   visibleDates,
@@ -18,7 +24,7 @@ const event = (
 ): CalendarEvent => ({
   key,
   taskId: key,
-  focusKey: key,
+  focusKey: key as FocusKey,
   date: "2026-10-28",
   title: key,
   nature: undefined,
@@ -123,5 +129,84 @@ describe("calendar model", () => {
       meeting: { column: 0, columns: 2 },
       g: { column: 1, columns: 2 },
     });
+  });
+
+  it("lists a day's events as each view shows them", () => {
+    const day = sortDayEvents([
+      event("untimed", null),
+      event("a", "09:00"),
+      event("b", "10:00"),
+      event("c", "11:00"),
+    ]);
+    const keys = (view: CalendarView) =>
+      shownDayEvents(view, day).map((e) => e.key);
+    expect(keys("week")).toEqual(["untimed", "a", "b", "c"]);
+    // Two chips and "+2 more".
+    expect(keys("month")).toEqual(["a", "b"]);
+    // An external event takes the first chip.
+    expect(shownDayEvents("month", day, 1).map((e) => e.key)).toEqual(["a"]);
+    expect(keys("plan")).toEqual(["a", "b", "c", "untimed"]);
+
+    // The time grid draws done tasks at their time, and a longer block
+    // takes the left column.
+    const grid = sortDayEvents([
+      event("done-8", "08:00", null, true),
+      event("todo-10", "10:00"),
+      event("short-9", "09:00", 15),
+      event("long-9", "09:00", 60),
+    ]);
+    expect(shownDayEvents("week", grid).map((e) => e.key)).toEqual([
+      "done-8",
+      "long-9",
+      "short-9",
+      "todo-10",
+    ]);
+  });
+
+  it("moves focus between calendar events", () => {
+    const days = (count: number, filled: Record<number, CalendarEvent[]>) =>
+      Array.from({ length: count }, (_, i) => filled[i] ?? []);
+    const next = (
+      view: CalendarView,
+      grid: CalendarEvent[][],
+      key: string,
+      direction: CalendarDirection,
+    ) => calendarNeighbor(view, grid, key, direction)?.key;
+
+    const week = days(7, {
+      0: [event("mon-allday", null), event("mon-9", "09:00")],
+      3: [event("thu-allday", null), event("thu-8", "08:00")],
+      4: [event("fri-14", "14:00"), event("fri-20", "20:00")],
+    });
+    expect(next("week", week, "mon-allday", "down")).toBe("mon-9");
+    expect(next("week", week, "mon-9", "down")).toBeUndefined();
+    // Skips empty days and keeps to the all-day row or the nearest time.
+    expect(next("week", week, "mon-allday", "right")).toBe("thu-allday");
+    expect(next("week", week, "mon-9", "right")).toBe("thu-8");
+    expect(next("week", week, "thu-8", "right")).toBe("fri-14");
+    expect(next("week", week, "fri-20", "left")).toBe("thu-8");
+    expect(next("week", week, "fri-20", "right")).toBeUndefined();
+
+    const month = days(35, {
+      2: [event("a1", null), event("a2", null)],
+      16: [event("b1", null), event("b2", null)],
+      17: [event("c1", null)],
+    });
+    // Off the end of a cell, up and down go a week at a time.
+    expect(next("month", month, "a2", "down")).toBe("b1");
+    expect(next("month", month, "b1", "up")).toBe("a2");
+    expect(next("month", month, "b2", "down")).toBeUndefined();
+    expect(next("month", month, "b2", "right")).toBe("c1");
+    expect(next("month", month, "a1", "left")).toBeUndefined();
+  });
+
+  it("times a task added after or before an event", () => {
+    expect(adjacentTime(event("a", "09:00", 45), "after")).toBe("09:45");
+    // No duration draws a 30 minute block.
+    expect(adjacentTime(event("a", "09:00"), "after")).toBe("09:30");
+    expect(adjacentTime(event("a", "09:00", 45), "before")).toBe("08:30");
+    expect(adjacentTime(event("a", "00:10"), "before")).toBe("00:00");
+    expect(adjacentTime(event("a", "23:30", 60), "after")).toBe("23:45");
+    expect(adjacentTime(event("a", null), "after")).toBeNull();
   });
 });

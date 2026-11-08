@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils.ts";
 
 const linkClass = (isActive: boolean) =>
   cn(
-    "px-2.5 py-1 rounded text-[12px] font-medium transition-colors",
+    "px-2 py-1 rounded text-[12px] font-medium transition-colors",
     isActive
       ? "text-accent bg-accent/10"
       : "text-content-tinted/55 hover:text-content/80 hover:bg-white/[0.05]",
@@ -28,8 +28,13 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       s.matches.some((m) => (m.pathname as string).includes("/calendar")),
   });
 
+  const isMindmapsActive = useRouterState({
+    select: (s) =>
+      s.matches.some((m) => (m.pathname as string).includes("/mindmaps")),
+  });
+
   return (
-    <div className="flex gap-0.5 items-center h-8 px-1.5 ring-1 ring-ring rounded-lg desktop-macos:ml-20 desktop-macos:py-2 mt-2 [app-region:no-drag]">
+    <div className="flex items-center gap-1 h-8 px-1.5 ring-1 ring-ring rounded-lg desktop-macos:ml-20 desktop-macos:py-2 mt-2 [app-region:no-drag]">
       <Link
         to="/spaces/$spaceId/dates"
         params={{ spaceId }}
@@ -50,6 +55,13 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
         className={linkClass(isCalendarActive)}
       >
         calendar
+      </Link>
+      <Link
+        to="/spaces/$spaceId/mindmaps"
+        params={{ spaceId }}
+        className={linkClass(isMindmapsActive)}
+      >
+        maps
       </Link>
     </div>
   );

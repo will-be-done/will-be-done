@@ -2594,6 +2594,20 @@ export type ListSectionItems200ItemsItem =
        * @maximum 9007199254740991
        */
       lastGeneratedAt: number;
+    }
+  | {
+      type: "note";
+      /** Note identifier */
+      id: string;
+      title: string;
+      content?: string;
+      /** Parent project section identifier */
+      projectSectionId: string;
+      /**
+       * @minimum 0
+       * @maximum 9007199254740991
+       */
+      createdAt: number;
     };
 
 export type ListSectionItems200 = {
@@ -5497,6 +5511,830 @@ export type ConvertTaskTemplateToTask500 = {
   message: string;
 };
 
+export type GetNote200NoteType =
+  (typeof GetNote200NoteType)[keyof typeof GetNote200NoteType];
+
+export const GetNote200NoteType = {
+  note: "note",
+} as const;
+
+export type GetNote200Note = {
+  type: GetNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type GetNote200 = {
+  note: GetNote200Note;
+};
+
+export type GetNote400Code =
+  (typeof GetNote400Code)[keyof typeof GetNote400Code];
+
+export const GetNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote400 = {
+  code: GetNote400Code;
+  message: string;
+};
+
+export type GetNote401Code =
+  (typeof GetNote401Code)[keyof typeof GetNote401Code];
+
+export const GetNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote401 = {
+  code: GetNote401Code;
+  message: string;
+};
+
+export type GetNote403Code =
+  (typeof GetNote403Code)[keyof typeof GetNote403Code];
+
+export const GetNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote403 = {
+  code: GetNote403Code;
+  message: string;
+};
+
+export type GetNote404Code =
+  (typeof GetNote404Code)[keyof typeof GetNote404Code];
+
+export const GetNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote404 = {
+  code: GetNote404Code;
+  message: string;
+};
+
+export type GetNote500Code =
+  (typeof GetNote500Code)[keyof typeof GetNote500Code];
+
+export const GetNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote500 = {
+  code: GetNote500Code;
+  message: string;
+};
+
+export type UpdateNoteBody = {
+  /** @minLength 1 */
+  title?: string;
+  content?: string;
+};
+
+export type UpdateNote200NoteType =
+  (typeof UpdateNote200NoteType)[keyof typeof UpdateNote200NoteType];
+
+export const UpdateNote200NoteType = {
+  note: "note",
+} as const;
+
+export type UpdateNote200Note = {
+  type: UpdateNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type UpdateNote200 = {
+  note: UpdateNote200Note;
+};
+
+export type UpdateNote400Code =
+  (typeof UpdateNote400Code)[keyof typeof UpdateNote400Code];
+
+export const UpdateNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote400 = {
+  code: UpdateNote400Code;
+  message: string;
+};
+
+export type UpdateNote401Code =
+  (typeof UpdateNote401Code)[keyof typeof UpdateNote401Code];
+
+export const UpdateNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote401 = {
+  code: UpdateNote401Code;
+  message: string;
+};
+
+export type UpdateNote403Code =
+  (typeof UpdateNote403Code)[keyof typeof UpdateNote403Code];
+
+export const UpdateNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote403 = {
+  code: UpdateNote403Code;
+  message: string;
+};
+
+export type UpdateNote404Code =
+  (typeof UpdateNote404Code)[keyof typeof UpdateNote404Code];
+
+export const UpdateNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote404 = {
+  code: UpdateNote404Code;
+  message: string;
+};
+
+export type UpdateNote500Code =
+  (typeof UpdateNote500Code)[keyof typeof UpdateNote500Code];
+
+export const UpdateNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote500 = {
+  code: UpdateNote500Code;
+  message: string;
+};
+
+export type DeleteNote400Code =
+  (typeof DeleteNote400Code)[keyof typeof DeleteNote400Code];
+
+export const DeleteNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote400 = {
+  code: DeleteNote400Code;
+  message: string;
+};
+
+export type DeleteNote401Code =
+  (typeof DeleteNote401Code)[keyof typeof DeleteNote401Code];
+
+export const DeleteNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote401 = {
+  code: DeleteNote401Code;
+  message: string;
+};
+
+export type DeleteNote403Code =
+  (typeof DeleteNote403Code)[keyof typeof DeleteNote403Code];
+
+export const DeleteNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote403 = {
+  code: DeleteNote403Code;
+  message: string;
+};
+
+export type DeleteNote404Code =
+  (typeof DeleteNote404Code)[keyof typeof DeleteNote404Code];
+
+export const DeleteNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote404 = {
+  code: DeleteNote404Code;
+  message: string;
+};
+
+export type DeleteNote500Code =
+  (typeof DeleteNote500Code)[keyof typeof DeleteNote500Code];
+
+export const DeleteNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote500 = {
+  code: DeleteNote500Code;
+  message: string;
+};
+
+/**
+ * Position within an ordered collection
+ */
+export type MoveNoteBodyPlacement =
+  | {
+      kind: "first";
+    }
+  | {
+      kind: "last";
+    }
+  | {
+      kind: "before";
+      /**
+       * Sibling to place the entity before
+       * @minLength 1
+       */
+      anchorId: string;
+    }
+  | {
+      kind: "after";
+      /**
+       * Sibling to place the entity after
+       * @minLength 1
+       */
+      anchorId: string;
+    };
+
+export type MoveNoteBody = {
+  /** @minLength 1 */
+  projectSectionId: string;
+  /** Position within an ordered collection */
+  placement: MoveNoteBodyPlacement;
+};
+
+export type MoveNote200NoteType =
+  (typeof MoveNote200NoteType)[keyof typeof MoveNote200NoteType];
+
+export const MoveNote200NoteType = {
+  note: "note",
+} as const;
+
+export type MoveNote200Note = {
+  type: MoveNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type MoveNote200 = {
+  note: MoveNote200Note;
+};
+
+export type MoveNote400Code =
+  (typeof MoveNote400Code)[keyof typeof MoveNote400Code];
+
+export const MoveNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote400 = {
+  code: MoveNote400Code;
+  message: string;
+};
+
+export type MoveNote401Code =
+  (typeof MoveNote401Code)[keyof typeof MoveNote401Code];
+
+export const MoveNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote401 = {
+  code: MoveNote401Code;
+  message: string;
+};
+
+export type MoveNote403Code =
+  (typeof MoveNote403Code)[keyof typeof MoveNote403Code];
+
+export const MoveNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote403 = {
+  code: MoveNote403Code;
+  message: string;
+};
+
+export type MoveNote404Code =
+  (typeof MoveNote404Code)[keyof typeof MoveNote404Code];
+
+export const MoveNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote404 = {
+  code: MoveNote404Code;
+  message: string;
+};
+
+export type MoveNote409Code =
+  (typeof MoveNote409Code)[keyof typeof MoveNote409Code];
+
+export const MoveNote409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote409 = {
+  code: MoveNote409Code;
+  message: string;
+};
+
+export type MoveNote500Code =
+  (typeof MoveNote500Code)[keyof typeof MoveNote500Code];
+
+export const MoveNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote500 = {
+  code: MoveNote500Code;
+  message: string;
+};
+
+export type ConvertTaskToNote200NoteType =
+  (typeof ConvertTaskToNote200NoteType)[keyof typeof ConvertTaskToNote200NoteType];
+
+export const ConvertTaskToNote200NoteType = {
+  note: "note",
+} as const;
+
+export type ConvertTaskToNote200Note = {
+  type: ConvertTaskToNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type ConvertTaskToNote200 = {
+  note: ConvertTaskToNote200Note;
+};
+
+export type ConvertTaskToNote400Code =
+  (typeof ConvertTaskToNote400Code)[keyof typeof ConvertTaskToNote400Code];
+
+export const ConvertTaskToNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote400 = {
+  code: ConvertTaskToNote400Code;
+  message: string;
+};
+
+export type ConvertTaskToNote401Code =
+  (typeof ConvertTaskToNote401Code)[keyof typeof ConvertTaskToNote401Code];
+
+export const ConvertTaskToNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote401 = {
+  code: ConvertTaskToNote401Code;
+  message: string;
+};
+
+export type ConvertTaskToNote403Code =
+  (typeof ConvertTaskToNote403Code)[keyof typeof ConvertTaskToNote403Code];
+
+export const ConvertTaskToNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote403 = {
+  code: ConvertTaskToNote403Code;
+  message: string;
+};
+
+export type ConvertTaskToNote404Code =
+  (typeof ConvertTaskToNote404Code)[keyof typeof ConvertTaskToNote404Code];
+
+export const ConvertTaskToNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote404 = {
+  code: ConvertTaskToNote404Code;
+  message: string;
+};
+
+export type ConvertTaskToNote500Code =
+  (typeof ConvertTaskToNote500Code)[keyof typeof ConvertTaskToNote500Code];
+
+export const ConvertTaskToNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote500 = {
+  code: ConvertTaskToNote500Code;
+  message: string;
+};
+
+export type ConvertNoteToTask200TaskType =
+  (typeof ConvertNoteToTask200TaskType)[keyof typeof ConvertNoteToTask200TaskType];
+
+export const ConvertNoteToTask200TaskType = {
+  task: "task",
+} as const;
+
+export type ConvertNoteToTask200TaskState =
+  (typeof ConvertNoteToTask200TaskState)[keyof typeof ConvertNoteToTask200TaskState];
+
+export const ConvertNoteToTask200TaskState = {
+  todo: "todo",
+  done: "done",
+} as const;
+
+export type ConvertNoteToTask200TaskNature =
+  (typeof ConvertNoteToTask200TaskNature)[keyof typeof ConvertNoteToTask200TaskNature];
+
+export const ConvertNoteToTask200TaskNature = {
+  red: "red",
+  green: "green",
+  unknown: "unknown",
+} as const;
+
+export type ConvertNoteToTask200Task = {
+  type: ConvertNoteToTask200TaskType;
+  /** Task identifier */
+  id: string;
+  title: string;
+  content?: string;
+  state: ConvertNoteToTask200TaskState;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  nature: ConvertNoteToTask200TaskNature;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Last state change time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  lastToggledAt: number;
+  /** Current schedule date, or null when the task is unscheduled */
+  scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
+};
+
+/**
+ * Task details
+ */
+export type ConvertNoteToTask200 = {
+  task: ConvertNoteToTask200Task;
+};
+
+export type ConvertNoteToTask400Code =
+  (typeof ConvertNoteToTask400Code)[keyof typeof ConvertNoteToTask400Code];
+
+export const ConvertNoteToTask400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask400 = {
+  code: ConvertNoteToTask400Code;
+  message: string;
+};
+
+export type ConvertNoteToTask401Code =
+  (typeof ConvertNoteToTask401Code)[keyof typeof ConvertNoteToTask401Code];
+
+export const ConvertNoteToTask401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask401 = {
+  code: ConvertNoteToTask401Code;
+  message: string;
+};
+
+export type ConvertNoteToTask403Code =
+  (typeof ConvertNoteToTask403Code)[keyof typeof ConvertNoteToTask403Code];
+
+export const ConvertNoteToTask403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask403 = {
+  code: ConvertNoteToTask403Code;
+  message: string;
+};
+
+export type ConvertNoteToTask404Code =
+  (typeof ConvertNoteToTask404Code)[keyof typeof ConvertNoteToTask404Code];
+
+export const ConvertNoteToTask404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask404 = {
+  code: ConvertNoteToTask404Code;
+  message: string;
+};
+
+export type ConvertNoteToTask500Code =
+  (typeof ConvertNoteToTask500Code)[keyof typeof ConvertNoteToTask500Code];
+
+export const ConvertNoteToTask500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask500 = {
+  code: ConvertNoteToTask500Code;
+  message: string;
+};
+
 export type ListTaskChecklistItems200ChecklistItemsItemType =
   (typeof ListTaskChecklistItems200ChecklistItemsItemType)[keyof typeof ListTaskChecklistItems200ChecklistItemsItemType];
 
@@ -7520,6 +8358,1615 @@ export const RemoveTaskFromStash500Code = {
  */
 export type RemoveTaskFromStash500 = {
   code: RemoveTaskFromStash500Code;
+  message: string;
+};
+
+export type ListMindmaps200MindmapsItemType =
+  (typeof ListMindmaps200MindmapsItemType)[keyof typeof ListMindmaps200MindmapsItemType];
+
+export const ListMindmaps200MindmapsItemType = {
+  mindmap: "mindmap",
+} as const;
+
+export type ListMindmaps200MindmapsItem = {
+  type: ListMindmaps200MindmapsItemType;
+  /** Mindmap identifier */
+  id: string;
+  /** Name, plain text. Apps show the central topic's text while it is empty */
+  title: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type ListMindmaps200 = {
+  mindmaps: ListMindmaps200MindmapsItem[];
+};
+
+export type ListMindmaps400Code =
+  (typeof ListMindmaps400Code)[keyof typeof ListMindmaps400Code];
+
+export const ListMindmaps400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListMindmaps400 = {
+  code: ListMindmaps400Code;
+  message: string;
+};
+
+export type ListMindmaps401Code =
+  (typeof ListMindmaps401Code)[keyof typeof ListMindmaps401Code];
+
+export const ListMindmaps401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListMindmaps401 = {
+  code: ListMindmaps401Code;
+  message: string;
+};
+
+export type ListMindmaps403Code =
+  (typeof ListMindmaps403Code)[keyof typeof ListMindmaps403Code];
+
+export const ListMindmaps403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListMindmaps403 = {
+  code: ListMindmaps403Code;
+  message: string;
+};
+
+export type ListMindmaps404Code =
+  (typeof ListMindmaps404Code)[keyof typeof ListMindmaps404Code];
+
+export const ListMindmaps404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListMindmaps404 = {
+  code: ListMindmaps404Code;
+  message: string;
+};
+
+export type ListMindmaps409Code =
+  (typeof ListMindmaps409Code)[keyof typeof ListMindmaps409Code];
+
+export const ListMindmaps409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListMindmaps409 = {
+  code: ListMindmaps409Code;
+  message: string;
+};
+
+export type ListMindmaps500Code =
+  (typeof ListMindmaps500Code)[keyof typeof ListMindmaps500Code];
+
+export const ListMindmaps500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListMindmaps500 = {
+  code: ListMindmaps500Code;
+  message: string;
+};
+
+export type CreateMindmapBody = {
+  /** @minLength 1 */
+  title: string;
+};
+
+export type CreateMindmap201MindmapType =
+  (typeof CreateMindmap201MindmapType)[keyof typeof CreateMindmap201MindmapType];
+
+export const CreateMindmap201MindmapType = {
+  mindmap: "mindmap",
+} as const;
+
+export type CreateMindmap201Mindmap = {
+  type: CreateMindmap201MindmapType;
+  /** Mindmap identifier */
+  id: string;
+  /** Name, plain text. Apps show the central topic's text while it is empty */
+  title: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type CreateMindmap201 = {
+  mindmap: CreateMindmap201Mindmap;
+};
+
+export type CreateMindmap400Code =
+  (typeof CreateMindmap400Code)[keyof typeof CreateMindmap400Code];
+
+export const CreateMindmap400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmap400 = {
+  code: CreateMindmap400Code;
+  message: string;
+};
+
+export type CreateMindmap401Code =
+  (typeof CreateMindmap401Code)[keyof typeof CreateMindmap401Code];
+
+export const CreateMindmap401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmap401 = {
+  code: CreateMindmap401Code;
+  message: string;
+};
+
+export type CreateMindmap403Code =
+  (typeof CreateMindmap403Code)[keyof typeof CreateMindmap403Code];
+
+export const CreateMindmap403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmap403 = {
+  code: CreateMindmap403Code;
+  message: string;
+};
+
+export type CreateMindmap404Code =
+  (typeof CreateMindmap404Code)[keyof typeof CreateMindmap404Code];
+
+export const CreateMindmap404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmap404 = {
+  code: CreateMindmap404Code;
+  message: string;
+};
+
+export type CreateMindmap409Code =
+  (typeof CreateMindmap409Code)[keyof typeof CreateMindmap409Code];
+
+export const CreateMindmap409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmap409 = {
+  code: CreateMindmap409Code;
+  message: string;
+};
+
+export type CreateMindmap500Code =
+  (typeof CreateMindmap500Code)[keyof typeof CreateMindmap500Code];
+
+export const CreateMindmap500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmap500 = {
+  code: CreateMindmap500Code;
+  message: string;
+};
+
+export type GetMindmap200MindmapType =
+  (typeof GetMindmap200MindmapType)[keyof typeof GetMindmap200MindmapType];
+
+export const GetMindmap200MindmapType = {
+  mindmap: "mindmap",
+} as const;
+
+export type GetMindmap200Mindmap = {
+  type: GetMindmap200MindmapType;
+  /** Mindmap identifier */
+  id: string;
+  /** Name, plain text. Apps show the central topic's text while it is empty */
+  title: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type GetMindmap200NodesItemType =
+  (typeof GetMindmap200NodesItemType)[keyof typeof GetMindmap200NodesItemType];
+
+export const GetMindmap200NodesItemType = {
+  mindmapNode: "mindmapNode",
+} as const;
+
+/**
+ * A topic owns its title; a task or note node shows that item
+ */
+export type GetMindmap200NodesItemKind =
+  (typeof GetMindmap200NodesItemKind)[keyof typeof GetMindmap200NodesItemKind];
+
+export const GetMindmap200NodesItemKind = {
+  topic: "topic",
+  task: "task",
+  note: "note",
+} as const;
+
+/**
+ * Side of its root a main branch sits on
+ */
+export type GetMindmap200NodesItemSide =
+  (typeof GetMindmap200NodesItemSide)[keyof typeof GetMindmap200NodesItemSide];
+
+export const GetMindmap200NodesItemSide = {
+  left: "left",
+  right: "right",
+} as const;
+
+/**
+ * Set on floating topics only
+ */
+export type GetMindmap200NodesItemPosition = {
+  x: number;
+  y: number;
+} | null;
+
+export type GetMindmap200NodesItem = {
+  type: GetMindmap200NodesItemType;
+  /** Mindmap node identifier */
+  id: string;
+  mindmapId: string;
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
+  parentId: string | null;
+  /** A topic owns its title; a task or note node shows that item */
+  kind: GetMindmap200NodesItemKind;
+  taskId: string | null;
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
+  title: string;
+  /** Side of its root a main branch sits on */
+  side: GetMindmap200NodesItemSide;
+  /** Set on floating topics only */
+  position: GetMindmap200NodesItemPosition;
+  collapsed: boolean;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type GetMindmap200 = {
+  mindmap: GetMindmap200Mindmap;
+  /** Depth-first: each parent precedes its children, and siblings are in order */
+  nodes: GetMindmap200NodesItem[];
+};
+
+export type GetMindmap400Code =
+  (typeof GetMindmap400Code)[keyof typeof GetMindmap400Code];
+
+export const GetMindmap400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetMindmap400 = {
+  code: GetMindmap400Code;
+  message: string;
+};
+
+export type GetMindmap401Code =
+  (typeof GetMindmap401Code)[keyof typeof GetMindmap401Code];
+
+export const GetMindmap401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetMindmap401 = {
+  code: GetMindmap401Code;
+  message: string;
+};
+
+export type GetMindmap403Code =
+  (typeof GetMindmap403Code)[keyof typeof GetMindmap403Code];
+
+export const GetMindmap403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetMindmap403 = {
+  code: GetMindmap403Code;
+  message: string;
+};
+
+export type GetMindmap404Code =
+  (typeof GetMindmap404Code)[keyof typeof GetMindmap404Code];
+
+export const GetMindmap404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetMindmap404 = {
+  code: GetMindmap404Code;
+  message: string;
+};
+
+export type GetMindmap409Code =
+  (typeof GetMindmap409Code)[keyof typeof GetMindmap409Code];
+
+export const GetMindmap409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetMindmap409 = {
+  code: GetMindmap409Code;
+  message: string;
+};
+
+export type GetMindmap500Code =
+  (typeof GetMindmap500Code)[keyof typeof GetMindmap500Code];
+
+export const GetMindmap500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetMindmap500 = {
+  code: GetMindmap500Code;
+  message: string;
+};
+
+export type UpdateMindmapBody = {
+  /** Empty clears the name, so apps show the central topic's text */
+  title: string;
+};
+
+export type UpdateMindmap200MindmapType =
+  (typeof UpdateMindmap200MindmapType)[keyof typeof UpdateMindmap200MindmapType];
+
+export const UpdateMindmap200MindmapType = {
+  mindmap: "mindmap",
+} as const;
+
+export type UpdateMindmap200Mindmap = {
+  type: UpdateMindmap200MindmapType;
+  /** Mindmap identifier */
+  id: string;
+  /** Name, plain text. Apps show the central topic's text while it is empty */
+  title: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type UpdateMindmap200 = {
+  mindmap: UpdateMindmap200Mindmap;
+};
+
+export type UpdateMindmap400Code =
+  (typeof UpdateMindmap400Code)[keyof typeof UpdateMindmap400Code];
+
+export const UpdateMindmap400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmap400 = {
+  code: UpdateMindmap400Code;
+  message: string;
+};
+
+export type UpdateMindmap401Code =
+  (typeof UpdateMindmap401Code)[keyof typeof UpdateMindmap401Code];
+
+export const UpdateMindmap401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmap401 = {
+  code: UpdateMindmap401Code;
+  message: string;
+};
+
+export type UpdateMindmap403Code =
+  (typeof UpdateMindmap403Code)[keyof typeof UpdateMindmap403Code];
+
+export const UpdateMindmap403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmap403 = {
+  code: UpdateMindmap403Code;
+  message: string;
+};
+
+export type UpdateMindmap404Code =
+  (typeof UpdateMindmap404Code)[keyof typeof UpdateMindmap404Code];
+
+export const UpdateMindmap404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmap404 = {
+  code: UpdateMindmap404Code;
+  message: string;
+};
+
+export type UpdateMindmap409Code =
+  (typeof UpdateMindmap409Code)[keyof typeof UpdateMindmap409Code];
+
+export const UpdateMindmap409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmap409 = {
+  code: UpdateMindmap409Code;
+  message: string;
+};
+
+export type UpdateMindmap500Code =
+  (typeof UpdateMindmap500Code)[keyof typeof UpdateMindmap500Code];
+
+export const UpdateMindmap500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmap500 = {
+  code: UpdateMindmap500Code;
+  message: string;
+};
+
+export type DeleteMindmap400Code =
+  (typeof DeleteMindmap400Code)[keyof typeof DeleteMindmap400Code];
+
+export const DeleteMindmap400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmap400 = {
+  code: DeleteMindmap400Code;
+  message: string;
+};
+
+export type DeleteMindmap401Code =
+  (typeof DeleteMindmap401Code)[keyof typeof DeleteMindmap401Code];
+
+export const DeleteMindmap401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmap401 = {
+  code: DeleteMindmap401Code;
+  message: string;
+};
+
+export type DeleteMindmap403Code =
+  (typeof DeleteMindmap403Code)[keyof typeof DeleteMindmap403Code];
+
+export const DeleteMindmap403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmap403 = {
+  code: DeleteMindmap403Code;
+  message: string;
+};
+
+export type DeleteMindmap404Code =
+  (typeof DeleteMindmap404Code)[keyof typeof DeleteMindmap404Code];
+
+export const DeleteMindmap404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmap404 = {
+  code: DeleteMindmap404Code;
+  message: string;
+};
+
+export type DeleteMindmap409Code =
+  (typeof DeleteMindmap409Code)[keyof typeof DeleteMindmap409Code];
+
+export const DeleteMindmap409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmap409 = {
+  code: DeleteMindmap409Code;
+  message: string;
+};
+
+export type DeleteMindmap500Code =
+  (typeof DeleteMindmap500Code)[keyof typeof DeleteMindmap500Code];
+
+export const DeleteMindmap500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmap500 = {
+  code: DeleteMindmap500Code;
+  message: string;
+};
+
+/**
+ * Position within an ordered collection
+ */
+export type CreateMindmapNodeBodyPlacement =
+  | {
+      kind: "first";
+    }
+  | {
+      kind: "last";
+    }
+  | {
+      kind: "before";
+      /**
+       * Sibling to place the entity before
+       * @minLength 1
+       */
+      anchorId: string;
+    }
+  | {
+      kind: "after";
+      /**
+       * Sibling to place the entity after
+       * @minLength 1
+       */
+      anchorId: string;
+    };
+
+/**
+ * Creates a floating topic there instead of placing it under a parent
+ */
+export type CreateMindmapNodeBodyPosition = {
+  x: number;
+  y: number;
+};
+
+/**
+ * Side for a main branch placed first or last; defaults to the side with fewer branches
+ */
+export type CreateMindmapNodeBodySide =
+  (typeof CreateMindmapNodeBodySide)[keyof typeof CreateMindmapNodeBodySide];
+
+export const CreateMindmapNodeBodySide = {
+  left: "left",
+  right: "right",
+} as const;
+
+export type CreateMindmapNodeBody = {
+  /**
+   * Parent node; the central topic (the mindmap ID) or omitted for a main branch
+   * @minLength 1
+   */
+  parentId?: string;
+  /** Position within an ordered collection */
+  placement?: CreateMindmapNodeBodyPlacement;
+  /** Creates a floating topic there instead of placing it under a parent */
+  position?: CreateMindmapNodeBodyPosition;
+  /** Side for a main branch placed first or last; defaults to the side with fewer branches */
+  side?: CreateMindmapNodeBodySide;
+  /**
+   * Creates a topic
+   * @minLength 1
+   */
+  title?: string;
+  /**
+   * Adds a node for a task; a task can be on several nodes
+   * @minLength 1
+   */
+  taskId?: string;
+  /**
+   * Adds a node for a note; a note can be on several nodes
+   * @minLength 1
+   */
+  noteId?: string;
+};
+
+export type CreateMindmapNode201NodeType =
+  (typeof CreateMindmapNode201NodeType)[keyof typeof CreateMindmapNode201NodeType];
+
+export const CreateMindmapNode201NodeType = {
+  mindmapNode: "mindmapNode",
+} as const;
+
+/**
+ * A topic owns its title; a task or note node shows that item
+ */
+export type CreateMindmapNode201NodeKind =
+  (typeof CreateMindmapNode201NodeKind)[keyof typeof CreateMindmapNode201NodeKind];
+
+export const CreateMindmapNode201NodeKind = {
+  topic: "topic",
+  task: "task",
+  note: "note",
+} as const;
+
+/**
+ * Side of its root a main branch sits on
+ */
+export type CreateMindmapNode201NodeSide =
+  (typeof CreateMindmapNode201NodeSide)[keyof typeof CreateMindmapNode201NodeSide];
+
+export const CreateMindmapNode201NodeSide = {
+  left: "left",
+  right: "right",
+} as const;
+
+/**
+ * Set on floating topics only
+ */
+export type CreateMindmapNode201NodePosition = {
+  x: number;
+  y: number;
+} | null;
+
+export type CreateMindmapNode201Node = {
+  type: CreateMindmapNode201NodeType;
+  /** Mindmap node identifier */
+  id: string;
+  mindmapId: string;
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
+  parentId: string | null;
+  /** A topic owns its title; a task or note node shows that item */
+  kind: CreateMindmapNode201NodeKind;
+  taskId: string | null;
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
+  title: string;
+  /** Side of its root a main branch sits on */
+  side: CreateMindmapNode201NodeSide;
+  /** Set on floating topics only */
+  position: CreateMindmapNode201NodePosition;
+  collapsed: boolean;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type CreateMindmapNode201 = {
+  node: CreateMindmapNode201Node;
+};
+
+export type CreateMindmapNode400Code =
+  (typeof CreateMindmapNode400Code)[keyof typeof CreateMindmapNode400Code];
+
+export const CreateMindmapNode400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmapNode400 = {
+  code: CreateMindmapNode400Code;
+  message: string;
+};
+
+export type CreateMindmapNode401Code =
+  (typeof CreateMindmapNode401Code)[keyof typeof CreateMindmapNode401Code];
+
+export const CreateMindmapNode401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmapNode401 = {
+  code: CreateMindmapNode401Code;
+  message: string;
+};
+
+export type CreateMindmapNode403Code =
+  (typeof CreateMindmapNode403Code)[keyof typeof CreateMindmapNode403Code];
+
+export const CreateMindmapNode403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmapNode403 = {
+  code: CreateMindmapNode403Code;
+  message: string;
+};
+
+export type CreateMindmapNode404Code =
+  (typeof CreateMindmapNode404Code)[keyof typeof CreateMindmapNode404Code];
+
+export const CreateMindmapNode404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmapNode404 = {
+  code: CreateMindmapNode404Code;
+  message: string;
+};
+
+export type CreateMindmapNode409Code =
+  (typeof CreateMindmapNode409Code)[keyof typeof CreateMindmapNode409Code];
+
+export const CreateMindmapNode409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmapNode409 = {
+  code: CreateMindmapNode409Code;
+  message: string;
+};
+
+export type CreateMindmapNode500Code =
+  (typeof CreateMindmapNode500Code)[keyof typeof CreateMindmapNode500Code];
+
+export const CreateMindmapNode500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateMindmapNode500 = {
+  code: CreateMindmapNode500Code;
+  message: string;
+};
+
+/**
+ * Side of its root a main branch sits on
+ */
+export type UpdateMindmapNodeBodySide =
+  (typeof UpdateMindmapNodeBodySide)[keyof typeof UpdateMindmapNodeBodySide];
+
+export const UpdateMindmapNodeBodySide = {
+  left: "left",
+  right: "right",
+} as const;
+
+export type UpdateMindmapNodeBody = {
+  /**
+   * Topics only
+   * @minLength 1
+   */
+  title?: string;
+  collapsed?: boolean;
+  /** Side of its root a main branch sits on */
+  side?: UpdateMindmapNodeBodySide;
+};
+
+export type UpdateMindmapNode200NodeType =
+  (typeof UpdateMindmapNode200NodeType)[keyof typeof UpdateMindmapNode200NodeType];
+
+export const UpdateMindmapNode200NodeType = {
+  mindmapNode: "mindmapNode",
+} as const;
+
+/**
+ * A topic owns its title; a task or note node shows that item
+ */
+export type UpdateMindmapNode200NodeKind =
+  (typeof UpdateMindmapNode200NodeKind)[keyof typeof UpdateMindmapNode200NodeKind];
+
+export const UpdateMindmapNode200NodeKind = {
+  topic: "topic",
+  task: "task",
+  note: "note",
+} as const;
+
+/**
+ * Side of its root a main branch sits on
+ */
+export type UpdateMindmapNode200NodeSide =
+  (typeof UpdateMindmapNode200NodeSide)[keyof typeof UpdateMindmapNode200NodeSide];
+
+export const UpdateMindmapNode200NodeSide = {
+  left: "left",
+  right: "right",
+} as const;
+
+/**
+ * Set on floating topics only
+ */
+export type UpdateMindmapNode200NodePosition = {
+  x: number;
+  y: number;
+} | null;
+
+export type UpdateMindmapNode200Node = {
+  type: UpdateMindmapNode200NodeType;
+  /** Mindmap node identifier */
+  id: string;
+  mindmapId: string;
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
+  parentId: string | null;
+  /** A topic owns its title; a task or note node shows that item */
+  kind: UpdateMindmapNode200NodeKind;
+  taskId: string | null;
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
+  title: string;
+  /** Side of its root a main branch sits on */
+  side: UpdateMindmapNode200NodeSide;
+  /** Set on floating topics only */
+  position: UpdateMindmapNode200NodePosition;
+  collapsed: boolean;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type UpdateMindmapNode200 = {
+  node: UpdateMindmapNode200Node;
+};
+
+export type UpdateMindmapNode400Code =
+  (typeof UpdateMindmapNode400Code)[keyof typeof UpdateMindmapNode400Code];
+
+export const UpdateMindmapNode400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmapNode400 = {
+  code: UpdateMindmapNode400Code;
+  message: string;
+};
+
+export type UpdateMindmapNode401Code =
+  (typeof UpdateMindmapNode401Code)[keyof typeof UpdateMindmapNode401Code];
+
+export const UpdateMindmapNode401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmapNode401 = {
+  code: UpdateMindmapNode401Code;
+  message: string;
+};
+
+export type UpdateMindmapNode403Code =
+  (typeof UpdateMindmapNode403Code)[keyof typeof UpdateMindmapNode403Code];
+
+export const UpdateMindmapNode403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmapNode403 = {
+  code: UpdateMindmapNode403Code;
+  message: string;
+};
+
+export type UpdateMindmapNode404Code =
+  (typeof UpdateMindmapNode404Code)[keyof typeof UpdateMindmapNode404Code];
+
+export const UpdateMindmapNode404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmapNode404 = {
+  code: UpdateMindmapNode404Code;
+  message: string;
+};
+
+export type UpdateMindmapNode409Code =
+  (typeof UpdateMindmapNode409Code)[keyof typeof UpdateMindmapNode409Code];
+
+export const UpdateMindmapNode409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmapNode409 = {
+  code: UpdateMindmapNode409Code;
+  message: string;
+};
+
+export type UpdateMindmapNode500Code =
+  (typeof UpdateMindmapNode500Code)[keyof typeof UpdateMindmapNode500Code];
+
+export const UpdateMindmapNode500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateMindmapNode500 = {
+  code: UpdateMindmapNode500Code;
+  message: string;
+};
+
+export type DeleteMindmapNode400Code =
+  (typeof DeleteMindmapNode400Code)[keyof typeof DeleteMindmapNode400Code];
+
+export const DeleteMindmapNode400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmapNode400 = {
+  code: DeleteMindmapNode400Code;
+  message: string;
+};
+
+export type DeleteMindmapNode401Code =
+  (typeof DeleteMindmapNode401Code)[keyof typeof DeleteMindmapNode401Code];
+
+export const DeleteMindmapNode401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmapNode401 = {
+  code: DeleteMindmapNode401Code;
+  message: string;
+};
+
+export type DeleteMindmapNode403Code =
+  (typeof DeleteMindmapNode403Code)[keyof typeof DeleteMindmapNode403Code];
+
+export const DeleteMindmapNode403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmapNode403 = {
+  code: DeleteMindmapNode403Code;
+  message: string;
+};
+
+export type DeleteMindmapNode404Code =
+  (typeof DeleteMindmapNode404Code)[keyof typeof DeleteMindmapNode404Code];
+
+export const DeleteMindmapNode404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmapNode404 = {
+  code: DeleteMindmapNode404Code;
+  message: string;
+};
+
+export type DeleteMindmapNode409Code =
+  (typeof DeleteMindmapNode409Code)[keyof typeof DeleteMindmapNode409Code];
+
+export const DeleteMindmapNode409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmapNode409 = {
+  code: DeleteMindmapNode409Code;
+  message: string;
+};
+
+export type DeleteMindmapNode500Code =
+  (typeof DeleteMindmapNode500Code)[keyof typeof DeleteMindmapNode500Code];
+
+export const DeleteMindmapNode500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteMindmapNode500 = {
+  code: DeleteMindmapNode500Code;
+  message: string;
+};
+
+/**
+ * Defaults to last
+ */
+export type MoveMindmapNodeBodyPlacement =
+  | {
+      kind: "first";
+    }
+  | {
+      kind: "last";
+    }
+  | {
+      kind: "before";
+      /**
+       * Sibling to place the entity before
+       * @minLength 1
+       */
+      anchorId: string;
+    }
+  | {
+      kind: "after";
+      /**
+       * Sibling to place the entity after
+       * @minLength 1
+       */
+      anchorId: string;
+    };
+
+/**
+ * Floats the topic there, out of its parent
+ */
+export type MoveMindmapNodeBodyPosition = {
+  x: number;
+  y: number;
+};
+
+/**
+ * Side of its root a main branch sits on
+ */
+export type MoveMindmapNodeBodySide =
+  (typeof MoveMindmapNodeBodySide)[keyof typeof MoveMindmapNodeBodySide];
+
+export const MoveMindmapNodeBodySide = {
+  left: "left",
+  right: "right",
+} as const;
+
+export type MoveMindmapNodeBody = {
+  /**
+   * New parent node; the central topic (the mindmap ID) for a main branch
+   * @minLength 1
+   */
+  parentId?: string;
+  /** Defaults to last */
+  placement?: MoveMindmapNodeBodyPlacement;
+  /** Floats the topic there, out of its parent */
+  position?: MoveMindmapNodeBodyPosition;
+  /** Side of its root a main branch sits on */
+  side?: MoveMindmapNodeBodySide;
+};
+
+export type MoveMindmapNode200NodeType =
+  (typeof MoveMindmapNode200NodeType)[keyof typeof MoveMindmapNode200NodeType];
+
+export const MoveMindmapNode200NodeType = {
+  mindmapNode: "mindmapNode",
+} as const;
+
+/**
+ * A topic owns its title; a task or note node shows that item
+ */
+export type MoveMindmapNode200NodeKind =
+  (typeof MoveMindmapNode200NodeKind)[keyof typeof MoveMindmapNode200NodeKind];
+
+export const MoveMindmapNode200NodeKind = {
+  topic: "topic",
+  task: "task",
+  note: "note",
+} as const;
+
+/**
+ * Side of its root a main branch sits on
+ */
+export type MoveMindmapNode200NodeSide =
+  (typeof MoveMindmapNode200NodeSide)[keyof typeof MoveMindmapNode200NodeSide];
+
+export const MoveMindmapNode200NodeSide = {
+  left: "left",
+  right: "right",
+} as const;
+
+/**
+ * Set on floating topics only
+ */
+export type MoveMindmapNode200NodePosition = {
+  x: number;
+  y: number;
+} | null;
+
+export type MoveMindmapNode200Node = {
+  type: MoveMindmapNode200NodeType;
+  /** Mindmap node identifier */
+  id: string;
+  mindmapId: string;
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
+  parentId: string | null;
+  /** A topic owns its title; a task or note node shows that item */
+  kind: MoveMindmapNode200NodeKind;
+  taskId: string | null;
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
+  title: string;
+  /** Side of its root a main branch sits on */
+  side: MoveMindmapNode200NodeSide;
+  /** Set on floating topics only */
+  position: MoveMindmapNode200NodePosition;
+  collapsed: boolean;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type MoveMindmapNode200 = {
+  node: MoveMindmapNode200Node;
+};
+
+export type MoveMindmapNode400Code =
+  (typeof MoveMindmapNode400Code)[keyof typeof MoveMindmapNode400Code];
+
+export const MoveMindmapNode400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveMindmapNode400 = {
+  code: MoveMindmapNode400Code;
+  message: string;
+};
+
+export type MoveMindmapNode401Code =
+  (typeof MoveMindmapNode401Code)[keyof typeof MoveMindmapNode401Code];
+
+export const MoveMindmapNode401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveMindmapNode401 = {
+  code: MoveMindmapNode401Code;
+  message: string;
+};
+
+export type MoveMindmapNode403Code =
+  (typeof MoveMindmapNode403Code)[keyof typeof MoveMindmapNode403Code];
+
+export const MoveMindmapNode403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveMindmapNode403 = {
+  code: MoveMindmapNode403Code;
+  message: string;
+};
+
+export type MoveMindmapNode404Code =
+  (typeof MoveMindmapNode404Code)[keyof typeof MoveMindmapNode404Code];
+
+export const MoveMindmapNode404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveMindmapNode404 = {
+  code: MoveMindmapNode404Code;
+  message: string;
+};
+
+export type MoveMindmapNode409Code =
+  (typeof MoveMindmapNode409Code)[keyof typeof MoveMindmapNode409Code];
+
+export const MoveMindmapNode409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveMindmapNode409 = {
+  code: MoveMindmapNode409Code;
+  message: string;
+};
+
+export type MoveMindmapNode500Code =
+  (typeof MoveMindmapNode500Code)[keyof typeof MoveMindmapNode500Code];
+
+export const MoveMindmapNode500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveMindmapNode500 = {
+  code: MoveMindmapNode500Code;
   message: string;
 };
 
@@ -10393,6 +12840,450 @@ export const convertTaskTemplateToTask = async (
   } as convertTaskTemplateToTaskResponse;
 };
 
+export type getNoteResponse200 = {
+  data: GetNote200;
+  status: 200;
+};
+
+export type getNoteResponse400 = {
+  data: GetNote400;
+  status: 400;
+};
+
+export type getNoteResponse401 = {
+  data: GetNote401;
+  status: 401;
+};
+
+export type getNoteResponse403 = {
+  data: GetNote403;
+  status: 403;
+};
+
+export type getNoteResponse404 = {
+  data: GetNote404;
+  status: 404;
+};
+
+export type getNoteResponse500 = {
+  data: GetNote500;
+  status: 500;
+};
+
+export type getNoteResponseSuccess = getNoteResponse200 & {
+  headers: Headers;
+};
+export type getNoteResponseError = (
+  | getNoteResponse400
+  | getNoteResponse401
+  | getNoteResponse403
+  | getNoteResponse404
+  | getNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type getNoteResponse = getNoteResponseSuccess | getNoteResponseError;
+
+export const getGetNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}`;
+};
+
+/**
+ * @summary Get a note
+ */
+export const getNote = async (
+  spaceId: string,
+  noteId: string,
+  options?: RequestInit,
+): Promise<getNoteResponse> => {
+  const res = await fetch(getGetNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as getNoteResponse;
+};
+
+export type updateNoteResponse200 = {
+  data: UpdateNote200;
+  status: 200;
+};
+
+export type updateNoteResponse400 = {
+  data: UpdateNote400;
+  status: 400;
+};
+
+export type updateNoteResponse401 = {
+  data: UpdateNote401;
+  status: 401;
+};
+
+export type updateNoteResponse403 = {
+  data: UpdateNote403;
+  status: 403;
+};
+
+export type updateNoteResponse404 = {
+  data: UpdateNote404;
+  status: 404;
+};
+
+export type updateNoteResponse500 = {
+  data: UpdateNote500;
+  status: 500;
+};
+
+export type updateNoteResponseSuccess = updateNoteResponse200 & {
+  headers: Headers;
+};
+export type updateNoteResponseError = (
+  | updateNoteResponse400
+  | updateNoteResponse401
+  | updateNoteResponse403
+  | updateNoteResponse404
+  | updateNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type updateNoteResponse =
+  | updateNoteResponseSuccess
+  | updateNoteResponseError;
+
+export const getUpdateNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}`;
+};
+
+/**
+ * @summary Update a note
+ */
+export const updateNote = async (
+  spaceId: string,
+  noteId: string,
+  updateNoteBody: UpdateNoteBody,
+  options?: RequestInit,
+): Promise<updateNoteResponse> => {
+  const res = await fetch(getUpdateNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateNoteBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updateNoteResponse;
+};
+
+export type deleteNoteResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteNoteResponse400 = {
+  data: DeleteNote400;
+  status: 400;
+};
+
+export type deleteNoteResponse401 = {
+  data: DeleteNote401;
+  status: 401;
+};
+
+export type deleteNoteResponse403 = {
+  data: DeleteNote403;
+  status: 403;
+};
+
+export type deleteNoteResponse404 = {
+  data: DeleteNote404;
+  status: 404;
+};
+
+export type deleteNoteResponse500 = {
+  data: DeleteNote500;
+  status: 500;
+};
+
+export type deleteNoteResponseSuccess = deleteNoteResponse204 & {
+  headers: Headers;
+};
+export type deleteNoteResponseError = (
+  | deleteNoteResponse400
+  | deleteNoteResponse401
+  | deleteNoteResponse403
+  | deleteNoteResponse404
+  | deleteNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteNoteResponse =
+  | deleteNoteResponseSuccess
+  | deleteNoteResponseError;
+
+export const getDeleteNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}`;
+};
+
+/**
+ * @summary Delete a note
+ */
+export const deleteNote = async (
+  spaceId: string,
+  noteId: string,
+  options?: RequestInit,
+): Promise<deleteNoteResponse> => {
+  const res = await fetch(getDeleteNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteNoteResponse["data"] = body ? JSON.parse(body) : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteNoteResponse;
+};
+
+export type moveNoteResponse200 = {
+  data: MoveNote200;
+  status: 200;
+};
+
+export type moveNoteResponse400 = {
+  data: MoveNote400;
+  status: 400;
+};
+
+export type moveNoteResponse401 = {
+  data: MoveNote401;
+  status: 401;
+};
+
+export type moveNoteResponse403 = {
+  data: MoveNote403;
+  status: 403;
+};
+
+export type moveNoteResponse404 = {
+  data: MoveNote404;
+  status: 404;
+};
+
+export type moveNoteResponse409 = {
+  data: MoveNote409;
+  status: 409;
+};
+
+export type moveNoteResponse500 = {
+  data: MoveNote500;
+  status: 500;
+};
+
+export type moveNoteResponseSuccess = moveNoteResponse200 & {
+  headers: Headers;
+};
+export type moveNoteResponseError = (
+  | moveNoteResponse400
+  | moveNoteResponse401
+  | moveNoteResponse403
+  | moveNoteResponse404
+  | moveNoteResponse409
+  | moveNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type moveNoteResponse = moveNoteResponseSuccess | moveNoteResponseError;
+
+export const getMoveNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}/move`;
+};
+
+/**
+ * @summary Move a note
+ */
+export const moveNote = async (
+  spaceId: string,
+  noteId: string,
+  moveNoteBody: MoveNoteBody,
+  options?: RequestInit,
+): Promise<moveNoteResponse> => {
+  const res = await fetch(getMoveNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(moveNoteBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: moveNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as moveNoteResponse;
+};
+
+export type convertTaskToNoteResponse200 = {
+  data: ConvertTaskToNote200;
+  status: 200;
+};
+
+export type convertTaskToNoteResponse400 = {
+  data: ConvertTaskToNote400;
+  status: 400;
+};
+
+export type convertTaskToNoteResponse401 = {
+  data: ConvertTaskToNote401;
+  status: 401;
+};
+
+export type convertTaskToNoteResponse403 = {
+  data: ConvertTaskToNote403;
+  status: 403;
+};
+
+export type convertTaskToNoteResponse404 = {
+  data: ConvertTaskToNote404;
+  status: 404;
+};
+
+export type convertTaskToNoteResponse500 = {
+  data: ConvertTaskToNote500;
+  status: 500;
+};
+
+export type convertTaskToNoteResponseSuccess = convertTaskToNoteResponse200 & {
+  headers: Headers;
+};
+export type convertTaskToNoteResponseError = (
+  | convertTaskToNoteResponse400
+  | convertTaskToNoteResponse401
+  | convertTaskToNoteResponse403
+  | convertTaskToNoteResponse404
+  | convertTaskToNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type convertTaskToNoteResponse =
+  | convertTaskToNoteResponseSuccess
+  | convertTaskToNoteResponseError;
+
+export const getConvertTaskToNoteUrl = (spaceId: string, taskId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/tasks/${taskId}/convert-to-note`;
+};
+
+/**
+ * @summary Convert a task to a note
+ */
+export const convertTaskToNote = async (
+  spaceId: string,
+  taskId: string,
+  options?: RequestInit,
+): Promise<convertTaskToNoteResponse> => {
+  const res = await fetch(getConvertTaskToNoteUrl(spaceId, taskId), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: convertTaskToNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as convertTaskToNoteResponse;
+};
+
+export type convertNoteToTaskResponse200 = {
+  data: ConvertNoteToTask200;
+  status: 200;
+};
+
+export type convertNoteToTaskResponse400 = {
+  data: ConvertNoteToTask400;
+  status: 400;
+};
+
+export type convertNoteToTaskResponse401 = {
+  data: ConvertNoteToTask401;
+  status: 401;
+};
+
+export type convertNoteToTaskResponse403 = {
+  data: ConvertNoteToTask403;
+  status: 403;
+};
+
+export type convertNoteToTaskResponse404 = {
+  data: ConvertNoteToTask404;
+  status: 404;
+};
+
+export type convertNoteToTaskResponse500 = {
+  data: ConvertNoteToTask500;
+  status: 500;
+};
+
+export type convertNoteToTaskResponseSuccess = convertNoteToTaskResponse200 & {
+  headers: Headers;
+};
+export type convertNoteToTaskResponseError = (
+  | convertNoteToTaskResponse400
+  | convertNoteToTaskResponse401
+  | convertNoteToTaskResponse403
+  | convertNoteToTaskResponse404
+  | convertNoteToTaskResponse500
+) & {
+  headers: Headers;
+};
+
+export type convertNoteToTaskResponse =
+  | convertNoteToTaskResponseSuccess
+  | convertNoteToTaskResponseError;
+
+export const getConvertNoteToTaskUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}/convert-to-task`;
+};
+
+/**
+ * @summary Convert a note to a task
+ */
+export const convertNoteToTask = async (
+  spaceId: string,
+  noteId: string,
+  options?: RequestInit,
+): Promise<convertNoteToTaskResponse> => {
+  const res = await fetch(getConvertNoteToTaskUrl(spaceId, noteId), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: convertNoteToTaskResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as convertNoteToTaskResponse;
+};
+
 export type listTaskChecklistItemsResponse200 = {
   data: ListTaskChecklistItems200;
   status: 200;
@@ -11396,4 +14287,743 @@ export const removeTaskFromStash = async (
     status: res.status,
     headers: res.headers,
   } as removeTaskFromStashResponse;
+};
+
+export type listMindmapsResponse200 = {
+  data: ListMindmaps200;
+  status: 200;
+};
+
+export type listMindmapsResponse400 = {
+  data: ListMindmaps400;
+  status: 400;
+};
+
+export type listMindmapsResponse401 = {
+  data: ListMindmaps401;
+  status: 401;
+};
+
+export type listMindmapsResponse403 = {
+  data: ListMindmaps403;
+  status: 403;
+};
+
+export type listMindmapsResponse404 = {
+  data: ListMindmaps404;
+  status: 404;
+};
+
+export type listMindmapsResponse409 = {
+  data: ListMindmaps409;
+  status: 409;
+};
+
+export type listMindmapsResponse500 = {
+  data: ListMindmaps500;
+  status: 500;
+};
+
+export type listMindmapsResponseSuccess = listMindmapsResponse200 & {
+  headers: Headers;
+};
+export type listMindmapsResponseError = (
+  | listMindmapsResponse400
+  | listMindmapsResponse401
+  | listMindmapsResponse403
+  | listMindmapsResponse404
+  | listMindmapsResponse409
+  | listMindmapsResponse500
+) & {
+  headers: Headers;
+};
+
+export type listMindmapsResponse =
+  | listMindmapsResponseSuccess
+  | listMindmapsResponseError;
+
+export const getListMindmapsUrl = (spaceId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmaps`;
+};
+
+/**
+ * @summary List mindmaps
+ */
+export const listMindmaps = async (
+  spaceId: string,
+  options?: RequestInit,
+): Promise<listMindmapsResponse> => {
+  const res = await fetch(getListMindmapsUrl(spaceId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMindmapsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listMindmapsResponse;
+};
+
+export type createMindmapResponse201 = {
+  data: CreateMindmap201;
+  status: 201;
+};
+
+export type createMindmapResponse400 = {
+  data: CreateMindmap400;
+  status: 400;
+};
+
+export type createMindmapResponse401 = {
+  data: CreateMindmap401;
+  status: 401;
+};
+
+export type createMindmapResponse403 = {
+  data: CreateMindmap403;
+  status: 403;
+};
+
+export type createMindmapResponse404 = {
+  data: CreateMindmap404;
+  status: 404;
+};
+
+export type createMindmapResponse409 = {
+  data: CreateMindmap409;
+  status: 409;
+};
+
+export type createMindmapResponse500 = {
+  data: CreateMindmap500;
+  status: 500;
+};
+
+export type createMindmapResponseSuccess = createMindmapResponse201 & {
+  headers: Headers;
+};
+export type createMindmapResponseError = (
+  | createMindmapResponse400
+  | createMindmapResponse401
+  | createMindmapResponse403
+  | createMindmapResponse404
+  | createMindmapResponse409
+  | createMindmapResponse500
+) & {
+  headers: Headers;
+};
+
+export type createMindmapResponse =
+  | createMindmapResponseSuccess
+  | createMindmapResponseError;
+
+export const getCreateMindmapUrl = (spaceId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmaps`;
+};
+
+/**
+ * @summary Create a mindmap
+ */
+export const createMindmap = async (
+  spaceId: string,
+  createMindmapBody: CreateMindmapBody,
+  options?: RequestInit,
+): Promise<createMindmapResponse> => {
+  const res = await fetch(getCreateMindmapUrl(spaceId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createMindmapBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createMindmapResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createMindmapResponse;
+};
+
+export type getMindmapResponse200 = {
+  data: GetMindmap200;
+  status: 200;
+};
+
+export type getMindmapResponse400 = {
+  data: GetMindmap400;
+  status: 400;
+};
+
+export type getMindmapResponse401 = {
+  data: GetMindmap401;
+  status: 401;
+};
+
+export type getMindmapResponse403 = {
+  data: GetMindmap403;
+  status: 403;
+};
+
+export type getMindmapResponse404 = {
+  data: GetMindmap404;
+  status: 404;
+};
+
+export type getMindmapResponse409 = {
+  data: GetMindmap409;
+  status: 409;
+};
+
+export type getMindmapResponse500 = {
+  data: GetMindmap500;
+  status: 500;
+};
+
+export type getMindmapResponseSuccess = getMindmapResponse200 & {
+  headers: Headers;
+};
+export type getMindmapResponseError = (
+  | getMindmapResponse400
+  | getMindmapResponse401
+  | getMindmapResponse403
+  | getMindmapResponse404
+  | getMindmapResponse409
+  | getMindmapResponse500
+) & {
+  headers: Headers;
+};
+
+export type getMindmapResponse =
+  | getMindmapResponseSuccess
+  | getMindmapResponseError;
+
+export const getGetMindmapUrl = (spaceId: string, mindmapId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmaps/${mindmapId}`;
+};
+
+/**
+ * @summary Get a mindmap with its nodes
+ */
+export const getMindmap = async (
+  spaceId: string,
+  mindmapId: string,
+  options?: RequestInit,
+): Promise<getMindmapResponse> => {
+  const res = await fetch(getGetMindmapUrl(spaceId, mindmapId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getMindmapResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getMindmapResponse;
+};
+
+export type updateMindmapResponse200 = {
+  data: UpdateMindmap200;
+  status: 200;
+};
+
+export type updateMindmapResponse400 = {
+  data: UpdateMindmap400;
+  status: 400;
+};
+
+export type updateMindmapResponse401 = {
+  data: UpdateMindmap401;
+  status: 401;
+};
+
+export type updateMindmapResponse403 = {
+  data: UpdateMindmap403;
+  status: 403;
+};
+
+export type updateMindmapResponse404 = {
+  data: UpdateMindmap404;
+  status: 404;
+};
+
+export type updateMindmapResponse409 = {
+  data: UpdateMindmap409;
+  status: 409;
+};
+
+export type updateMindmapResponse500 = {
+  data: UpdateMindmap500;
+  status: 500;
+};
+
+export type updateMindmapResponseSuccess = updateMindmapResponse200 & {
+  headers: Headers;
+};
+export type updateMindmapResponseError = (
+  | updateMindmapResponse400
+  | updateMindmapResponse401
+  | updateMindmapResponse403
+  | updateMindmapResponse404
+  | updateMindmapResponse409
+  | updateMindmapResponse500
+) & {
+  headers: Headers;
+};
+
+export type updateMindmapResponse =
+  | updateMindmapResponseSuccess
+  | updateMindmapResponseError;
+
+export const getUpdateMindmapUrl = (spaceId: string, mindmapId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmaps/${mindmapId}`;
+};
+
+/**
+ * @summary Rename a mindmap
+ */
+export const updateMindmap = async (
+  spaceId: string,
+  mindmapId: string,
+  updateMindmapBody: UpdateMindmapBody,
+  options?: RequestInit,
+): Promise<updateMindmapResponse> => {
+  const res = await fetch(getUpdateMindmapUrl(spaceId, mindmapId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateMindmapBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateMindmapResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updateMindmapResponse;
+};
+
+export type deleteMindmapResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteMindmapResponse400 = {
+  data: DeleteMindmap400;
+  status: 400;
+};
+
+export type deleteMindmapResponse401 = {
+  data: DeleteMindmap401;
+  status: 401;
+};
+
+export type deleteMindmapResponse403 = {
+  data: DeleteMindmap403;
+  status: 403;
+};
+
+export type deleteMindmapResponse404 = {
+  data: DeleteMindmap404;
+  status: 404;
+};
+
+export type deleteMindmapResponse409 = {
+  data: DeleteMindmap409;
+  status: 409;
+};
+
+export type deleteMindmapResponse500 = {
+  data: DeleteMindmap500;
+  status: 500;
+};
+
+export type deleteMindmapResponseSuccess = deleteMindmapResponse204 & {
+  headers: Headers;
+};
+export type deleteMindmapResponseError = (
+  | deleteMindmapResponse400
+  | deleteMindmapResponse401
+  | deleteMindmapResponse403
+  | deleteMindmapResponse404
+  | deleteMindmapResponse409
+  | deleteMindmapResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteMindmapResponse =
+  | deleteMindmapResponseSuccess
+  | deleteMindmapResponseError;
+
+export const getDeleteMindmapUrl = (spaceId: string, mindmapId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmaps/${mindmapId}`;
+};
+
+/**
+ * Deletes the mindmap and its nodes. Tasks on it stay in their projects.
+ * @summary Delete a mindmap
+ */
+export const deleteMindmap = async (
+  spaceId: string,
+  mindmapId: string,
+  options?: RequestInit,
+): Promise<deleteMindmapResponse> => {
+  const res = await fetch(getDeleteMindmapUrl(spaceId, mindmapId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteMindmapResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteMindmapResponse;
+};
+
+export type createMindmapNodeResponse201 = {
+  data: CreateMindmapNode201;
+  status: 201;
+};
+
+export type createMindmapNodeResponse400 = {
+  data: CreateMindmapNode400;
+  status: 400;
+};
+
+export type createMindmapNodeResponse401 = {
+  data: CreateMindmapNode401;
+  status: 401;
+};
+
+export type createMindmapNodeResponse403 = {
+  data: CreateMindmapNode403;
+  status: 403;
+};
+
+export type createMindmapNodeResponse404 = {
+  data: CreateMindmapNode404;
+  status: 404;
+};
+
+export type createMindmapNodeResponse409 = {
+  data: CreateMindmapNode409;
+  status: 409;
+};
+
+export type createMindmapNodeResponse500 = {
+  data: CreateMindmapNode500;
+  status: 500;
+};
+
+export type createMindmapNodeResponseSuccess = createMindmapNodeResponse201 & {
+  headers: Headers;
+};
+export type createMindmapNodeResponseError = (
+  | createMindmapNodeResponse400
+  | createMindmapNodeResponse401
+  | createMindmapNodeResponse403
+  | createMindmapNodeResponse404
+  | createMindmapNodeResponse409
+  | createMindmapNodeResponse500
+) & {
+  headers: Headers;
+};
+
+export type createMindmapNodeResponse =
+  | createMindmapNodeResponseSuccess
+  | createMindmapNodeResponseError;
+
+export const getCreateMindmapNodeUrl = (spaceId: string, mindmapId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmaps/${mindmapId}/nodes`;
+};
+
+/**
+ * @summary Add a topic, task, or note to a mindmap
+ */
+export const createMindmapNode = async (
+  spaceId: string,
+  mindmapId: string,
+  createMindmapNodeBody: CreateMindmapNodeBody,
+  options?: RequestInit,
+): Promise<createMindmapNodeResponse> => {
+  const res = await fetch(getCreateMindmapNodeUrl(spaceId, mindmapId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createMindmapNodeBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createMindmapNodeResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createMindmapNodeResponse;
+};
+
+export type updateMindmapNodeResponse200 = {
+  data: UpdateMindmapNode200;
+  status: 200;
+};
+
+export type updateMindmapNodeResponse400 = {
+  data: UpdateMindmapNode400;
+  status: 400;
+};
+
+export type updateMindmapNodeResponse401 = {
+  data: UpdateMindmapNode401;
+  status: 401;
+};
+
+export type updateMindmapNodeResponse403 = {
+  data: UpdateMindmapNode403;
+  status: 403;
+};
+
+export type updateMindmapNodeResponse404 = {
+  data: UpdateMindmapNode404;
+  status: 404;
+};
+
+export type updateMindmapNodeResponse409 = {
+  data: UpdateMindmapNode409;
+  status: 409;
+};
+
+export type updateMindmapNodeResponse500 = {
+  data: UpdateMindmapNode500;
+  status: 500;
+};
+
+export type updateMindmapNodeResponseSuccess = updateMindmapNodeResponse200 & {
+  headers: Headers;
+};
+export type updateMindmapNodeResponseError = (
+  | updateMindmapNodeResponse400
+  | updateMindmapNodeResponse401
+  | updateMindmapNodeResponse403
+  | updateMindmapNodeResponse404
+  | updateMindmapNodeResponse409
+  | updateMindmapNodeResponse500
+) & {
+  headers: Headers;
+};
+
+export type updateMindmapNodeResponse =
+  | updateMindmapNodeResponseSuccess
+  | updateMindmapNodeResponseError;
+
+export const getUpdateMindmapNodeUrl = (spaceId: string, nodeId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmap-nodes/${nodeId}`;
+};
+
+/**
+ * @summary Update a mindmap node
+ */
+export const updateMindmapNode = async (
+  spaceId: string,
+  nodeId: string,
+  updateMindmapNodeBody: UpdateMindmapNodeBody,
+  options?: RequestInit,
+): Promise<updateMindmapNodeResponse> => {
+  const res = await fetch(getUpdateMindmapNodeUrl(spaceId, nodeId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateMindmapNodeBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateMindmapNodeResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updateMindmapNodeResponse;
+};
+
+export type deleteMindmapNodeResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteMindmapNodeResponse400 = {
+  data: DeleteMindmapNode400;
+  status: 400;
+};
+
+export type deleteMindmapNodeResponse401 = {
+  data: DeleteMindmapNode401;
+  status: 401;
+};
+
+export type deleteMindmapNodeResponse403 = {
+  data: DeleteMindmapNode403;
+  status: 403;
+};
+
+export type deleteMindmapNodeResponse404 = {
+  data: DeleteMindmapNode404;
+  status: 404;
+};
+
+export type deleteMindmapNodeResponse409 = {
+  data: DeleteMindmapNode409;
+  status: 409;
+};
+
+export type deleteMindmapNodeResponse500 = {
+  data: DeleteMindmapNode500;
+  status: 500;
+};
+
+export type deleteMindmapNodeResponseSuccess = deleteMindmapNodeResponse204 & {
+  headers: Headers;
+};
+export type deleteMindmapNodeResponseError = (
+  | deleteMindmapNodeResponse400
+  | deleteMindmapNodeResponse401
+  | deleteMindmapNodeResponse403
+  | deleteMindmapNodeResponse404
+  | deleteMindmapNodeResponse409
+  | deleteMindmapNodeResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteMindmapNodeResponse =
+  | deleteMindmapNodeResponseSuccess
+  | deleteMindmapNodeResponseError;
+
+export const getDeleteMindmapNodeUrl = (spaceId: string, nodeId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmap-nodes/${nodeId}`;
+};
+
+/**
+ * Tasks on the removed nodes stay in their projects.
+ * @summary Remove a node and its subtree from a mindmap
+ */
+export const deleteMindmapNode = async (
+  spaceId: string,
+  nodeId: string,
+  options?: RequestInit,
+): Promise<deleteMindmapNodeResponse> => {
+  const res = await fetch(getDeleteMindmapNodeUrl(spaceId, nodeId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteMindmapNodeResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteMindmapNodeResponse;
+};
+
+export type moveMindmapNodeResponse200 = {
+  data: MoveMindmapNode200;
+  status: 200;
+};
+
+export type moveMindmapNodeResponse400 = {
+  data: MoveMindmapNode400;
+  status: 400;
+};
+
+export type moveMindmapNodeResponse401 = {
+  data: MoveMindmapNode401;
+  status: 401;
+};
+
+export type moveMindmapNodeResponse403 = {
+  data: MoveMindmapNode403;
+  status: 403;
+};
+
+export type moveMindmapNodeResponse404 = {
+  data: MoveMindmapNode404;
+  status: 404;
+};
+
+export type moveMindmapNodeResponse409 = {
+  data: MoveMindmapNode409;
+  status: 409;
+};
+
+export type moveMindmapNodeResponse500 = {
+  data: MoveMindmapNode500;
+  status: 500;
+};
+
+export type moveMindmapNodeResponseSuccess = moveMindmapNodeResponse200 & {
+  headers: Headers;
+};
+export type moveMindmapNodeResponseError = (
+  | moveMindmapNodeResponse400
+  | moveMindmapNodeResponse401
+  | moveMindmapNodeResponse403
+  | moveMindmapNodeResponse404
+  | moveMindmapNodeResponse409
+  | moveMindmapNodeResponse500
+) & {
+  headers: Headers;
+};
+
+export type moveMindmapNodeResponse =
+  | moveMindmapNodeResponseSuccess
+  | moveMindmapNodeResponseError;
+
+export const getMoveMindmapNodeUrl = (spaceId: string, nodeId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/mindmap-nodes/${nodeId}/move`;
+};
+
+/**
+ * @summary Move a mindmap node and its subtree
+ */
+export const moveMindmapNode = async (
+  spaceId: string,
+  nodeId: string,
+  moveMindmapNodeBody: MoveMindmapNodeBody,
+  options?: RequestInit,
+): Promise<moveMindmapNodeResponse> => {
+  const res = await fetch(getMoveMindmapNodeUrl(spaceId, nodeId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(moveMindmapNodeBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: moveMindmapNodeResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as moveMindmapNodeResponse;
 };

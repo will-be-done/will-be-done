@@ -127,16 +127,16 @@ atomic memory commits before persistence completes. The publication queue
 waits for runtime durability before broadcasting or waking sync, and sync
 operations wait for durability before advancing transport or acknowledging a
 download. A receiving tab merges
-them with both `skip-sync` and HyperDB's `externalStorageMergeTrait`: the first
-prevents a duplicate local change-log entry, while the second lets the
-preloaded snapshot emit normal insert/upsert/delete invalidations and treats
-the already-persisted insert as an idempotent primary upsert. The broadcast is
-not authoritative and does not replace persisted sync state.
+them with `skip-sync`, which prevents a duplicate local change-log entry (see
+Cross-window visibility). The broadcast is not authoritative and does not
+replace persisted sync state.
 
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the
-session and the next wait.
+session and the next wait. A space session rejected with 404 also wakes when the
+same tab's user database next syncs, because a newly created space reaches the
+server only through that user sync.
 
 The sidebar sync indicator reports the current stage, completed transport
 batches, and the last successful sync time. A session succeeds only after
@@ -152,6 +152,11 @@ the leader to run the ordinary sync loop. These messages carry no authoritative
 cursor and do not acknowledge data. They never bypass persistence, staging,
 or atomic apply. Status and last successful sync times live in memory and reset
 when the app starts a new session.
+
+A tab runs at most one sync loop. Leader handoff and required app updates stop
+the running loop before another starts: in-flight requests are aborted, while a
+local transaction that already started completes. An aborted request is
+therefore just a lost response, which the idempotency invariant covers.
 
 ## Persisted State
 
@@ -214,11 +219,14 @@ incoming clocks and runs the normal idempotent merge with `skip-sync`, so this
 coordination path cannot create another local change record or an upload echo.
 
 The persistent write may already be visible to the receiving runtime before
-the merge starts. A receiving preloaded runtime applies the merge with explicit
-external-storage semantics: it compares against its preloaded snapshot, uses
-idempotent persistence for an insert the sender may already have stored, and
-publishes the merge's normal transaction operations to reactive subscribers.
-The accompanying `skip-sync` trait still prevents those cache-coherence writes
+the merge starts. The web runtime is a `HybridDB` that keeps `changes` and
+every domain table except the mindmap tables resident in memory
+([`configs.ts`](../apps/web/src/store/configs.ts)). The merge therefore diffs
+against the receiver's in-memory changes, not the sender's stored ones, and
+HybridDB persists inserts as idempotent upserts. A mindmap row is read from
+storage on demand, so the merge can see the sender's row unchanged; whenever
+it writes a Change record, it also upserts that Change's row so subscribers
+receive the row operation. The `skip-sync` trait still prevents those writes
 from producing a second local change record or upload echo.
 
 After a cross-tab merge completes, the receiving tab wakes the ordinary sync
@@ -367,6 +375,12 @@ must never expose a partially applied logical sync response.
   the other.
 - Entry conflicts such as multiple daily/stash entries for one task are
   resolved deterministically before the generic merge.
+- Mindmap nodes merge with the generic rules only. Concurrent moves, deletes
+  and conversions can leave a node whose parent is gone, a parent cycle, a
+  node whose Task or Note is gone, a node linking both (it shows the Task), or
+  a map whose central-topic node has not arrived (an empty one stands in);
+  `buildMindmapTree` repairs these deterministically on read instead of
+  writing fixes back, so every replica shows the same tree.
 - DailyLists are deterministic, ensure-only date scaffolding. They are not
   user-deletable, and replacement imports preserve existing DailyLists while
   upserting the canonical lists contained in the backup. Backup omission must

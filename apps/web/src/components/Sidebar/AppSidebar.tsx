@@ -3,13 +3,13 @@ import {
   dropTargetForElements,
   type ElementDropTargetEventBasePayload,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { useAsyncSelector } from "@will-be-done/hyperdb/react";
+import { useAsyncSelector, useDB } from "@will-be-done/hyperdb/react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import {
   createProject,
-  loadSpaceBackup,
   projectsWithTaskStats,
 } from "@will-be-done/slices/space";
+import { restoreSpaceBackup } from "@/store/undo";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
 import { SpaceBlock } from "./SpaceBlock.tsx";
 import {
@@ -41,6 +41,7 @@ import {
   isActiveDropTarget,
   type DndModelData,
 } from "@/lib/dnd/models";
+import { CalendarDays, GanttChart, Network } from "lucide-react";
 
 const CalendarIcon = () => (
   <svg
@@ -237,6 +238,66 @@ const TrashNavItem = () => {
   );
 };
 
+const ViewNavItem = ({
+  to,
+  label,
+  icon,
+}: {
+  to:
+    | "/spaces/$spaceId/timeline"
+    | "/spaces/$spaceId/calendar"
+    | "/spaces/$spaceId/mindmaps";
+  label: string;
+  icon: React.ReactNode;
+}) => {
+  const spaceId = Route.useParams().spaceId;
+  const closeMobile = useCloseMobileOnNav();
+  const path = to.slice(to.lastIndexOf("/"));
+  const isActive = useRouterState({
+    select: (s) => s.matches.some((m) => (m.pathname as string).includes(path)),
+  });
+
+  return (
+    <Link
+      to={to}
+      params={{ spaceId }}
+      onClick={closeMobile}
+      className={cn(
+        "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[12px] font-medium ring-1 transition-colors",
+        isActive
+          ? "bg-accent/10 ring-accent/30 text-accent"
+          : "ring-ring/40 text-content-tinted hover:text-content hover:bg-surface hover:ring-ring",
+      )}
+    >
+      {icon}
+      {label}
+    </Link>
+  );
+};
+
+// The other views, for phones, which have no view switcher in the header.
+const ViewNavItems = () => {
+  return (
+    <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:hidden desktop-macos:hidden">
+      <ViewNavItem
+        to="/spaces/$spaceId/timeline"
+        label="Timeline"
+        icon={<GanttChart className="size-3.5 shrink-0" />}
+      />
+      <ViewNavItem
+        to="/spaces/$spaceId/calendar"
+        label="Calendar"
+        icon={<CalendarDays className="size-3.5 shrink-0" />}
+      />
+      <ViewNavItem
+        to="/spaces/$spaceId/mindmaps"
+        label="Maps"
+        icon={<Network className="size-3.5 shrink-0" />}
+      />
+    </div>
+  );
+};
+
 const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
@@ -293,6 +354,7 @@ export const AppSidebar = () => {
             />
           )}
         </div>
+        <ViewNavItems />
 
         {/* Divider + Projects label */}
         <div className="px-1 pt-3 pb-2">
@@ -335,7 +397,7 @@ export const AppSidebar = () => {
 };
 
 const GenerateTestDataButton = () => {
-  const dispatch = useAsyncDispatch();
+  const db = useDB();
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState("5");
   const [sections, setSections] = useState("3");
@@ -349,7 +411,7 @@ const GenerateTestDataButton = () => {
     const l = parseInt(todo, 10) || 0;
 
     const backup = generateTestBackup(n, m, k, l);
-    void dispatch(loadSpaceBackup({ backup: backup }));
+    void restoreSpaceBackup(db, backup);
     setOpen(false);
   };
 

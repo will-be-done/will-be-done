@@ -23,7 +23,8 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   type ChecklistItem,
-  type Item,
+  type Task,
+  type TaskTemplate,
   getDropModelData,
   checklistItemById,
   checklistItemChildren,
@@ -43,6 +44,7 @@ import {
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
+import { useUndoToast } from "@/store/undo";
 import { focusChecklistItem } from "./focus";
 import { captureWebAnalytics } from "@/lib/analytics";
 import {
@@ -147,6 +149,7 @@ const ChecklistItemComp = ({
   onItemsRemoved: () => void;
 }) => {
   const dispatch = useAsyncDispatch();
+  const withUndo = useUndoToast();
   const select = useSelectAsync();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLButtonElement | null>(null);
@@ -236,7 +239,10 @@ const ChecklistItemComp = ({
     const rowElement = rowRef.current;
     if (!rowElement) return;
 
-    const handleEditRequest = () => setIsEditing(true);
+    const handleEditRequest = (event: Event) => {
+      event.preventDefault();
+      setIsEditing(true);
+    };
     rowElement.addEventListener("checklist-item-edit", handleEditRequest);
 
     return () => {
@@ -268,14 +274,17 @@ const ChecklistItemComp = ({
     });
   };
 
-  const removeItem = () => {
+  // Backspace in an empty row is editing, so only the delete button offers
+  // undo.
+  const removeItem = (offerUndo: boolean) => {
     void (async () => {
       const [before, after] = await select({
         selector: checklistItemSiblings,
         args: { itemId: item.id },
       });
       editorRef.current?.flush();
-      await dispatch(deleteItems({ ids: [item.id] }));
+      const remove = () => dispatch(deleteItems({ ids: [item.id] }));
+      await (offerUndo ? withUndo(remove) : remove());
 
       if (before) {
         focusItemInCurrentChecklist(before.id);
@@ -342,7 +351,7 @@ const ChecklistItemComp = ({
               focusParentFromChecklist(focusableItemKey);
             }}
             onBlur={() => setIsEditing(false)}
-            onEmptyBackspace={removeItem}
+            onEmptyBackspace={() => removeItem(false)}
             autoFocus
             caretOffset={caretOffset}
             ariaLabel="Checklist item"
@@ -381,7 +390,7 @@ const ChecklistItemComp = ({
           aria-label="Delete checklist item"
           onClick={(event) => {
             event.stopPropagation();
-            removeItem();
+            removeItem(true);
           }}
           onPointerDown={(event) => event.stopPropagation()}
           onDoubleClick={(event) => event.stopPropagation()}
@@ -398,7 +407,7 @@ const ChecklistItemComp = ({
 };
 
 type ChecklistItemsProps = {
-  parent: Item;
+  parent: Task | TaskTemplate;
   hasChecklistItems: boolean | undefined;
   visible?: boolean;
   focusableItemKey?: ChecklistFocusKey;

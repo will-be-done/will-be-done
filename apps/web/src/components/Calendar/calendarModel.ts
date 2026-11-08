@@ -10,6 +10,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import type { TaskNature } from "@will-be-done/slices/space";
+import type { FocusKey } from "@/store/focusSlice.ts";
 
 export const calendarViews = ["day", "week", "month", "plan"] as const;
 export type CalendarView = (typeof calendarViews)[number];
@@ -30,7 +31,7 @@ export const minBlockMinutes = 25;
 export type CalendarEvent = {
   key: string;
   taskId: string;
-  focusKey: string;
+  focusKey: FocusKey;
   date: string;
   title: string;
   nature: TaskNature;
@@ -121,6 +122,21 @@ export function blockMinutes(event: CalendarEvent): number {
   return event.durationMinutes ?? defaultBlockMinutes;
 }
 
+// Start time for a task added right after or before an event: after starts
+// when it ends, before ends when it starts. Untimed events add untimed tasks.
+export function adjacentTime(
+  event: CalendarEvent,
+  position: "before" | "after",
+): string | null {
+  if (event.time === null) return null;
+  const start = timeToMinutes(event.time);
+  return minutesToTime(
+    position === "after"
+      ? Math.min(start + blockMinutes(event), minutesInDay - snapMinutes)
+      : Math.max(start - defaultBlockMinutes, 0),
+  );
+}
+
 // Timed first by time, then untimed in list order; done tasks sink.
 export function sortDayEvents(events: CalendarEvent[]): CalendarEvent[] {
   const rank = (e: CalendarEvent) =>
@@ -130,6 +146,104 @@ export function sortDayEvents(events: CalendarEvent[]): CalendarEvent[] {
     .map((event, index) => ({ event, index }))
     .sort((a, b) => rank(a.event) - rank(b.event) || a.index - b.index)
     .map(({ event }) => event);
+}
+
+export const monthChipLimit = 3;
+
+// Chips a month cell shows out of `total`, leaving room for "+N more".
+const monthSlots = (total: number) =>
+  total > monthChipLimit ? monthChipLimit - 1 : total;
+
+// External events a month cell shows; they come before its tasks.
+export const shownMonthExternalCount = (
+  externalCount: number,
+  eventCount: number,
+) => Math.min(externalCount, monthSlots(externalCount + eventCount));
+
+// A day's events in on-screen order: the time grid shows its all-day row
+// above the timed blocks, which sit at their time whether done or not, longer
+// first as in layoutTimedEvents. A full month cell cuts off before "+N more",
+// after `externalCount` external events.
+export function shownDayEvents(
+  view: CalendarView,
+  events: CalendarEvent[],
+  externalCount = 0,
+): CalendarEvent[] {
+  if (view === "day" || view === "week") {
+    const timed = events
+      .filter((e) => e.time !== null)
+      .sort(
+        (a, b) =>
+          timeToMinutes(a.time!) - timeToMinutes(b.time!) ||
+          blockMinutes(b) - blockMinutes(a),
+      );
+    return [...events.filter((e) => e.time === null), ...timed];
+  }
+  if (view === "month") {
+    return events.slice(
+      0,
+      monthSlots(events.length + externalCount) -
+        shownMonthExternalCount(externalCount, events.length),
+    );
+  }
+  return events;
+}
+
+export type CalendarDirection = "left" | "right" | "up" | "down";
+
+// The event h/j/k/l focuses next. `days` holds each visible day's
+// shownDayEvents. Up and down walk the day, and in month and plan cells go on
+// to the same weekday a week away. Left and right skip empty days and land on
+// the event nearest in time (time grid) or row (day cells).
+export function calendarNeighbor(
+  view: CalendarView,
+  days: CalendarEvent[][],
+  focusKey: string,
+  direction: CalendarDirection,
+): CalendarEvent | undefined {
+  const dayIndex = days.findIndex((events) =>
+    events.some((e) => e.focusKey === focusKey),
+  );
+  if (dayIndex === -1) return undefined;
+  const events = days[dayIndex]!;
+  const index = events.findIndex((e) => e.focusKey === focusKey);
+  const isTimeGrid = view === "day" || view === "week";
+
+  const scan = (
+    step: number,
+    pick: (day: CalendarEvent[]) => CalendarEvent,
+  ) => {
+    for (let i = dayIndex + step; i >= 0 && i < days.length; i += step) {
+      const day = days[i]!;
+      if (day.length > 0) return pick(day);
+    }
+    return undefined;
+  };
+
+  if (direction === "up" || direction === "down") {
+    const step = direction === "up" ? -1 : 1;
+    const next = events[index + step];
+    if (next || isTimeGrid) return next;
+    return scan(7 * step, (day) => day[step === -1 ? day.length - 1 : 0]!);
+  }
+
+  // Timed blocks sort after the all-day row, by time.
+  const position = (day: CalendarEvent[], i: number) => {
+    const time = day[i]!.time;
+    return isTimeGrid && time !== null ? minutesInDay + timeToMinutes(time) : i;
+  };
+  const from = position(events, index);
+  return scan(direction === "left" ? -1 : 1, (day) => {
+    let best = 0;
+    for (let i = 1; i < day.length; i++) {
+      if (
+        Math.abs(position(day, i) - from) < Math.abs(position(day, best) - from)
+      ) {
+        best = i;
+      }
+    }
+    return day[best]!;
+  });
 }
 
 export type BlockLayout = { column: number; columns: number };

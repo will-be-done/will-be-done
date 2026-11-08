@@ -28,6 +28,7 @@ import {
   updateTask,
 } from "./tasks";
 import { registerModelSlice } from "./maps";
+import { updateNote } from "./notes";
 import { syncItemRichText } from "./richTextItems";
 import { genUUIDV5 } from "../traits/";
 import {
@@ -47,6 +48,7 @@ import {
   isTaskTemplate,
   isTask,
   isDailyEntry,
+  isNote,
 } from "./tables";
 
 export const defaultTaskTemplate: TaskTemplate = {
@@ -578,7 +580,7 @@ export const createTaskTemplateFromTask = action({
       id: newId,
       type: taskTemplateType,
       title: task.title,
-      content: task.content,
+      ...(task.content === undefined ? {} : { content: task.content }),
       orderToken: task.orderToken,
       createdAt: task.createdAt,
       repeatRule: defaultRule,
@@ -653,6 +655,14 @@ export const taskTemplateHandleDrop = action({
       yield* updateTemplate({
         id: dropItem.id,
         template: {
+          projectSectionId: template.projectSectionId,
+          orderToken,
+        },
+      });
+    } else if (isNote(dropItem)) {
+      yield* updateNote({
+        id: dropItem.id,
+        note: {
           projectSectionId: template.projectSectionId,
           orderToken,
         },

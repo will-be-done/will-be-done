@@ -820,7 +820,7 @@ describe("Google accounts", () => {
         yield* upsert(googleFlowsTable, [legacy]);
       },
     });
-    await asyncDispatch(f.db, removeAppUrl(pending));
+    await asyncDispatch(f.db, removeAppUrl({ id: pending.id }));
     expect((await f.google.returnTarget(pending.id)).appUrl).toBe(
       config.appUrl,
     );

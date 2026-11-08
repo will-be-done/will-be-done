@@ -14,6 +14,8 @@ import {
   Row,
   SubscribableDB,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
@@ -43,7 +45,7 @@ const selector = createSelector();
 
 function runSelector<T>(
   db: DB | SubscribableDB,
-  handler: () => Generator<unknown, T, unknown>,
+  handler: () => SelectorGenerator<T>,
   _deps: unknown[],
 ): T {
   const testSelector = selector({
@@ -413,10 +415,8 @@ describe("restoring deleted entities", () => {
       orderToken: "a",
       createdAt: 100,
     };
-    const record = (
-      handler: () => Generator<unknown, unknown, unknown>,
-      name: string,
-    ) => syncDispatch(db, action({ name, args: {}, handler })({}));
+    const record = (handler: () => ActionGenerator<unknown>, name: string) =>
+      syncDispatch(db, action({ name, args: {}, handler })({}));
 
     record(function* () {
       yield* insertChangeFromInsert({
@@ -1000,6 +1000,57 @@ describe("first-creator-wins merge", () => {
     const change = getChange(db, entityId);
     expect(change).toBeDefined();
     expect(change!.clientId).toBe("remote");
+  });
+
+  it("republishes an already stored row when its change record is new", () => {
+    // A cross-tab merge can read a row the sender already persisted while the
+    // receiver's resident changes table has no record of it yet.
+    resetClock();
+    const db = new SubscribableDB(createDB());
+    const entityId = "entity-already-stored";
+    const storedRow = {
+      type: "task",
+      id: entityId,
+      title: "remote-title",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    syncDispatch(
+      db,
+      action({
+        name: "storeRowWithoutChange",
+        args: {},
+        handler: function* () {
+          yield* insert(testTable, [storedRow]);
+        },
+      })({}),
+    );
+    const published: Row[] = [];
+    const unsubscribe = db.subscribe((operations) => {
+      for (const op of operations) {
+        if (op.table === testTable && "newValue" in op) {
+          published.push(op.newValue);
+        }
+      }
+    });
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: makeIncomingCreate(
+          entityId,
+          storedRow.title,
+          "0000000015-0001-remote",
+        ),
+        nextClock: makeClockFn("0000000020")(),
+        clientId: "local",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+    unsubscribe();
+
+    expect(published).toEqual([storedRow]);
+    expect(getChange(db, entityId)?.clientId).toBe("remote");
   });
 
   it("merges repeated records for one entity against the planned state", () => {

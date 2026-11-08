@@ -8,6 +8,7 @@ import {
   insert,
   createAction,
   selectFrom,
+  type SelectorGenerator,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
@@ -30,6 +31,8 @@ import {
   TaskTemplate,
   taskTemplatesTable,
   stashEntriesTable,
+  mindmapNodesTable,
+  notesTable,
 } from "./tables";
 
 const action = createAction();
@@ -37,7 +40,7 @@ const selector = createSelector();
 
 function runSelector<T>(
   db: DB,
-  handler: () => Generator<unknown, T, unknown>,
+  handler: () => SelectorGenerator<T>,
   _deps: unknown[],
 ): T {
   const testSelector = selector({
@@ -64,7 +67,9 @@ function createDB(timezoneOffsetMinutes: number) {
       dailyEntriesTable,
       tasksTable,
       taskTemplatesTable,
+      notesTable,
       stashEntriesTable,
+      mindmapNodesTable,
     ]),
   );
   return db;

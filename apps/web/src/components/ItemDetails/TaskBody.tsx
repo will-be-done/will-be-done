@@ -5,12 +5,14 @@ import {
   Clock,
   RefreshCw,
   Pencil,
+  StickyNote,
   X as XIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { useUndoToast } from "@/store/undo";
 import {
   createTaskTemplateFromTask,
   dailyEntryByTaskId,
@@ -41,7 +43,9 @@ import {
   DurationDetailRow,
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
 
 export function TaskBody({
   task,
@@ -59,8 +63,10 @@ export function TaskBody({
   onItemIdChange?: (itemId: string) => void;
 }) {
   const dispatch = useAsyncDispatch();
+  const withUndo = useUndoToast();
   const taskId = task.id;
   const openProject = useOpenProject();
+  const noteConversion = useNoteConversion(onItemIdChange);
 
   const { data: project } = useAsyncSelector({
     selector: projectOfProjectSectionOrDefault,
@@ -109,16 +115,13 @@ export function TaskBody({
     [dispatch, taskId],
   );
 
+  const { templateId } = task;
   const handleRemoveRepeat = useCallback(() => {
-    if (!task.templateId) return;
-    if (
-      window.confirm(
-        "Remove repeat template? This will unlink all generated tasks.",
-      )
-    ) {
-      void dispatch(deleteTemplates({ taskTemplateIds: [task.templateId] }));
-    }
-  }, [task.templateId, dispatch]);
+    if (!templateId) return;
+    void withUndo(() =>
+      dispatch(deleteTemplates({ taskTemplateIds: [templateId] })),
+    );
+  }, [templateId, dispatch, withUndo]);
 
   const handleToggleState = useCallback(() => {
     void (async () => {
@@ -264,6 +267,8 @@ export function TaskBody({
           {format(new Date(task.createdAt), "MMM d, yyyy, h:mm a")}
         </DetailRow>
 
+        <ItemMindmapsRow itemId={taskId} />
+
         {!!task.lastToggledAt && (
           <DetailRow
             icon={<Clock className="h-3 w-3 shrink-0" />}
@@ -327,6 +332,14 @@ export function TaskBody({
           Make repeating
         </button>
       )}
+
+      <button
+        onClick={() => void noteConversion.toNote(taskId)}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
+      >
+        <StickyNote className="h-3 w-3" />
+        Convert to note
+      </button>
 
       {isMoveProjectModalOpen && (
         <MoveModal

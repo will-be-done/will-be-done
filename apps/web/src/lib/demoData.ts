@@ -33,6 +33,207 @@ const demoTaskSchedule: Record<
   "tk-gr-1": { time: "17:00", durationMinutes: 60 },
 };
 
+// A mindmap branch: a topic, or a node linking a demo task or note.
+type DemoBranch = {
+  title?: string;
+  taskId?: string;
+  noteId?: string;
+  collapsed?: boolean;
+  children?: DemoBranch[];
+  // Floating topics only: where the topic is centered.
+  at?: { x: number; y: number };
+};
+
+type DemoMindmap = {
+  id: string;
+  title: string;
+  right: DemoBranch[];
+  left: DemoBranch[];
+  floating?: DemoBranch[];
+};
+
+const demoMindmaps: DemoMindmap[] = [
+  {
+    id: "mm-q2-launch",
+    title: "Q2 launch",
+    right: [
+      {
+        title: "Product",
+        children: [
+          { noteId: "nt-launch-checklist" },
+          { taskId: "tk-st-3" },
+          { taskId: "tk-st-5" },
+          {
+            title: "Performance",
+            children: [{ taskId: "tk-fe-4" }, { taskId: "tk-be-3" }],
+          },
+        ],
+      },
+      {
+        title: "Marketing",
+        children: [
+          { taskId: "tk-mc-2" },
+          { taskId: "tk-mc-3" },
+          { taskId: "tk-seo-1" },
+        ],
+      },
+    ],
+    left: [
+      {
+        title: "Quality",
+        children: [
+          { taskId: "tk-ci-1" },
+          { taskId: "tk-dc-4" },
+          { taskId: "tk-se-3" },
+        ],
+      },
+      {
+        title: "Risks",
+        children: [
+          { title: "Sync edge cases", children: [{ taskId: "tk-ov-3" }] },
+          { title: "Mobile stability", children: [{ taskId: "tk-mob-1" }] },
+        ],
+      },
+    ],
+    floating: [
+      {
+        title: "Open questions",
+        at: { x: 520, y: -260 },
+        children: [
+          { title: "Which pricing tiers?" },
+          { title: "How big is the beta cohort?" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "mm-personal-growth",
+    title: "Personal growth",
+    right: [
+      {
+        title: "Health",
+        children: [
+          { taskId: "tk-hw-2" },
+          { taskId: "tk-hw-3" },
+          { taskId: "tk-hn-1" },
+        ],
+      },
+      {
+        title: "Learning",
+        children: [
+          { taskId: "tk-gc-1" },
+          { taskId: "tk-gc-2" },
+          {
+            title: "Books",
+            children: [
+              { noteId: "nt-reading-list" },
+              { taskId: "tk-gr-1" },
+              { taskId: "tk-gr-2" },
+            ],
+          },
+        ],
+      },
+    ],
+    left: [
+      {
+        title: "Finance",
+        children: [{ taskId: "tk-fin-1" }, { taskId: "tk-fin-3" }],
+      },
+      {
+        title: "Someday",
+        collapsed: true,
+        children: [
+          { title: "Learn Rust" },
+          { title: "Run a half marathon" },
+          { title: "Write every week" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "mm-indie-launch",
+    title: "Indie app launch",
+    right: [
+      {
+        title: "MVP",
+        children: [
+          { taskId: "tk-sm-1" },
+          { taskId: "tk-sm-2" },
+          { taskId: "tk-sm-3" },
+        ],
+      },
+      {
+        title: "Launch",
+        children: [{ taskId: "tk-sl-1" }, { taskId: "tk-sl-2" }],
+      },
+    ],
+    left: [
+      {
+        title: "Growth ideas",
+        children: [
+          { title: "Referral program" },
+          { title: "Template gallery" },
+        ],
+      },
+    ],
+  },
+];
+
+// Mindmap rows for the backup: each map's center topic is the node whose ID
+// is the map's, and main branches name it as their parent.
+function demoMindmapRows(createdAt: number) {
+  const mindmaps: NonNullable<Backup["mindmaps"]> = [];
+  const mindmapNodes: NonNullable<Backup["mindmapNodes"]> = [];
+  demoMindmaps.forEach((map, mapIndex) => {
+    mindmaps.push({
+      id: map.id,
+      title: map.title,
+      orderToken: K[mapIndex]!,
+      createdAt,
+    });
+    mindmapNodes.push({
+      id: map.id,
+      mindmapId: map.id,
+      parentId: null,
+      orderToken: "a0",
+      side: "right",
+      taskId: null,
+      title: map.title,
+      collapsed: false,
+      createdAt,
+    });
+    let count = 0;
+    const add = (
+      branches: DemoBranch[],
+      parentId: string | null,
+      side: "left" | "right",
+      offset = 0,
+    ) =>
+      branches.forEach((branch, i) => {
+        const id = `${map.id}-${++count}`;
+        mindmapNodes.push({
+          id,
+          mindmapId: map.id,
+          parentId,
+          ...branch.at,
+          orderToken: K[offset + i]!,
+          side,
+          taskId: branch.taskId ?? null,
+          ...(branch.noteId ? { noteId: branch.noteId } : {}),
+          title: branch.taskId || branch.noteId ? "" : (branch.title ?? ""),
+          collapsed: branch.collapsed ?? false,
+          createdAt,
+        });
+        add(branch.children ?? [], id, side);
+      });
+    // Main branches of both sides share one sibling order.
+    add(map.right, map.id, "right");
+    add(map.left, map.id, "left", map.right.length);
+    add(map.floating ?? [], null, "right");
+  });
+  return { mindmaps, mindmapNodes };
+}
+
 export function generateDemoBackup(): Backup {
   const base = Date.now();
   const t = (offsetMs: number) => base - offsetMs;
@@ -1334,6 +1535,27 @@ export function generateDemoBackup(): Backup {
     }),
   ];
 
+  const notes = [
+    {
+      id: "nt-launch-checklist",
+      title: "Launch checklist",
+      content:
+        "- Freeze features a week before\n- Write release notes\n- Brief support on the new flows",
+      orderToken: K[50]!,
+      createdAt: t(3_000_000),
+      projectSectionId: "c-st-roadmap",
+    },
+    {
+      id: "nt-reading-list",
+      title: "Reading list",
+      content:
+        "- Shape Up\n- The Phoenix Project\n- Designing Data-Intensive Applications",
+      orderToken: K[50]!,
+      createdAt: t(3_100_000),
+      projectSectionId: "c-gr-books",
+    },
+  ];
+
   return {
     projects,
     projectSections,
@@ -1342,5 +1564,7 @@ export function generateDemoBackup(): Backup {
     dailyLists,
     // Retain the serialized key for backup compatibility.
     dailyEntries,
+    notes,
+    ...demoMindmapRows(t(2_000_000)),
   };
 }

@@ -34,13 +34,6 @@ export const CalendarCard = ({
       tabIndex={0}
       data-focusable-key={event.focusKey}
       onClick={() => useItemDetailsOpen.getState().setOpen(true)}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          useItemDetailsOpen.getState().setOpen(true);
-        }
-      }}
       onPointerDown={(e) => {
         if (canDrag) startCalendarDrag(e, event, "move", onCommit);
       }}

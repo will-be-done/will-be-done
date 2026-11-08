@@ -66,6 +66,9 @@ export const authUtils = {
     authListeners.add(listener);
     return () => authListeners.delete(listener);
   },
+  // Changes whenever the user signs in, signs out, or switches accounts.
+  sessionId: (): string =>
+    `${authUtils.getUserId() ?? ""}:${authUtils.getToken() ?? ""}`,
   getSnapshot: (): string => {
     return [
       authUtils.getToken() ?? "",

@@ -15,6 +15,8 @@ import {
   ListPlus,
   MoreHorizontal,
   Plus,
+  SquareCheck,
+  StickyNote,
   Trash2,
 } from "lucide-react";
 
@@ -91,7 +93,11 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   canResetSchedule,
   canStashTask,
   canConvertToTemplate,
+  canConvertToNote,
+  canConvertToTask,
   canAddChecklistItem,
+  siblingLabel,
+  selectionCount,
   onOpenChange,
   onMarkDone,
   onMoveToProject,
@@ -102,6 +108,8 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   onAddTaskAfter,
   onAddTaskBefore,
   onConvertToTemplate,
+  onConvertToNote,
+  onConvertToTask,
   onAddChecklistItem,
   onMoveUp,
   onMoveDown,
@@ -120,7 +128,12 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   canResetSchedule: boolean;
   canStashTask: boolean;
   canConvertToTemplate: boolean;
+  canConvertToNote: boolean;
+  canConvertToTask: boolean;
   canAddChecklistItem: boolean;
+  siblingLabel: "task" | "note";
+  // Set when the menu acts on a multi-selection; hides single-item actions.
+  selectionCount?: number;
   onOpenChange: (open: boolean) => void;
   onMarkDone: () => void;
   onMoveToProject: () => void;
@@ -131,6 +144,8 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   onAddTaskAfter: () => void;
   onAddTaskBefore: () => void;
   onConvertToTemplate: () => void;
+  onConvertToNote: () => void;
+  onConvertToTask: () => void;
   onAddChecklistItem: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -141,6 +156,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   onCloseAutoFocus?: (event: Event) => void;
 }) {
   const shouldSkipNextCloseAutoFocusRef = useRef(false);
+  const isBulk = !!selectionCount;
 
   const handleShortcutKeyDown = (event: KeyboardEvent) => {
     if (
@@ -189,6 +205,9 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
           onClick={(e) => e.stopPropagation()}
           onKeyDownCapture={handleShortcutKeyDown}
           onKeyDown={(e) => e.stopPropagation()}
+          // Radix closes on Esc before React sees the key, so stop it here
+          // or app-wide Esc handlers also reset focus and selection.
+          onEscapeKeyDown={(e) => e.stopPropagation()}
           onCloseAutoFocus={(e) => {
             e.preventDefault();
             if (shouldSkipNextCloseAutoFocusRef.current) {
@@ -202,7 +221,11 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
           <DropdownMenuGroup>
             <DropdownMenuItem onSelect={onMarkDone} disabled={!canMarkDone}>
               <CircleCheck />
-              {isDone ? "Mark as todo" : "Mark as done"}
+              {isBulk
+                ? "Toggle done"
+                : isDone
+                  ? "Mark as todo"
+                  : "Mark as done"}
               <DropdownMenuShortcut>Space</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -223,10 +246,10 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
               disabled={!canStashTask}
             >
               <Archive />
-              Stash task
+              {isBulk ? "Stash tasks" : "Stash task"}
               <DropdownMenuShortcut>S</DropdownMenuShortcut>
             </DropdownMenuItem>
-            {isTemplate ? (
+            {isTemplate && !isBulk ? (
               <DropdownMenuItem onSelect={onChangeDate}>
                 <Clock />
                 Time & duration
@@ -258,18 +281,20 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
               Reset schedule
               <DropdownMenuShortcut>r</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                shouldSkipNextCloseAutoFocusRef.current = true;
-                onAddChecklistItem();
-              }}
-              disabled={!canAddChecklistItem}
-            >
-              <ListPlus />
-              Add checklist item
-              <DropdownMenuShortcut>c</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            {canConvertToTemplate && (
+            {!isBulk && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onAddChecklistItem();
+                }}
+                disabled={!canAddChecklistItem}
+              >
+                <ListPlus />
+                Add checklist item
+                <DropdownMenuShortcut>c</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
+            {!isBulk && canConvertToTemplate && (
               <DropdownMenuItem
                 onSelect={() => {
                   shouldSkipNextCloseAutoFocusRef.current = true;
@@ -281,28 +306,54 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
                 <DropdownMenuShortcut>T</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem
-              onSelect={() => {
-                shouldSkipNextCloseAutoFocusRef.current = true;
-                onAddTaskAfter();
-              }}
-              disabled={isDone}
-            >
-              <Plus />
-              Add task after
-              <DropdownMenuShortcut>o</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                shouldSkipNextCloseAutoFocusRef.current = true;
-                onAddTaskBefore();
-              }}
-              disabled={isDone}
-            >
-              <Plus />
-              Add task before
-              <DropdownMenuShortcut>O</DropdownMenuShortcut>
-            </DropdownMenuItem>
+            {!isBulk && canConvertToNote && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onConvertToNote();
+                }}
+              >
+                <StickyNote />
+                Convert to note
+              </DropdownMenuItem>
+            )}
+            {!isBulk && canConvertToTask && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onConvertToTask();
+                }}
+              >
+                <SquareCheck />
+                Convert to task
+              </DropdownMenuItem>
+            )}
+            {!isBulk && (
+              <>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    shouldSkipNextCloseAutoFocusRef.current = true;
+                    onAddTaskAfter();
+                  }}
+                  disabled={isDone}
+                >
+                  <Plus />
+                  Add {siblingLabel} after
+                  <DropdownMenuShortcut>o</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    shouldSkipNextCloseAutoFocusRef.current = true;
+                    onAddTaskBefore();
+                  }}
+                  disabled={isDone}
+                >
+                  <Plus />
+                  Add {siblingLabel} before
+                  <DropdownMenuShortcut>O</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
@@ -330,7 +381,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={onDelete}>
             <Trash2 />
-            Delete
+            {isBulk ? `Delete ${selectionCount} items` : "Delete"}
             <DropdownMenuShortcut>d</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>

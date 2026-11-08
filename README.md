@@ -14,6 +14,8 @@ Under the hood, Will Be Done runs on [HyperDB](https://github.com/will-be-done/h
 
 <img width="2000" height="1433" alt="Will Be Done weekly calendar view" src="apps/landing/src/assets/calendar-week.png" />
 
+<img width="2000" height="1346" alt="Will Be Done mindmap with linked tasks and the task details panel" src="apps/landing/src/assets/mindmap.png" />
+
 ## Why Will Be Done?
 
 Will Be Done is for people who want a fast, private task manager aimed at planning rather than capture.
@@ -140,6 +142,15 @@ The Docker server hosts the web app, stores server-side data under `/var/lib/wil
 - Check off and reorder checklist items inside tasks.
 - Schedule tasks to specific dates, schedule them for today, or clear their schedule.
 - View tasks in daily, weekly timeline, project, and stash contexts.
+- Keep notes next to tasks in project sections, and convert between notes and tasks.
+- Select several tasks and notes to move, schedule, copy, or delete them together.
+- Undo and redo changes from the keyboard.
+
+**Mindmaps**
+
+- Lay out ideas around a central topic and break them into branches.
+- Place tasks and notes from any project on a map; they stay linked to their project.
+- Drive the map from the keyboard, paste outlines from other apps, and use it on touch screens.
 
 **Projects and planning**
 
@@ -287,7 +298,7 @@ Planned for v1.0:
 - [x] Desktop app with global quick add
 - [x] OpenAPI integration
 - [ ] CLI app
-- [ ] Undo / redo
+- [x] Undo / redo
 
 Possible next features:
 
@@ -297,7 +308,7 @@ Possible next features:
 - [ ] MCP integration
 - [ ] Project themes with custom backgrounds and task colors
 - [ ] Global command palette
-- [ ] Multi-select tasks
+- [x] Multi-select tasks
 - [ ] Global themes
 - [ ] Drag and drop for project columns
 - [ ] Internationalization

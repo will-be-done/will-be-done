@@ -6,6 +6,7 @@ import {
   selectFrom,
   upsert,
   v,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { changeId, changesTable } from "../common";
@@ -27,8 +28,10 @@ import {
   stashEntriesByTaskIds,
 } from "./stashEntries";
 import { firstProjectSectionChild } from "./projectSections";
+import { detachMindmapNodesOfItems, mindmapNodesByTaskIds } from "./mindmaps";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
+import { updateNote } from "./notes";
 import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
@@ -47,6 +50,7 @@ import {
   isTask,
   isDailyEntry,
   isTaskTemplate,
+  isNote,
 } from "./tables";
 
 export const defaultTask: Task = {
@@ -200,7 +204,7 @@ export const projectSectionTasksByState = selector({
 export const deleteTasks = action({
   name: "deleteTasks",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteTasks({ ids }): Generator<unknown, void, unknown> {
+  handler: function* deleteTasks({ ids }): ActionGenerator<void> {
     yield* deleteForParents({
       parentIds: ids,
       parentType: taskType,
@@ -208,13 +212,14 @@ export const deleteTasks = action({
     yield* deleteRows(tasksTable, ids);
     yield* deleteDailyEntriesByTaskIds({ taskIds: ids });
     yield* deleteStashEntriesByTaskIds({ taskIds: ids });
+    yield* detachMindmapNodesOfItems({ ids });
   },
 });
 
 export const trashTasks = action({
   name: "trashTasks",
   args: { ids: v.array(v.string()) },
-  handler: function* trashTasks({ ids }): Generator<unknown, void, unknown> {
+  handler: function* trashTasks({ ids }): ActionGenerator<void> {
     const tasks = yield* tasksByIds({ ids });
     if (tasks.length === 0) return;
 
@@ -231,6 +236,7 @@ export const trashTasks = action({
     const stashEntries = new Map(
       (yield* stashEntriesByTaskIds({ taskIds })).map((e) => [e.taskId, e]),
     );
+    const mindmapNodes = yield* mindmapNodesByTaskIds({ taskIds });
     const trashedAt = Date.now();
 
     const trashed = tasks.map(
@@ -245,6 +251,7 @@ export const trashTasks = action({
           ),
           dailyEntry: dailyEntries.get(task.id) ?? null,
           stashEntry: stashEntries.get(task.id) ?? null,
+          mindmapNodes: mindmapNodes.filter((node) => node.taskId === task.id),
         } satisfies TrashSnapshot),
       }),
     );
@@ -334,7 +341,7 @@ export const taskHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     if (
       !(yield* taskCanDrop({
         taskId,
@@ -385,6 +392,14 @@ export const taskHandleDrop = action({
           orderToken: orderToken,
         },
       });
+    } else if (isNote(dropItem)) {
+      yield* updateNote({
+        id: dropItem.id,
+        note: {
+          projectSectionId: task.projectSectionId,
+          orderToken: orderToken,
+        },
+      });
     } else if (isDailyEntry(dropItem)) {
       // When dropping a entry onto a task, move the underlying task
       const droppedTask = yield* taskById({ id: dropItem.taskId });
@@ -428,7 +443,7 @@ export const moveTaskToProject = action({
   handler: function* moveTaskToProject({
     taskId,
     projectId,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
@@ -487,7 +502,9 @@ export const createTaskFromTemplate = action({
       lastToggledAt: Date.now(),
       nature: taskTemplate.nature ?? "unknown",
       createdAt: taskTemplate.createdAt,
-      content: taskTemplate.content,
+      ...(taskTemplate.content === undefined
+        ? {}
+        : { content: taskTemplate.content }),
       templateId: null,
       templateDate: null,
       ...(taskTemplate.durationMinutes == null

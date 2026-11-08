@@ -4,6 +4,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { useSelectAsync } from "@will-be-done/hyperdb/react";
 import { type Task, taskById } from "@will-be-done/slices/space";
 import { isModelDNDData } from "@/lib/dnd/models";
+import type { FocusKey } from "@/store/focusSlice.ts";
 import { type CalendarEvent, blockMinutes } from "./calendarModel";
 import {
   type CalendarDrag,
@@ -20,7 +21,7 @@ const draggedTaskId = (data: unknown) =>
 const toEvent = (taskId: string, task: Task | undefined): CalendarEvent => ({
   key: `external-${taskId}`,
   taskId,
-  focusKey: "",
+  focusKey: "" as FocusKey,
   // Never equal to a calendar date, so any drop schedules the task.
   date: "",
   title: richTextMarkdownToPlainText(task?.title ?? "", "title"),

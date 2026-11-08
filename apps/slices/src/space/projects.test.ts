@@ -6,6 +6,7 @@ import {
   execSync,
   selectSync,
   syncDispatch,
+  type SelectorGenerator,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
@@ -52,13 +53,14 @@ import {
   dailyEntriesTable,
   tasksTable,
   taskTemplatesTable,
+  notesTable,
 } from "./tables";
 
 const selector = createSelector();
 
 function runSelector<T>(
   db: DB | SubscribableDB,
-  handler: () => Generator<unknown, T, unknown>,
+  handler: () => SelectorGenerator<T>,
   _deps: unknown[],
 ): T {
   const testSelector = selector({
@@ -85,6 +87,7 @@ function createDB() {
       stashEntriesTable,
       dailyEntriesTable,
       taskTemplatesTable,
+      notesTable,
       tasksTable,
     ]),
   );

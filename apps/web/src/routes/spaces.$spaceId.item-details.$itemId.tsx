@@ -12,6 +12,7 @@ import {
   dailyEntryDateOfTask,
   isTask,
   isTaskTemplate,
+  isNote,
   projectSectionsByProjectId,
   projectSectionItemById,
   projectOfProjectSectionOrDefault,
@@ -45,12 +46,14 @@ export const Route = createFileRoute("/spaces/$spaceId/item-details/$itemId")({
       return;
     }
 
-    appendPromise(
-      preloadSelectorAsync(db, {
-        selector: checklistItemChildren,
-        args: { parentId: item.id, parentType: item.type },
-      }),
-    );
+    if (!isNote(item)) {
+      appendPromise(
+        preloadSelectorAsync(db, {
+          selector: checklistItemChildren,
+          args: { parentId: item.id, parentType: item.type },
+        }),
+      );
+    }
 
     const project = await preloadSelectorAsync(db, {
       selector: projectOfProjectSectionOrDefault,

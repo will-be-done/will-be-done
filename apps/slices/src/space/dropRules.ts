@@ -1,4 +1,10 @@
-import type { AnyModel, AnyModelType, Item, Task } from "./tables";
+import type {
+  AnyModel,
+  AnyModelType,
+  Item,
+  Task,
+  TaskTemplate,
+} from "./tables";
 
 type DropTask = Pick<Task, "id" | "state" | "projectSectionId">;
 
@@ -26,6 +32,12 @@ export type StashEntryDropModelData = {
 export type TaskTemplateDropModelData = {
   modelId: string;
   modelType: "template";
+  projectSectionId: string;
+};
+
+export type NoteDropModelData = {
+  modelId: string;
+  modelType: "note";
   projectSectionId: string;
 };
 
@@ -75,6 +87,7 @@ export type DropModelData =
   | DailyEntryDropModelData
   | StashEntryDropModelData
   | TaskTemplateDropModelData
+  | NoteDropModelData
   | ProjectDropModelData
   | ProjectSectionDropModelData
   | DailyListDropModelData
@@ -84,10 +97,15 @@ export type DropModelData =
   | TaskTemplateChecklistDropModelData;
 
 export function getDropModelData(
-  model: Item,
+  model: Task | TaskTemplate,
   task?: DropTask,
   dailyListId?: string,
 ): TaskDropModelData | TaskTemplateDropModelData;
+export function getDropModelData(
+  model: Item,
+  task?: DropTask,
+  dailyListId?: string,
+): TaskDropModelData | TaskTemplateDropModelData | NoteDropModelData;
 export function getDropModelData(
   model: AnyModel,
   task?: DropTask,
@@ -137,6 +155,13 @@ export function getDropModelData(
     };
   }
   if (model.type === "template") {
+    return {
+      modelId: model.id,
+      modelType: model.type,
+      projectSectionId: model.projectSectionId,
+    };
+  }
+  if (model.type === "note") {
     return {
       modelId: model.id,
       modelType: model.type,
@@ -204,7 +229,7 @@ export function canDropModel(
     const sectionId =
       "task" in source
         ? source.task.projectSectionId
-        : source.modelType === "template"
+        : source.modelType === "template" || source.modelType === "note"
           ? source.projectSectionId
           : undefined;
     if (sectionId === target.modelId) return false;
@@ -221,21 +246,21 @@ export function canDropModel(
       dropped.modelType === "dailyEntry" ||
       dropped.modelType === "stashEntry") &&
     dropped.task.state === "todo";
+  const isSectionItem =
+    isTodoTask ||
+    dropped.modelType === "template" ||
+    dropped.modelType === "note";
 
   switch (target.modelType) {
     case "task":
       return (
         target.task.state === "todo" &&
-        (isTodoTask ||
-          dropped.modelType === "template" ||
-          dropped.modelType === "checklistItem")
+        (isSectionItem || dropped.modelType === "checklistItem")
       );
     case "template":
-      return (
-        isTodoTask ||
-        dropped.modelType === "template" ||
-        dropped.modelType === "checklistItem"
-      );
+      return isSectionItem || dropped.modelType === "checklistItem";
+    case "note":
+      return isSectionItem;
     case "dailyEntry":
     case "stashEntry":
       return target.task.state === "todo" && isTodoTask;
@@ -247,6 +272,7 @@ export function canDropModel(
       return (
         dropped.modelType === "task" ||
         dropped.modelType === "template" ||
+        dropped.modelType === "note" ||
         (dropped.modelType === "dailyEntry" && isTodoTask) ||
         dropped.modelType === target.modelType
       );

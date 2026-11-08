@@ -22,6 +22,8 @@ import {
   dailyEntryType,
   dailyListsTable,
   dailyListType,
+  notesTable,
+  noteType,
   projectSectionsTable,
   projectSectionType,
   stashEntriesTable,
@@ -29,10 +31,12 @@ import {
   tasksTable,
   taskType,
   trashedTasksTable,
+  type Note,
   type Task,
 } from "./tables";
 import { getSpaceBackup, loadSpaceBackup } from "./backup";
 import { trashTasks } from "./tasks";
+import { appDeleteModel } from "./app";
 import {
   purgeExpiredTrash,
   restoreTrashedTasks,
@@ -63,6 +67,16 @@ const stashedTask: Task = {
   templateDate: null,
 };
 
+const note: Note = {
+  type: noteType,
+  id: "note",
+  title: "Meeting notes",
+  content: "Agenda",
+  projectSectionId: "section",
+  orderToken: "c",
+  createdAt: 0,
+};
+
 const seed = action({
   name: "seedTrashTest",
   args: {},
@@ -82,6 +96,7 @@ const seed = action({
       { type: dailyListType, id: dailyListId, date: "2026-10-30" },
     ]);
     yield* insert(tasksTable, [task, stashedTask]);
+    yield* insert(notesTable, [note]);
     yield* insert(checklistItemsTable, [
       {
         type: checklistItemType,
@@ -132,6 +147,7 @@ const liveRows = selector({
   handler: function* () {
     return {
       tasks: yield* selectFrom(tasksTable, "byIds"),
+      notes: yield* selectFrom(notesTable, "byIds"),
       checklistItems: yield* selectFrom(checklistItemsTable, "byIds"),
       dailyEntries: yield* selectFrom(dailyEntriesTable, "byIds"),
       stashEntries: yield* selectFrom(stashEntriesTable, "byIds"),
@@ -187,6 +203,50 @@ describe("trash", () => {
     ]);
     expect(restored.stashEntries).toMatchObject([
       { id: "stash", taskId: stashedTask.id, orderToken: "b" },
+    ]);
+  });
+
+  test("deleting a note trashes it and restoring brings it back", () => {
+    const db = createDB();
+    syncDispatch(db, appDeleteModel({ id: note.id, modelType: noteType }));
+
+    expect(selectSync(db, { selector: liveRows, args: {} }).notes).toEqual([]);
+    expect(selectSync(db, { selector: trashedTasks, args: {} })).toMatchObject([
+      { id: note.id, note },
+    ]);
+
+    syncDispatch(db, restoreTrashedTasks({ ids: [note.id] }));
+
+    expect(selectSync(db, { selector: liveRows, args: {} }).notes).toEqual([
+      note,
+    ]);
+    expect(selectSync(db, { selector: trashedTasks, args: {} })).toEqual([]);
+  });
+
+  test("restores a note into the inbox when its section is gone", () => {
+    const db = createDB();
+    syncDispatch(db, appDeleteModel({ id: note.id, modelType: noteType }));
+    syncDispatch(db, removeSection({}));
+
+    syncDispatch(db, restoreTrashedTasks({ ids: [note.id] }));
+
+    const { notes, inboxSectionId } = selectSync(db, {
+      selector: liveRows,
+      args: {},
+    });
+    expect(notes).toEqual([{ ...note, projectSectionId: inboxSectionId }]);
+  });
+
+  test("backups keep trashed notes restorable", () => {
+    const db = createDB();
+    syncDispatch(db, appDeleteModel({ id: note.id, modelType: noteType }));
+    const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+
+    syncDispatch(db, loadSpaceBackup({ backup }));
+    syncDispatch(db, restoreTrashedTasks({ ids: [note.id] }));
+
+    expect(selectSync(db, { selector: liveRows, args: {} }).notes).toEqual([
+      note,
     ]);
   });
 

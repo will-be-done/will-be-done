@@ -14,6 +14,7 @@ import {
   updateTemplate,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
+import { buildFocusKey } from "@/store/focusSlice.ts";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavBar } from "@/components/NavBar/NavBar";
 import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
@@ -38,7 +39,9 @@ import {
 } from "./DayCells";
 import { TimeGridView } from "./TimeGridView";
 import { useExternalTaskDrop } from "./useExternalTaskDrop";
+import { focusCardOnceShown, useCalendarKeys } from "./useCalendarKeys";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
+import { WithStash } from "@/components/Stash/WithStash.tsx";
 import { openQuickAdd } from "@/components/QuickAdd/quickAddStore";
 
 const viewLabels: Record<CalendarView, string> = {
@@ -121,6 +124,11 @@ export const CalendarPage = ({
       date: parse(date, "yyyy-MM-dd", new Date()),
       time,
       location: "calendar",
+      onCreated: (entry) => {
+        if (entry) {
+          focusCardOnceShown(buildFocusKey(entry.id, entry.type), () => {});
+        }
+      },
     });
   }, []);
 
@@ -174,6 +182,7 @@ export const CalendarPage = ({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   useExternalTaskDrop(bodyRef, onCommit);
+  useCalendarKeys({ view, days, eventsByDate, externalByDate, onCreate });
 
   return (
     <div className="flex h-full w-full">
@@ -184,122 +193,128 @@ export const CalendarPage = ({
         selectedDate={anchor}
       >
         {/* The nav sits flush in the top-left corner, like on the projects
-            and timeline pages, so it does not jump when switching views. */}
-        <header className="flex h-14 shrink-0 items-start gap-4 pr-4">
+            and timeline pages, so it does not jump when switching views.
+            The title and the controls wrap onto their own lines rather than
+            shrinking, so a phone shows all of them. */}
+        <header className="flex min-h-14 shrink-0 flex-wrap items-start gap-x-2 pr-4 pb-2">
           <div className="[app-region:no-drag]">
             <NavBar spaceId={spaceId} />
           </div>
-          <div className="mt-2 flex h-8 min-w-0 flex-1 items-center gap-4">
-            <h1 className="truncate text-lg font-semibold text-content">
+          <h1 className="mt-2 flex h-8 min-w-fit flex-1 items-center pl-3.5 text-lg font-semibold text-content">
+            <span className="truncate">
               {calendarTitle(view, anchor, new Date())}
-            </h1>
+            </span>
+          </h1>
 
-            <div className="ml-auto flex items-center gap-3 [app-region:no-drag]">
-              <div className="flex items-center">
-                <Link
-                  {...linkTo(shiftAnchor(view, anchor, -1))}
-                  className={navButtonClass}
-                  aria-label="Previous"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Link>
-                <Link {...linkTo(new Date())} className={navButtonClass}>
-                  Today
-                </Link>
-                <Link
-                  {...linkTo(shiftAnchor(view, anchor, 1))}
-                  className={navButtonClass}
-                  aria-label="Next"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Link>
-              </div>
-
-              <div className="flex rounded-lg p-0.5 ring-1 ring-white/10">
-                {calendarViews.map((v) => (
-                  <Link
-                    key={v}
-                    {...linkTo(anchor, v)}
-                    className={cn(
-                      "rounded-md px-3 py-1 text-sm transition-colors",
-                      v === view
-                        ? "bg-white/10 font-medium text-content"
-                        : "text-content-tinted hover:text-content",
-                    )}
-                  >
-                    {viewLabels[v]}
-                  </Link>
-                ))}
-              </div>
-
-              <TooltipProvider>
-                <SyncIndicator />
-              </TooltipProvider>
+          <div className="mt-2 ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2 [app-region:no-drag]">
+            <div className="flex items-center">
+              <Link
+                {...linkTo(shiftAnchor(view, anchor, -1))}
+                className={navButtonClass}
+                aria-label="Previous"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <Link {...linkTo(new Date())} className={navButtonClass}>
+                Today
+              </Link>
+              <Link
+                {...linkTo(shiftAnchor(view, anchor, 1))}
+                className={navButtonClass}
+                aria-label="Next"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
+
+            <div className="flex rounded-lg p-0.5 ring-1 ring-white/10">
+              {calendarViews.map((v) => (
+                <Link
+                  key={v}
+                  {...linkTo(anchor, v)}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-sm transition-colors",
+                    v === view
+                      ? "bg-white/10 font-medium text-content"
+                      : "text-content-tinted hover:text-content",
+                  )}
+                >
+                  {viewLabels[v]}
+                </Link>
+              ))}
+            </div>
+
+            <TooltipProvider>
+              <SyncIndicator />
+            </TooltipProvider>
           </div>
         </header>
 
-        <div
-          ref={bodyRef}
-          data-focus-region-direction="row"
-          className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
-        >
-          {/* Seven day columns stay readable; narrow windows scroll sideways. */}
+        <WithStash reserveButton>
           <div
-            className={cn(
-              "flex min-h-0 flex-1 flex-col",
-              view !== "day" && "min-w-[52rem]",
-            )}
+            ref={bodyRef}
+            className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
           >
-            {view === "month" || view === "plan" ? (
-              <>
-                <WeekdayHeader days={days.slice(0, 7)} />
-                <div
-                  className="grid min-h-0 flex-1 grid-cols-7 border-l border-white/5"
-                  style={{
-                    gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {days.map((day) => {
-                    const events = eventsByDate.get(urlDate(day)) ?? [];
-                    const external = externalByDate.get(urlDate(day)) ?? [];
-                    return view === "month" ? (
-                      <MonthCell
-                        key={day.getTime()}
-                        day={day}
-                        anchor={anchor}
-                        today={today}
-                        events={events}
-                        external={external}
-                        actions={actions}
-                      />
-                    ) : (
-                      <PlanCell
-                        key={day.getTime()}
-                        day={day}
-                        today={today}
-                        events={events}
-                        external={external}
-                        actions={actions}
-                      />
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <TimeGridView
-                days={days}
-                today={today}
-                eventsByDate={eventsByDate}
-                externalByDate={externalByDate}
-                actions={actions}
-              />
-            )}
+            {/* Seven day columns stay readable; narrow windows scroll sideways. */}
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col",
+                view !== "day" && "min-w-[52rem]",
+              )}
+            >
+              {view === "month" || view === "plan" ? (
+                <>
+                  <WeekdayHeader days={days.slice(0, 7)} />
+                  <div
+                    className="grid min-h-0 flex-1 grid-cols-7 border-l border-white/5"
+                    style={{
+                      gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {days.map((day) => {
+                      const events = eventsByDate.get(urlDate(day)) ?? [];
+                      const external = externalByDate.get(urlDate(day)) ?? [];
+                      return view === "month" ? (
+                        <MonthCell
+                          key={day.getTime()}
+                          day={day}
+                          anchor={anchor}
+                          today={today}
+                          events={events}
+                          external={external}
+                          actions={actions}
+                        />
+                      ) : (
+                        <PlanCell
+                          key={day.getTime()}
+                          day={day}
+                          today={today}
+                          events={events}
+                          external={external}
+                          actions={actions}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <TimeGridView
+                  days={days}
+                  today={today}
+                  eventsByDate={eventsByDate}
+                  externalByDate={externalByDate}
+                  actions={actions}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        </WithStash>
       </ProjectsSplit>
 
-      <ItemDetails />
+      {/* Phones open details full screen instead. */}
+      <div className="hidden h-full sm:block">
+        <ItemDetails />
+      </div>
       <DragGhost />
     </div>
   );

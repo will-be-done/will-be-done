@@ -1,6 +1,6 @@
 ---
 title: Features
-description: How tasks, text formatting, projects, scheduling, Stash, and recurring templates work.
+description: How tasks, notes, text formatting, projects, scheduling, Stash, and recurring templates work.
 sidebar:
   order: 1
 ---
@@ -16,6 +16,19 @@ menu. The inbox is a project for tasks you have not organized yet.
 
 Spaces separate your projects and schedules. For example, work and personal
 tasks can live in different spaces.
+
+## Notes
+
+A note is a section item with a title and a description but no done state. Use
+it for reference text that sits between tasks, such as meeting notes or a
+project brief. Notes live only in project sections: they cannot be scheduled,
+stashed, or given a checklist.
+
+Select **Convert to note** in a task's dropdown menu or task details to turn it
+into a note in the same place. Converting removes the task's schedule, Stash
+appearance, and checklist; select **Undo** in the popup to get them back.
+Select **Convert to task** on a note to turn it back into a todo task. With a
+note focused, press `o` or `Shift+O` to add another note below or above it.
 
 ## Text formatting
 
@@ -92,6 +105,56 @@ month by default; choose 2 weeks up to **All events** under each calendar in
 settings. Upcoming events are always included. Once synced, they are
 available offline. Removing a calendar removes its events from every device.
 
+## Mindmaps
+
+A mindmap lays out ideas around a central topic, and its branches can hold
+tasks and notes from any project. Open **maps** in the view switcher, then
+create a mindmap and name it. The name also becomes its central topic; after
+that, renaming the mindmap (the pencil next to its name, or the mindmaps list)
+leaves the topic as it is. Delete one from the list or its name's menu.
+
+Select a topic and press `Tab` to add a subtopic, or `Enter` to add a topic
+below it. On a task or note, the same keys add another task or note. New tasks
+and notes go to the project shown in the panel below the map, or the inbox.
+Turn a topic into a task or a note with the buttons above it. Stash is on the
+left edge of the map, as on the timeline.
+Drag a task or note from the project panel onto a topic to place it under that
+topic, or onto empty space to start a new branch on that side. Drag one of
+several selected tasks and notes to place them all. Drag topics to
+rearrange them. While you drag, a faded copy shows where the topic will land:
+drop on a topic to nest under it, or on its top or bottom edge to place it
+above or below. A task or note can be on several topics at once, even on one
+mindmap: dropping or pasting it again adds another.
+
+Double-click empty space to start a floating topic there. It works like the
+central topic, with its own branches on both sides; drag it to move it, or onto
+another topic to attach it there.
+
+Drag across empty space to select several topics, `Shift`-click to select every
+topic from the selected one to the clicked one, or `Ctrl`-click (`Cmd` on
+macOS) to add or remove one. Copy, cut, and paste work
+on topics, and tasks or notes copied from any list paste onto the mindmap.
+Pasting other text adds a topic for each line, nested as it was: an outline
+copied from MindNode or another outliner, a Markdown list, bulleted lists from
+Google Docs or Notion, or OPML.
+Drag any selected topic to move them together, or press `Backspace` to remove
+them. Scroll to pan, `Ctrl`-scroll to zoom, or drag with the middle mouse
+button to pan. On a touch screen, drag with one finger to pan and pinch to
+zoom; tap a topic to select it, tap it again to edit, and double-tap empty
+space to start a floating topic. On a phone, the bar at the bottom adds topics,
+edits, removes, opens a task or note's details full screen, and opens **More**
+for the rest of a topic's actions.
+
+Task and note topics stay linked to their item: renaming or completing one
+changes it everywhere, and selecting one opens it in the details panel, which
+lists the mindmaps it appears on; click one to jump to its topic. Task and
+note topics show their project and section: click either to move it. A task topic shows its checklist, and `c` adds an
+item. Hover a topic and open **…**, or press `a`, for the
+same actions a task has in a list. Converting a task to a note, or back, keeps
+its place on the map. Removing a topic, or deleting a whole mindmap, keeps its
+tasks and notes in their projects. Deleting a task or note removes it from its
+mindmaps, and restoring it from the trash puts it back.
+
 ## Stash
 
 Stash keeps tasks handy when you know you will need them soon but are not sure
@@ -150,14 +213,16 @@ The delete action depends on where you use it:
 | Timeline or Today | Removes the scheduled appearance; the task remains in its project |
 | Stash             | Removes the Stash appearance; the task remains in its project     |
 
-Resetting a task's schedule also keeps the task. Undo and redo are not available
-yet. See [keyboard shortcuts](/docs/keyboard-shortcuts/) for the corresponding keys.
+Resetting a task's schedule also keeps the task. After a delete, a popup in the
+corner offers **Undo** for a few seconds. Press `u`, `Cmd+Z`, or `Ctrl+Z` to
+undo a delete or any other change at any time; see
+[undo and redo](/docs/keyboard-shortcuts/#undo-and-redo).
 
 Open **Trash** at the bottom of the sidebar to restore a deleted task or delete
 it forever. Restoring returns the task to its section, checklist, schedule, and
 Stash; if its project is gone, it returns to the Inbox. Tasks are deleted forever
-30 days after they enter Trash. Deleting a project deletes its tasks without
-moving them to Trash.
+30 days after they enter Trash. Deleted notes go to Trash the same way.
+Deleting a project deletes its tasks and notes without moving them to Trash.
 
 ## Imports and space backups
 
@@ -167,5 +232,5 @@ empty space, or export a backup before importing.
 
 **Space Settings → Backup** exports the selected space as JSON. Restoring that
 file replaces the space's existing data. A space export contains its tasks,
-projects, templates, checklists, schedules, and Stash entries. It does not back
+projects, notes, templates, checklists, schedules, and Stash entries. It does not back
 up your server's accounts or API tokens.

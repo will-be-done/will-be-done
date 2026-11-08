@@ -43,6 +43,7 @@ type Shortcut = {
 
 type ShortcutGroup = {
   title: string;
+  column: "left" | "right";
   description: string;
   shortcuts: Shortcut[];
 };
@@ -50,6 +51,7 @@ type ShortcutGroup = {
 const shortcutGroups: ShortcutGroup[] = [
   {
     title: "Global",
+    column: "left",
     description: "Available anywhere in a space",
     shortcuts: [
       { bindings: [["Ctrl", "A"]], description: "Quick add task" },
@@ -62,6 +64,7 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Focused task",
+    column: "right",
     description: "Actions for the selected task",
     shortcuts: [
       { bindings: [["I"], ["Enter"]], description: "Edit task" },
@@ -101,10 +104,37 @@ const shortcutGroups: ShortcutGroup[] = [
       { bindings: [["E"]], description: "Edit description" },
       { bindings: [["C"]], description: "Add checklist item" },
       { bindings: [["A"]], description: "Open action menu" },
+      { bindings: [[MOD_KEY, "C"]], description: "Copy task" },
+      { bindings: [[MOD_KEY, "X"]], description: "Cut task" },
+      { bindings: [[MOD_KEY, "V"]], description: "Paste below the task" },
+    ],
+  },
+  {
+    title: "Multiple tasks",
+    column: "right",
+    description: "Select several items, then use the task actions above",
+    shortcuts: [
+      {
+        bindings: [["Shift", "Click"]],
+        description: "Select a range",
+      },
+      {
+        bindings: [[MOD_KEY, "Click"]],
+        description: "Add or remove from selection",
+      },
+      {
+        bindings: [
+          ["Shift", "J"],
+          ["Shift", "K"],
+        ],
+        description: "Extend selection",
+      },
+      { bindings: [["Esc"]], description: "Clear selection" },
     ],
   },
   {
     title: "Focused project",
+    column: "left",
     description: "Actions for the selected project",
     shortcuts: [
       { bindings: [["I"]], description: "Edit project" },
@@ -116,7 +146,111 @@ const shortcutGroups: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Calendar",
+    column: "left",
+    description: "Actions for the selected calendar task",
+    shortcuts: [
+      {
+        bindings: [["H"], ["J"], ["K"], ["L"], ["←"], ["↓"], ["↑"], ["→"]],
+        description: "Move between tasks and days",
+      },
+      {
+        bindings: [
+          ["Ctrl", "H"],
+          ["Ctrl", "L"],
+        ],
+        description: "Move to the previous or next day",
+      },
+      {
+        bindings: [
+          ["Ctrl", "J"],
+          ["Ctrl", "K"],
+        ],
+        description:
+          "Move 15 minutes later or earlier, or a week in month view",
+      },
+      { bindings: [["Enter"]], description: "Open task details" },
+      { bindings: [["Space"]], description: "Toggle task state" },
+      { bindings: [["1"], ["2"], ["3"]], description: "Set nature" },
+      { bindings: [["T"]], description: "Schedule for today" },
+      { bindings: [["Shift", "S"]], description: "Stash task" },
+      { bindings: [["O"]], description: "Add a task right after" },
+      { bindings: [["Shift", "O"]], description: "Add a task right before" },
+      {
+        bindings: [["D"], ["X"], ["Backspace"]],
+        description: "Remove from the day",
+      },
+      { bindings: [[MOD_KEY, "Backspace"]], description: "Delete task" },
+    ],
+  },
+  {
+    title: "Mindmap",
+    column: "left",
+    description:
+      "Actions for the selected node; on a task or note, they add the same kind",
+    shortcuts: [
+      { bindings: [["Tab"]], description: "Add child" },
+      { bindings: [["Enter"], ["O"]], description: "Add below" },
+      { bindings: [["Shift", "O"]], description: "Add above" },
+      { bindings: [["I"]], description: "Edit title" },
+      {
+        bindings: [["H"], ["J"], ["K"], ["L"], ["←"], ["↓"], ["↑"], ["→"]],
+        description: "Move between topics",
+      },
+      {
+        bindings: [
+          ["Ctrl", "H"],
+          ["Ctrl", "J"],
+          ["Ctrl", "K"],
+          ["Ctrl", "L"],
+        ],
+        description: "Move topic up, down, in or out",
+      },
+      { bindings: [["Space"]], description: "Toggle task state" },
+      { bindings: [["M"]], description: "Move task or note to a project" },
+      { bindings: [["S"]], description: "Schedule date" },
+      { bindings: [["T"]], description: "Schedule for today" },
+      { bindings: [["R"]], description: "Reset schedule" },
+      { bindings: [["Shift", "S"]], description: "Stash task" },
+      { bindings: [["E"]], description: "Edit description" },
+      { bindings: [["C"]], description: "Add checklist item" },
+      { bindings: [["A"]], description: "Open action menu" },
+      { bindings: [["."]], description: "Collapse or expand" },
+      {
+        bindings: [["D"], ["X"], ["Backspace"]],
+        description: "Remove from mindmap",
+      },
+      { bindings: [["Shift", "Click"]], description: "Select a range" },
+      {
+        bindings: [[MOD_KEY, "Click"]],
+        description: "Add or remove from selection",
+      },
+      {
+        bindings: [
+          ["Shift", "H"],
+          ["Shift", "J"],
+          ["Shift", "K"],
+          ["Shift", "L"],
+        ],
+        description: "Extend selection",
+      },
+      { bindings: [["Esc"]], description: "Clear selection" },
+      {
+        bindings: [
+          [MOD_KEY, "C"],
+          [MOD_KEY, "X"],
+        ],
+        description: "Copy or cut topics",
+      },
+      {
+        bindings: [[MOD_KEY, "V"]],
+        description: "Paste topics, tasks, or notes under the topic",
+      },
+    ],
+  },
+  {
     title: "Text formatting",
+    column: "left",
     description: "In titles, descriptions, and checklist items",
     shortcuts: [
       { bindings: [[MOD_KEY, "B"], ["**text**"]], description: "Bold" },
@@ -134,6 +268,7 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Description formatting",
+    column: "left",
     description: "Start a line with the Markdown and a space",
     shortcuts: [
       {
@@ -322,13 +457,15 @@ export function KeyboardShortcutsDialog() {
 
               <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
                 <div className="grid items-start gap-3 md:grid-cols-2">
-                  <div className="grid gap-3">
-                    <ShortcutSection group={shortcutGroups[0]!} />
-                    <ShortcutSection group={shortcutGroups[2]!} />
-                    <ShortcutSection group={shortcutGroups[3]!} />
-                    <ShortcutSection group={shortcutGroups[4]!} />
-                  </div>
-                  <ShortcutSection group={shortcutGroups[1]!} />
+                  {(["left", "right"] as const).map((column) => (
+                    <div key={column} className="grid gap-3">
+                      {shortcutGroups
+                        .filter((group) => group.column === column)
+                        .map((group) => (
+                          <ShortcutSection key={group.title} group={group} />
+                        ))}
+                    </div>
+                  ))}
                 </div>
               </div>
 

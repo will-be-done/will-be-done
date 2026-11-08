@@ -1,28 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
   DB,
+  SubscribableDB,
   createSelector,
   execSync,
   selectSync,
   syncDispatch,
+  type SelectorGenerator,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { undoMiddleware } from "@will-be-done/hyperdb/undo";
 import { dbIdTrait } from "../traits";
+import { createEntryInDailyList, dailyEntryById } from "./dailyEntries";
 import {
   createDailyList,
+  dailyListByDate,
   dailyListById,
   deleteDailyLists,
   dailyListGetId,
   dailyListGetIds,
   dailyListIdsByDates,
 } from "./dailyLists";
-import { DailyList, dailyListsTable } from "./tables";
+import { DailyList, dailyEntriesTable, dailyListsTable } from "./tables";
 
 const selector = createSelector();
 
 function runSelector<T>(
   db: DB,
-  handler: () => Generator<unknown, T, unknown>,
+  handler: () => SelectorGenerator<T>,
   _deps: unknown[],
 ): T {
   const testSelector = selector({
@@ -38,7 +43,7 @@ function createDB() {
   const spaceId = "a0000000-0000-4000-8000-000000000001";
   const db = new DB(driver, { traits: [dbIdTrait("space", spaceId)] });
 
-  execSync(db.loadTables([dailyListsTable]));
+  execSync(db.loadTables([dailyListsTable, dailyEntriesTable]));
 
   return db;
 }
@@ -127,5 +132,31 @@ describe("dailyListIdsByDates", () => {
         args: { id: dailyList.id },
       }),
     ).toEqual(dailyList);
+  });
+});
+
+describe("undo", () => {
+  it("keeps the DailyList an undone schedule created", () => {
+    const db = new SubscribableDB(createDB());
+    const history = undoMiddleware(db, {
+      tables: [dailyListsTable, dailyEntriesTable],
+    });
+
+    const entry = syncDispatch(
+      db,
+      createEntryInDailyList({ taskId: "task-1", date: "2026-04-19" }),
+    );
+    execSync(history.undo());
+
+    expect(
+      selectSync(db, { selector: dailyEntryById, args: { id: entry.id } }),
+    ).toBeUndefined();
+    expect(
+      selectSync(db, {
+        selector: dailyListByDate,
+        args: { date: "2026-04-19" },
+      }),
+    ).toMatchObject({ date: "2026-04-19" });
+    expect(history.canUndo).toBe(false);
   });
 });

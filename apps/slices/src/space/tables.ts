@@ -4,6 +4,7 @@ import {
   type Infer,
   v,
 } from "@will-be-done/hyperdb";
+import { undoIgnore } from "@will-be-done/hyperdb/undo";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerRichTextFields } from "../common/changes";
 import { isObjectType } from "..";
@@ -17,11 +18,13 @@ export const taskType = "task";
 export const tasksTable = defineTable("tasks", {
   type: v.literal(taskType),
   id: v.string(),
-  title: v.string(),
-  content: v.optional(v.string()),
+  // The editor undoes rich text itself, and Yjs docs only merge forward, so
+  // app undo leaves these fields alone.
+  title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
   // Base64 Yjs states; once present they own title/content (see richText.ts).
-  titleDoc: v.optional(v.string()),
-  contentDoc: v.optional(v.string()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   state: v.union(v.literal("todo"), v.literal("done")),
   projectSectionId: v.string(),
   orderToken: v.string(),
@@ -59,10 +62,10 @@ export const taskTemplateType = "template";
 export const taskTemplatesTable = defineTable("task_templates", {
   type: v.literal(taskTemplateType),
   id: v.string(),
-  title: v.string(),
-  content: v.optional(v.string()),
-  titleDoc: v.optional(v.string()),
-  contentDoc: v.optional(v.string()),
+  title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   orderToken: v.string(),
   repeatRule: v.string(),
   repeatRuleDtStart: v.number(),
@@ -83,6 +86,25 @@ registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 registerRichTextFields(taskTemplatesTable.tableName, itemRichTextFields);
 export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
+
+export const noteType = "note";
+export const notesTable = defineTable("notes", {
+  type: v.literal(noteType),
+  id: v.string(),
+  title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
+  projectSectionId: v.string(),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byProjectSectionIdOrder", ["projectSectionId", "orderToken"]);
+registerSpaceSyncableTable(notesTable, noteType);
+registerRichTextFields(notesTable.tableName, itemRichTextFields);
+export type Note = ExtractSchema<typeof notesTable>;
+export const isNote = isObjectType<Note>(noteType);
 
 export const projectType = "project";
 export const projectsTable = defineTable("projects", {
@@ -208,8 +230,8 @@ export const checklistItemsTable = defineTable("checklist_items", {
   parentType: checklistParentType,
   orderToken: v.string(),
   state: v.union(v.literal("todo"), v.literal("done")),
-  content: v.string(),
-  contentDoc: v.optional(v.string()),
+  content: v.string().with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   createdAt: v.number(),
   checkedAt: v.union(v.number(), v.null()),
 })
@@ -229,9 +251,66 @@ export function isChecklistParentType(
   return modelType === taskType || modelType === taskTemplateType;
 }
 
+export const mindmapType = "mindmap";
+// The map's name, plain text; its center topic is the root node.
+export const mindmapsTable = defineTable("mindmaps", {
+  type: v.literal(mindmapType),
+  id: v.string(),
+  title: v.string(),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byOrderToken", ["orderToken"]);
+registerSpaceSyncableTable(mindmapsTable, mindmapType);
+
+export type Mindmap = ExtractSchema<typeof mindmapsTable>;
+export const isMindmap = isObjectType<Mindmap>(mindmapType);
+
+export const mindmapNodeType = "mindmapNode";
+export const mindmapNodeSide = v.union(v.literal("left"), v.literal("right"));
+// Only structure syncs; positions are derived by the client layout. Concurrent
+// moves can still leave orphans or cycles, which mindmapTree repairs on read.
+export const mindmapNodesTable = defineTable("mindmap_nodes", {
+  type: v.literal(mindmapNodeType),
+  id: v.string(),
+  mindmapId: v.string(),
+  // null on a root. The center topic is the root whose ID is the map's, so
+  // main branches have the map ID as their parent; other roots float.
+  parentId: v.union(v.string(), v.null()),
+  // A floating root's center in map coordinates; the center topic sits at
+  // the origin. Separate fields, so concurrent drags can mix x and y.
+  x: v.optional(v.number()),
+  y: v.optional(v.number()),
+  orderToken: v.string(),
+  // Which side of the root a main branch sits on; ignored on deeper nodes.
+  side: mindmapNodeSide,
+  // A task or note node shows and edits its Task or Note; a topic node, with
+  // neither set, owns its title. noteId is optional so rows written before
+  // notes could join a map stay valid.
+  taskId: v.union(v.string(), v.null()),
+  noteId: v.optional(v.string()),
+  title: v.string().with(undoIgnore()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  collapsed: v.boolean(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byMindmapParentOrder", ["mindmapId", "parentId", "orderToken"])
+  .index("byTaskId", ["taskId"])
+  .index("byNoteId", ["noteId"]);
+registerSpaceSyncableTable(mindmapNodesTable, mindmapNodeType);
+registerRichTextFields(mindmapNodesTable.tableName, [
+  { docField: "titleDoc", textField: "title", kind: "title" },
+]);
+
+export type MindmapNode = ExtractSchema<typeof mindmapNodesTable>;
+export type MindmapNodeSide = MindmapNode["side"];
+export const isMindmapNode = isObjectType<MindmapNode>(mindmapNodeType);
+
 export const trashedTaskType = "trashedTask";
-// A deleted Task's snapshot, keyed by the task's ID. Restoring re-inserts the
-// snapshot rows, which revives their tombstoned IDs.
+// A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts
+// the snapshot rows, which revives their tombstoned IDs.
 export const trashedTasksTable = defineTable("trashed_tasks", {
   type: v.literal(trashedTaskType),
   id: v.string(),
@@ -292,22 +371,37 @@ registerSpaceSyncableTable(externalEventsTable, externalEventType, {
   serverOwned: true,
 });
 export type ExternalEvent = ExtractSchema<typeof externalEventsTable>;
-export const trashSnapshot = v.object({
+
+export const taskTrashSnapshot = v.object({
   task: tasksTable.v(),
   checklistItems: v.array(checklistItemsTable.v()),
   dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
   stashEntry: v.union(stashEntriesTable.v(), v.null()),
+  // Absent in snapshots taken before mindmaps existed.
+  mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
 });
+export type TaskTrashSnapshot = Infer<typeof taskTrashSnapshot>;
+export const noteTrashSnapshot = v.object({
+  note: notesTable.v(),
+  mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
+});
+export type NoteTrashSnapshot = Infer<typeof noteTrashSnapshot>;
+export const trashSnapshot = v.union(taskTrashSnapshot, noteTrashSnapshot);
 export type TrashSnapshot = Infer<typeof trashSnapshot>;
 export type TrashedTask = TrashSnapshot & { id: string; trashedAt: number };
 
-export const item = v.union(tasksTable.v(), taskTemplatesTable.v());
+export const item = v.union(
+  tasksTable.v(),
+  taskTemplatesTable.v(),
+  notesTable.v(),
+);
 export type Item = Infer<typeof item>;
 export type ItemType = Item["type"];
 
 export const itemType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
+  v.literal(noteType),
 );
 
 export const entry = v.union(dailyEntriesTable.v(), stashEntriesTable.v());
@@ -322,6 +416,7 @@ export const entryType = v.union(
 export const listItem = v.union(
   tasksTable.v(),
   taskTemplatesTable.v(),
+  notesTable.v(),
   dailyEntriesTable.v(),
   stashEntriesTable.v(),
 );
@@ -331,6 +426,7 @@ export type ListItemType = ListItem["type"];
 export const listItemType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
+  v.literal(noteType),
   v.literal(dailyEntryType),
   v.literal(stashEntryType),
 );
@@ -338,6 +434,7 @@ export const listItemType = v.union(
 export const possibleModel = v.union(
   tasksTable.v(),
   taskTemplatesTable.v(),
+  notesTable.v(),
   projectsTable.v(),
   dailyListsTable.v(),
   projectSectionsTable.v(),
@@ -351,6 +448,7 @@ export type AnyModelType = AnyModel["type"] | "stash";
 export type AnyTable =
   | typeof tasksTable
   | typeof taskTemplatesTable
+  | typeof notesTable
   | typeof dailyListsTable
   | typeof projectsTable
   | typeof dailyEntriesTable
@@ -359,11 +457,14 @@ export type AnyTable =
   | typeof checklistItemsTable
   | typeof trashedTasksTable
   | typeof externalCalendarsTable
-  | typeof externalEventsTable;
+  | typeof externalEventsTable
+  | typeof mindmapsTable
+  | typeof mindmapNodesTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
+  v.literal(noteType),
   v.literal(projectType),
   v.literal(dailyListType),
   v.literal(projectSectionType),

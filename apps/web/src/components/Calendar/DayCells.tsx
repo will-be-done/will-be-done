@@ -1,7 +1,11 @@
 import { format, isSameMonth } from "date-fns";
 import { getDMY } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { type CalendarEvent } from "./calendarModel";
+import {
+  type CalendarEvent,
+  shownDayEvents,
+  shownMonthExternalCount,
+} from "./calendarModel";
 import { type DragCommit, useIsDropTarget } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
 import { type DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
@@ -54,7 +58,6 @@ const DayCell = ({
   return (
     <div
       data-calendar-date={date}
-      data-focus-column
       onClick={(e) => {
         if (e.target === e.currentTarget) onCreate(date, null);
       }}
@@ -69,8 +72,6 @@ const DayCell = ({
     </div>
   );
 };
-
-const monthChipLimit = 3;
 
 export const MonthCell = ({
   day,
@@ -88,11 +89,13 @@ export const MonthCell = ({
   actions: DayActions;
 }) => {
   const date = getDMY(day);
-  const total = external.length + events.length;
-  const limit = total > monthChipLimit ? monthChipLimit - 1 : total;
-  const shownExternal = external.slice(0, limit);
-  const shown = events.slice(0, limit - shownExternal.length);
-  const hidden = total - shownExternal.length - shown.length;
+  const shownExternal = external.slice(
+    0,
+    shownMonthExternalCount(external.length, events.length),
+  );
+  const shown = shownDayEvents("month", events, external.length);
+  const hidden =
+    external.length + events.length - shownExternal.length - shown.length;
 
   return (
     <DayCell date={date} isToday={date === today} onCreate={actions.onCreate}>

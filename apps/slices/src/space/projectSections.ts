@@ -4,6 +4,8 @@ import {
   selectFrom,
   upsert,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import {
@@ -24,6 +26,7 @@ import {
 import { projectById, projectByIdOrDefault } from "./projects";
 import { createTask, taskById, updateTask } from "./tasks";
 import { updateTemplate } from "./taskTemplates";
+import { updateNote } from "./notes";
 import { defaultProject } from "./projects";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { genUUIDV5 } from "../traits";
@@ -37,9 +40,13 @@ import {
   Project,
   isTask,
   isTaskTemplate,
+  isNote,
   isDailyEntry,
   isProjectSection,
   taskTemplatesTable,
+  notesTable,
+  Note,
+  noteType,
 } from "./tables";
 
 export const defaultProjectSection: ProjectSection = {
@@ -118,7 +125,7 @@ export const projectOfProjectSection = selector({
   args: { projectSectionId: v.string() },
   handler: function* projectOfProjectSection({
     projectSectionId,
-  }): Generator<unknown, Project | undefined, unknown> {
+  }): SelectorGenerator<Project | undefined> {
     const section = yield* projectSectionById({ id: projectSectionId });
     if (!section) return undefined;
 
@@ -131,7 +138,7 @@ export const projectOfProjectSectionOrDefault = selector({
   args: { projectSectionId: v.string() },
   handler: function* projectOfProjectSectionOrDefault({
     projectSectionId,
-  }): Generator<unknown, Project, unknown> {
+  }): SelectorGenerator<Project> {
     const section = yield* projectSectionById({ id: projectSectionId });
     if (!section) return defaultProject;
 
@@ -169,7 +176,7 @@ export const updateProjectSection = action({
   handler: function* updateProjectSection({
     projectSectionId,
     section,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const sectionInState = yield* projectSectionById({ id: projectSectionId });
     if (!sectionInState) throw new Error("Section not found");
 
@@ -221,9 +228,7 @@ export const projectSectionSiblings = selector({
 export const moveLeft = action({
   name: "moveLeft",
   args: { projectSectionId: v.string() },
-  handler: function* moveLeft({
-    projectSectionId,
-  }): Generator<unknown, void, unknown> {
+  handler: function* moveLeft({ projectSectionId }): ActionGenerator<void> {
     const [up] = yield* projectSectionSiblings({ projectSectionId });
     const [up2] = up
       ? yield* projectSectionSiblings({ projectSectionId: up?.id })
@@ -246,9 +251,7 @@ export const moveLeft = action({
 export const moveRight = action({
   name: "moveRight",
   args: { projectSectionId: v.string() },
-  handler: function* moveRight({
-    projectSectionId,
-  }): Generator<unknown, void, unknown> {
+  handler: function* moveRight({ projectSectionId }): ActionGenerator<void> {
     const [_up, down] = yield* projectSectionSiblings({ projectSectionId });
     const [_up2, down2] = down
       ? yield* projectSectionSiblings({ projectSectionId: down?.id })
@@ -280,7 +283,7 @@ export const createProjectSection = action({
   handler: function* createProjectSection({
     sectionDraft,
     position,
-  }): Generator<unknown, ProjectSection, unknown> {
+  }): ActionGenerator<ProjectSection> {
     const orderToken = yield* generateOrderTokenPositioned(
       sectionDraft.projectId,
       {
@@ -318,7 +321,7 @@ export const createTaskInSection = action({
     projectSectionId,
     position,
     taskAttrs,
-  }): Generator<unknown, Task, unknown> {
+  }): ActionGenerator<Task> {
     const orderToken = yield* generateOrderTokenPositioned(
       projectSectionId,
       {
@@ -340,12 +343,47 @@ export const createTaskInSection = action({
   },
 });
 
+export const createNoteInSection = action({
+  name: "createNoteInSection",
+  args: {
+    projectSectionId: v.string(),
+    position: orderPositionArg,
+    noteAttrs: v.optional(v.partial(notesTable.v())),
+  },
+  handler: function* createNoteInSection({
+    projectSectionId,
+    position,
+    noteAttrs,
+  }): ActionGenerator<Note> {
+    const orderToken = yield* generateOrderTokenPositioned(
+      projectSectionId,
+      {
+        firstChild: (projectSectionId) =>
+          firstProjectSectionItem({ projectSectionId }),
+        lastChild: (projectSectionId) =>
+          lastProjectSectionItem({ projectSectionId }),
+      },
+      normalizeOrderPosition(position),
+    );
+
+    const note: Note = {
+      type: noteType,
+      id: uuidv7(),
+      title: "",
+      createdAt: Date.now(),
+      ...noteAttrs,
+      orderToken,
+      projectSectionId,
+    };
+    yield* insert(notesTable, [note]);
+    return note;
+  },
+});
+
 export const deleteProjectSections = action({
   name: "deleteProjectSections",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteProjectSections({
-    ids,
-  }): Generator<unknown, void, unknown> {
+  handler: function* deleteProjectSections({ ids }): ActionGenerator<void> {
     const idsToDelete: string[] = [];
 
     for (const projectSectionId of ids) {
@@ -370,7 +408,15 @@ export const deleteProjectSections = action({
         q.eq("projectSectionId", projectSectionId).eq("state", "done"),
       )).map((t) => t.id);
 
+      const noteIds = (yield* selectFrom(
+        notesTable,
+        "byProjectSectionIdOrder",
+      ).where((q) => q.eq("projectSectionId", projectSectionId))).map(
+        (n) => n.id,
+      );
+
       idsToDelete.push(...templatesIds);
+      idsToDelete.push(...noteIds);
       idsToDelete.push(...taskIds);
       idsToDelete.push(...doneTaskIds);
     }
@@ -396,7 +442,7 @@ export const projectSectionHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const dropItem = yield* appById({
       id: dropId,
       modelType: dropModelType,
@@ -462,6 +508,14 @@ export const projectSectionHandleDrop = action({
           orderToken,
         },
       });
+    } else if (isNote(dropItem)) {
+      yield* updateNote({
+        id: dropItem.id,
+        note: {
+          projectSectionId: projectSectionId,
+          orderToken,
+        },
+      });
     } else if (isDailyEntry(dropItem)) {
       // When dropping a entry onto a section, move the underlying task
       const task = yield* taskById({ id: dropItem.taskId });
@@ -490,7 +544,7 @@ export const projectSectionCanDrop = selector({
     _projectSectionId,
     dropId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     // App drops unwrap stash entries before calling the item handler.
     if (dropModelType === "stashEntry") return false;
 

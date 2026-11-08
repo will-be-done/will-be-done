@@ -11,6 +11,11 @@ type VerticalEdge = Extract<Edge, "top" | "bottom">;
  *   The value is a FocusKey string ("type^^id^^component"). j/k/h/l navigation
  *   reads and writes this attribute to track the focused item.
  *
+ * data-selectable
+ *   Applied alongside data-focusable-key on list items (tasks, templates,
+ *   notes, entries) that can join a multi-selection. Shift-click ranges follow
+ *   their DOM order.
+ *
  * data-focus-placeholder
  *   Applied alongside data-focusable-key on a zero-size sentinel element at the
  *   bottom of a column. j/k can navigate to it like any other item. h/l prefers
@@ -371,4 +376,44 @@ export const getDOMAdjacentColumns = (
       colIndex < allColumns.length - 1 ? allColumns[colIndex + 1]! : null,
     ),
   ];
+};
+
+const SELECTABLE_SELECTOR = "[data-selectable][data-focusable-key]";
+
+// Collapsed columns keep their items mounted but hidden.
+const isShown = (el: Element) =>
+  el.getClientRects().length > 0 &&
+  !el.closest('[inert], [aria-hidden="true"]');
+
+const getDOMSelectableKeys = () =>
+  Array.from(document.querySelectorAll(SELECTABLE_SELECTOR))
+    .filter(isShown)
+    .map((el) => el.getAttribute("data-focusable-key") as FocusKey);
+
+export const isDOMSelectable = (key: string) => {
+  const el = document.querySelector(
+    `${SELECTABLE_SELECTOR}[data-focusable-key="${key}"]`,
+  );
+  return !!el && isShown(el);
+};
+
+// Selectable keys from `from` to `to` inclusive, in DOM order.
+export const getDOMSelectableRange = (from: string, to: string): FocusKey[] => {
+  const keys = getDOMSelectableKeys();
+  const fromIndex = keys.indexOf(from as FocusKey);
+  const toIndex = keys.indexOf(to as FocusKey);
+  if (fromIndex === -1 || toIndex === -1) {
+    return toIndex === -1 ? [] : [to as FocusKey];
+  }
+
+  return keys.slice(
+    Math.min(fromIndex, toIndex),
+    Math.max(fromIndex, toIndex) + 1,
+  );
+};
+
+// Rendered keys of `keys`, in DOM order. Keys no longer on screen are dropped.
+export const sortDOMSelectableKeys = (keys: readonly string[]): FocusKey[] => {
+  const wanted = new Set(keys);
+  return getDOMSelectableKeys().filter((key) => wanted.has(key));
 };

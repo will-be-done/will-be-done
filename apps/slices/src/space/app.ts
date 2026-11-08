@@ -1,4 +1,4 @@
-import { deleteRows, v } from "@will-be-done/hyperdb";
+import { deleteRows, v, type ActionGenerator } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { defaultTask, taskById } from "./tasks";
 import { dailyEntryByTaskId } from "./dailyEntries";
@@ -10,6 +10,7 @@ import {
 import { appTypeSlicesMap } from "./maps";
 import {
   AnyModel,
+  AnyModelType,
   possibleModelType,
   stashEntriesTable,
   taskType,
@@ -48,7 +49,7 @@ export const appByIdOrDefault = selector({
   },
 });
 
-const appDropModelData = selector({
+export const appDropModelData = selector({
   name: "appDropModelData",
   args: { id: v.string(), modelType: possibleModelType },
   handler: function* ({ id, modelType }) {
@@ -104,7 +105,7 @@ export const appHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     // Validate current rows before moving anything or removing a stash entry.
     if (!(yield* appCanDrop({ id, modelType, dropId, dropModelType }))) return;
 
@@ -165,10 +166,7 @@ export const appDeleteModel = action({
     id: v.string(),
     modelType: possibleModelType,
   },
-  handler: function* appDeleteModel({
-    id,
-    modelType,
-  }): Generator<unknown, void, unknown> {
+  handler: function* appDeleteModel({ id, modelType }): ActionGenerator<void> {
     const model = yield* appById({
       id,
       modelType,
@@ -179,5 +177,45 @@ export const appDeleteModel = action({
     if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
     yield* slice.delete([id]);
+  },
+});
+
+const dropRef = v.object({ id: v.string(), modelType: possibleModelType });
+const containerModelTypes = new Set<AnyModelType>([
+  "project",
+  "projectSection",
+  "dailyList",
+  "stash",
+]);
+
+export const appHandleDropMany = action({
+  name: "appHandleDropMany",
+  args: {
+    id: v.string(),
+    modelType: possibleModelType,
+    drops: v.array(dropRef),
+    edge: v.union(v.literal("top"), v.literal("bottom")),
+  },
+  handler: function* appHandleDropMany({
+    id,
+    modelType,
+    drops,
+    edge,
+  }): ActionGenerator<void> {
+    // Item targets insert next to themselves; containers prepend or append.
+    // Pick the iteration order that keeps the drops in their given order.
+    const isContainer = containerModelTypes.has(modelType);
+    const ordered =
+      isContainer === (edge === "top") ? [...drops].reverse() : drops;
+
+    for (const drop of ordered) {
+      yield* appHandleDrop({
+        id,
+        modelType,
+        dropId: drop.id,
+        dropModelType: drop.modelType,
+        edge,
+      });
+    }
   },
 });

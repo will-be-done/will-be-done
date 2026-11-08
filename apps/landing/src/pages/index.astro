@@ -16,6 +16,7 @@ import projectImg from '../assets/project2.png';
 import quickAddImg from '../assets/quick-add.png';
 import calendarImg from '../assets/calendar.png';
 import calendarWeekImg from '../assets/calendar-week.png';
+import mindmapImg from '../assets/mindmap.png';
 import desktopImg from '../assets/desktop.png';
 import quickAddFullImg from '../assets/quick-add-full.png';
 
@@ -132,6 +133,8 @@ const everythingElse = [
   'Drag and drop for tasks, days and projects',
   'HTTP API with OpenAPI docs',
   'Task descriptions and checklists',
+  'Notes alongside tasks in project sections',
+  'Undo, redo and multi-select',
   'Real-time sync across tabs and devices',
 ];
 ---
@@ -299,10 +302,24 @@ const everythingElse = [
                 />
               </div>
 
-              <!-- Slide: Desktop overview -->
+              <!-- Slide: Mindmap -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
                 data-slide="2"
+                style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
+              >
+                <img
+                  src={mindmapImg.src}
+                  alt="Mindmap with topics branching from a central topic, linked tasks from several projects, and task details"
+                  class="w-full block"
+                  loading="eager"
+                />
+              </div>
+
+              <!-- Slide: Desktop overview -->
+              <div
+                class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                data-slide="3"
                 style="opacity:0;transform:translateX(8%) scale(1);z-index:10;"
               >
                 <img
@@ -316,7 +333,7 @@ const everythingElse = [
               <!-- Slide: Quick add full -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="3"
+                data-slide="4"
                 style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
               >
                 <img
@@ -330,7 +347,7 @@ const everythingElse = [
               <!-- Slide: Project view -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="4"
+                data-slide="5"
                 style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
               >
                 <img
@@ -344,7 +361,7 @@ const everythingElse = [
               <!-- Slide: Today view -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="5"
+                data-slide="6"
                 style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
               >
                 <img
@@ -396,22 +413,25 @@ const everythingElse = [
                   <span class="font-medium text-slate-200">Weekly calendar</span>: Give tasks a time and duration when the day needs more structure
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="2" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Desktop app</span>: the whole planner in its own window
+                  <span class="font-medium text-slate-200">Mindmaps</span>: Break a goal into branches and hang real tasks on them
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="3" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Quick add</span>: Capture tasks instantly without breaking focus
+                  <span class="font-medium text-slate-200">Desktop app</span>: the whole planner in its own window
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="4" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Project board</span>: Kanban view for your project areas
+                  <span class="font-medium text-slate-200">Quick add</span>: Capture tasks instantly without breaking focus
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="5" style="opacity:0;transform:translateY(8px)">
+                  <span class="font-medium text-slate-200">Project board</span>: Kanban view for your project areas
+                </p>
+                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="6" style="opacity:0;transform:translateY(8px)">
                   <span class="font-medium text-slate-200">Today view</span>: only the tasks you scheduled for today
                 </p>
               </div>
 
               <!-- Dot indicators with progress -->
               <div class="flex shrink-0 items-center gap-2" role="tablist" aria-label="Screenshot navigation">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
+                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
                   <button
                     class="carousel-dot relative h-1.5 overflow-hidden rounded-full bg-white/[0.12] transition-all duration-300"
                     data-dot={i}
@@ -845,6 +865,39 @@ const everythingElse = [
                 <Image
                   src={calendarImg}
                   alt="Week calendar with timed task blocks, an all-day row, project sections below for dragging tasks onto the grid, and the task details panel"
+                  class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Mindmaps -->
+        <section class="why-feature relative px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-pink-500/10 text-pink-300">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                  </svg>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Mindmaps that hold real tasks</h2>
+                <p class="mb-4 max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Start from one central topic and break it into branches. Drag tasks and notes from any project onto a
+                  topic, or turn a topic into a task. They stay linked: complete or rename a task on the map and it
+                  changes in its project, timeline and calendar too.
+                </p>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Vim keys work on the map as well. Paste an outline from another app or a Markdown list, and every
+                  line becomes a topic.
+                </p>
+              </div>
+              <div class="why-feature-media order-2">
+                <Image
+                  src={mindmapImg}
+                  alt="Mindmap with topics branching from a central topic, linked tasks from several projects, and the task details panel"
                   class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
                   loading="lazy"
                 />
@@ -1555,7 +1608,6 @@ const everythingElse = [
 
   // Screenshot carousel
   (() => {
-    const SLIDE_COUNT = 6;
     const AUTO_INTERVAL = 9000;
     let current = 0;
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -1570,6 +1622,7 @@ const everythingElse = [
     const captions = document.querySelectorAll<HTMLElement>('.carousel-caption');
     const dots = document.querySelectorAll<HTMLElement>('.carousel-dot');
     const dotFills = document.querySelectorAll<HTMLElement>('.carousel-dot-fill');
+    const SLIDE_COUNT = slides.length;
 
     function startFillAnimation() {
       const gen = ++fillGeneration;
