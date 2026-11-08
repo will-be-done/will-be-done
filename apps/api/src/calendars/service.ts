@@ -406,11 +406,22 @@ const runSync = (sourceId: string) =>
       `[Calendars] Sync failed for source ${source.id}`,
       mirrored.cause,
     );
+    // The failed run still removed unticked calendars' events, so their
+    // cursors must not survive to skip the re-read when they are ticked again.
+    const disabled = new Set(parseJson<string[]>(source.disabledCalendarKeys));
+    const cursors = Object.fromEntries(
+      Object.entries(
+        parseJson<Record<string, CalendarSyncCursor>>(
+          source.syncCursors ?? "{}",
+        ),
+      ).filter(([key]) => !disabled.has(key)),
+    );
     yield* dispatch(
       mainDB,
       updateCalendarSource({
         id: source.id,
         patch: {
+          syncCursors: JSON.stringify(cursors),
           status: "error",
           lastError: Option.match(Cause.findErrorOption(mirrored.cause), {
             onNone: () => "Could not read this calendar",

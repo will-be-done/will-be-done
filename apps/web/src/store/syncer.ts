@@ -264,12 +264,9 @@ export class Syncer {
           ),
         ),
       UpdateRequired: () => Effect.sync(() => this.stopForRequiredUpdate()),
+      // Waking here would loop against a server that keeps rejecting it.
       Failed: ({ cause }) =>
-        Effect.logError("Server change subscription failed", cause).pipe(
-          Effect.tap(
-            Effect.sync(() => Queue.offerUnsafe(this.wakes, undefined)),
-          ),
-        ),
+        Effect.logError("Server change subscription failed", cause),
     }),
   );
 

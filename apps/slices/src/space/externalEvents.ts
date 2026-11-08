@@ -239,8 +239,20 @@ const attendeesOf = (event: ICAL.Event) => {
     });
 };
 
-const ownerEmailsOf = (calendar: ExternalCalendar | undefined) =>
-  new Set<string>(calendar ? JSON.parse(calendar.ownerEmails) : []);
+// The server merges uploaded rows too, so the column may not be what the
+// fetcher wrote.
+const ownerEmailsOf = (calendar: ExternalCalendar | undefined) => {
+  try {
+    const emails: unknown = JSON.parse(calendar?.ownerEmails ?? "[]");
+    return new Set(
+      Array.isArray(emails)
+        ? emails.filter((email) => typeof email === "string")
+        : [],
+    );
+  } catch {
+    return new Set<string>();
+  }
+};
 
 const ownerResponse = (event: ICAL.Event, ownerEmails: ReadonlySet<string>) => {
   if (ownerEmails.size === 0) return null;

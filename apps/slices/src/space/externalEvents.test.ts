@@ -7,8 +7,10 @@ import {
   selectSync,
   SubscribableDB,
   syncDispatch,
+  createAction,
   createSelector,
   noop,
+  upsert,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
@@ -485,6 +487,27 @@ describe("invitations", () => {
         { email: "me@example.com", response: "accepted", isOwner: true },
       ],
     });
+
+    // A malformed uploaded row reads as having no owner instead of failing.
+    const [calendar] = selectSync(db, { selector: allCalendars, args: {} });
+    syncDispatch(
+      db,
+      createAction()({
+        name: "corruptOwnerEmailsForTest",
+        args: {},
+        handler: function* () {
+          yield* upsert(externalCalendarsTable, [
+            { ...calendar!, ownerEmails: "not json" },
+          ]);
+        },
+      })({}),
+    );
+    expect(
+      selectSync(db, {
+        selector: externalEventOccurrencesInRange,
+        args: { fromMs: 0, toMs: utc("2027-01-01T00:00:00Z") },
+      }),
+    ).toHaveLength(3);
   });
 });
 

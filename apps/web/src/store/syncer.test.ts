@@ -1048,7 +1048,13 @@ describe("syncer notification baseline", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     expect(env.serverChanges.watches()).toBe(1);
 
+    // A failure starts no session itself, so a server that keeps rejecting
+    // the subscription is retried at most once per session.
     env.serverChanges.emit({ _tag: "Failed", cause: new Error("not found") });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sessions).toBe(1);
+
+    syncer.forceSync();
     await vi.waitFor(() => expect(sessions).toBe(2));
     await vi.waitFor(() => expect(env.serverChanges.watches()).toBe(2));
 

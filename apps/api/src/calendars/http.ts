@@ -41,9 +41,20 @@ for (const [base, bits] of [
   ["224.0.0.0", 3],
 ] as const) {
   privateRanges.addSubnet(base, bits, "ipv4");
+  // NAT64 and 6to4 addresses that translate into this range.
+  const [a, b, c, d] = base.split(".").map(Number) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  const words = `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  privateRanges.addSubnet(`64:ff9b::${words}`, 96 + bits, "ipv6");
+  privateRanges.addSubnet(`2002:${words}::`, 16 + bits, "ipv6");
 }
 for (const [base, bits] of [
   ["::", 96],
+  ["64:ff9b:1::", 48],
   ["fc00::", 7],
   ["fe80::", 10],
   ["ff00::", 8],

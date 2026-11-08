@@ -99,11 +99,11 @@ guests, and a **Join meeting** button for Zoom, Meet, Teams and similar links.
 
 Invitations you declined are hidden. Events you haven't answered or marked as
 maybe are striped, and events marked as free are shown as an outline. Events
-are read-only: change them in the calendar app they come from. The server refreshes them every 15 minutes, and
-**Refresh** in settings fetches them right away. Past events are kept for one
-month by default; choose 2 weeks up to **All events** under each calendar in
-settings. Upcoming events are always included. Once synced, they are
-available offline. Removing a calendar removes its events from every device.
+are read-only: change them in the calendar app they come from. The server
+refreshes them every 15 minutes, and **Refresh** in settings fetches them right
+away. Past events are kept for one month by default; choose 2 weeks up to
+**All events** under each calendar in settings. Upcoming events are always
+included. Once synced, they are available offline. Removing a calendar removes its events from every device.
 
 ## Mindmaps
 

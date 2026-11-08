@@ -114,12 +114,11 @@ This check does not change sync clocks or cursors.
 
 The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
-authority. A failed session retries with exponential backoff from one second
-up to the poll interval. A rejected subscription (a space the server does not
-know yet) wakes one session and is re-established only after a session
-completes, so a failing server is not resubscribed in a loop. Every started
-subscription, including one resent after a reconnect, wakes a session for
-changes made before the server registered it.
+authority. A rejected subscription (a space the server does not know yet)
+wakes nothing and is re-established only after the next session completes, so
+a server that keeps rejecting it is retried at most once per session. Every
+started subscription, including one resent after a reconnect, wakes a session
+for changes made before the server registered it.
 
 Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
 after the originating tab has persisted its changes. UI subscribers observe

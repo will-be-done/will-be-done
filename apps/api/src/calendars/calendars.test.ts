@@ -762,6 +762,36 @@ describe("CalDAV source safety", () => {
     expect(davState.foreignAuth).toEqual(["none"]);
   });
 
+  test("re-ticking a calendar unticked during a failed sync restores its events", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.syncSupport = true;
+    putEvent("/dav/calendars/me/work/a.ics", {
+      etag: '"1"',
+      ics: ics("a", "A", "20991110T100000Z"),
+    });
+    const id = await run(
+      mainDB,
+      addAndSync({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
+    const workKey = `${baseUrl}/dav/calendars/me/work/`;
+
+    replaceSecret(mainDB, id, "revoked");
+    await run(mainDB, setCalendarEnabled(source(mainDB, id), workKey, false));
+    expect(source(mainDB, id).status).toBe("error");
+    expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
+
+    replaceSecret(mainDB, id, "secret");
+    await run(mainDB, setCalendarEnabled(source(mainDB, id), workKey, true));
+    expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
+      1,
+    );
+  });
+
   test("hides an unticked calendar even when the server fails", async () => {
     const { mainDB, spaceDb } = setup();
     davState.events.set("/dav/calendars/me/work/a.ics", {
@@ -1159,6 +1189,11 @@ describe("guarded calendar HTTP", () => {
     // How URL parsing normalizes [::ffff:127.0.0.1].
     ["::ffff:7f00:1", true],
     ["::7f00:1", true],
+    // NAT64 and 6to4 embed an IPv4 address.
+    ["64:ff9b::a00:5", true],
+    ["64:ff9b:1::a00:5", true],
+    ["2002:7f00:1::", true],
+    ["64:ff9b::808:808", false],
     ["0.0.0.0", true],
     ["8.8.8.8", false],
     ["2606:4700::1111", false],

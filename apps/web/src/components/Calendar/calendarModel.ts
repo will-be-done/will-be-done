@@ -162,7 +162,7 @@ export const shownMonthExternalCount = (
 
 // A day's events in on-screen order: the time grid shows its all-day row
 // above the timed blocks, which sit at their time whether done or not, longer
-// first as in layoutTimedEvents. A full month cell cuts off before "+N more",
+// first as in layoutSpans. A full month cell cuts off before "+N more",
 // after `externalCount` external events.
 export function shownDayEvents(
   view: CalendarView,
