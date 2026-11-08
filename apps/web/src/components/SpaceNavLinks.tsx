@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { HoverCard } from "radix-ui";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
-import { mindmapsWithTitles } from "@will-be-done/slices/space";
+import { mindmapsWithTitlesByIds } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import {
   RECENT_MINDMAPS_LIMIT,
@@ -17,17 +17,16 @@ const linkClass = (isActive: boolean) =>
       : "text-content-tinted/55 hover:text-content/80 hover:bg-white/[0.05]",
   );
 
+const noIds: string[] = [];
+
 // Mounted only while the card is open, so other pages don't read mindmaps.
 const RecentMindmapsCard = ({ spaceId }: { spaceId: string }) => {
   const recentIds = useRecentMindmaps((s) => s.idsBySpace[spaceId]);
   const { data: mindmaps = [] } = useAsyncSelector({
-    selector: mindmapsWithTitles,
-    args: {},
+    selector: mindmapsWithTitlesByIds,
+    args: { ids: recentIds ?? noIds },
   });
-  const byId = new Map(mindmaps.map((item) => [item.mindmap.id, item]));
-  const recent = (recentIds ?? [])
-    .flatMap((id) => byId.get(id) ?? [])
-    .slice(0, RECENT_MINDMAPS_LIMIT);
+  const recent = mindmaps.slice(0, RECENT_MINDMAPS_LIMIT);
   if (recent.length === 0) return null;
 
   return (
