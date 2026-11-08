@@ -103,9 +103,11 @@ Revision/feed writes occur in the same database transaction as the associated
 an atomic server operation; it must not treat an individual internal feed
 revision as a separately visible domain transaction.
 
-The `skip-sync` database trait has one narrow meaning: suppress generation of a
-new local `changes` record from a domain-table hook. It does not suppress feed
-publication when a merge explicitly writes a canonical `changes` record.
+The `skip-sync` database trait suppresses generation of a new local `changes`
+record from a domain-table hook. Such a write is not a local edit, so it also
+does not wake the upload after it persists. It does not suppress feed
+publication when a merge explicitly writes a canonical `changes` record, nor
+cross-tab publication (see Cross-window visibility).
 
 WebSocket authentication is revalidated before protected operations and before
 each notification is yielded. Revoking an account token prevents an existing
@@ -125,10 +127,13 @@ after the originating tab has persisted its changes. UI subscribers observe
 atomic memory commits before persistence completes. The publication queue
 waits for runtime durability before broadcasting or waking sync, and sync
 operations wait for durability before advancing transport or acknowledging a
-download. A receiving tab merges
-them with `skip-sync`, which prevents a duplicate local change-log entry (see
-Cross-window visibility). The broadcast is not authoritative and does not
-replace persisted sync state.
+download. Which writes are published, and how a receiving tab merges them
+without echoes, is described in Cross-window visibility. The broadcast is not
+authoritative and does not replace persisted sync state.
+
+The WebSocket authenticates with the token in its URL, so storing a new token
+resets it. A subscription that completes, such as one closed by that reset, is
+re-established after the next session like a rejected one.
 
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
@@ -213,7 +218,12 @@ reload or lost response.
 ### Cross-window visibility
 
 Browser windows sharing one persistent database publish committed local
-changesets over the versioned BroadcastChannel. A receiving window observes the
+changesets over the versioned BroadcastChannel. The leader's applied server
+downloads are published the same way: every durable transaction that writes
+`changes` records reaches the other tabs, except a merge that itself came from
+another tab (the `cross-tab` trait), which would only echo. Each tab keeps its
+own in-memory copy of the database, so without this publication a follower
+would show server changes only after a reload. A receiving window observes the
 incoming clocks and runs the normal idempotent merge with `skip-sync`, so this
 coordination path cannot create another local change record or an upload echo.
 

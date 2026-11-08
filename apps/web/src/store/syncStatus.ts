@@ -30,5 +30,9 @@ export const initialSyncStatus: SyncStatus = {
 // Status is session-only UI information, never a sync cursor or acknowledgement.
 export const syncByDB = new WeakMap<
   HyperDB,
-  { status: State<SyncStatus>; syncNow: () => Promise<void> }
+  {
+    status: State<SyncStatus>;
+    leader: State<boolean>;
+    syncNow: () => Promise<void>;
+  }
 >();

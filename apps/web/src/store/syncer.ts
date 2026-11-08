@@ -94,6 +94,8 @@ const sha256 = (value: string) =>
 
 export class Syncer {
   readonly status = new State<SyncStatus>({ ...initialSyncStatus });
+  // Whether this tab runs sync for every open tab of this database.
+  readonly leader = new State(false);
   private loop: Fiber.Fiber<unknown, unknown> | undefined;
   private terminal = false;
   private applySyncV4Download: ReturnType<typeof createApplySyncV4Download>;
@@ -303,6 +305,10 @@ export class Syncer {
         yield* this.leadership.awaitLeadership;
       }
       yield* Effect.logInfo("This tab leads sync");
+      this.leader.set(true);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => this.leader.set(false)),
+      );
       const serverChanges = yield* ServerChanges;
       const watchServerChanges = serverChanges
         .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
