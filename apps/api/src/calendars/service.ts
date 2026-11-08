@@ -465,7 +465,9 @@ export const refreshSpaceCalendarSources = (input: {
     const synced = yield* Effect.forEach(
       sources.filter((source) => source.userId === input.userId),
       (source) =>
-        syncCalendarSource(source.id).pipe(Effect.andThen(sourceById(source.id))),
+        syncCalendarSource(source.id).pipe(
+          Effect.andThen(sourceById(source.id)),
+        ),
       { concurrency: "unbounded" },
     );
     return synced.flatMap((source) =>
