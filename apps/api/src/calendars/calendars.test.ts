@@ -33,21 +33,28 @@ import {
   spacesTable,
   spacesTableType,
 } from "@will-be-done/slices/user";
+import { Context, Effect } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/http";
 import * as databases from "../db/db";
+import { MainDatabase } from "../db/mainDatabase";
 import {
   CalendarFetchError,
-  guardedFetch,
+  type CalendarHttpOptions,
+  guardedHttpClient,
   isPrivateAddress,
   mayShareCredentials,
-} from "./guardedFetch";
-import { syncDueCalendarSources } from "./scheduler";
+  responseText,
+  sendCalendarRequest,
+} from "./http";
+import { type CalendarServices, syncDueCalendarSources } from "./scheduler";
 import {
   addCalendarSource,
+  CalendarConfig,
   removeCalendarSource,
   setCalendarEnabled,
   setCalendarSyncWindow,
   syncCalendarSource,
-  type CalendarConfig,
+  type CalendarSettings,
 } from "./service";
 import { calendarSourceById } from "./sources";
 import { calendarSourcesTable } from "./tables";
@@ -69,11 +76,23 @@ const allCalendars = selector({
   },
 });
 
-const config: CalendarConfig = {
+const config: CalendarSettings = {
   encryptionKey: "k".repeat(32),
   allowPrivateNetworks: true,
   syncIntervalMs: 15 * 60_000,
 };
+
+const run = <A, E>(mainDB: DB, effect: Effect.Effect<A, E, CalendarServices>) =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provideContext(
+        Context.make(MainDatabase, mainDB).pipe(
+          Context.add(CalendarConfig, config),
+          Context.add(HttpClient.HttpClient, guardedHttpClient(config)),
+        ),
+      ),
+    ),
+  );
 
 const vevent = (uid: string, summary: string, start: string) =>
   [
@@ -419,12 +438,15 @@ describe("CalDAV sources", () => {
       ics: ics("b", "Lunch", "20991111T120000Z"),
     });
 
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
 
     expect(source(mainDB, id)).toMatchObject({ status: "ok", lastError: null });
     expect(
@@ -450,7 +472,7 @@ describe("CalDAV sources", () => {
       ics: ics("a", "Planning moved", "20991110T140000Z"),
     });
     davState.events.delete("/dav/calendars/me/work/b.ics");
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
 
     expect(davState.multigetHrefs).toEqual([["/dav/calendars/me/work/a.ics"]]);
     const updated = selectSync(spaceDb, { selector: allEvents, args: {} });
@@ -459,28 +481,22 @@ describe("CalDAV sources", () => {
     expect(updated[0]!.ics).toContain("Planning moved");
 
     davState.multigetHrefs = [];
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(davState.multigetHrefs).toEqual([]);
 
     const workKey = `${baseUrl}/dav/calendars/me/work/`;
-    await setCalendarEnabled(
-      mainDB,
-      config,
-      source(mainDB, id),
-      workKey,
-      false,
-    );
+    await run(mainDB, setCalendarEnabled(source(mainDB, id), workKey, false));
     expect(selectSync(spaceDb, { selector: allCalendars, args: {} })).toEqual(
       [],
     );
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
 
-    await setCalendarEnabled(mainDB, config, source(mainDB, id), workKey, true);
+    await run(mainDB, setCalendarEnabled(source(mainDB, id), workKey, true));
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
       1,
     );
 
-    await removeCalendarSource(mainDB, source(mainDB, id));
+    await run(mainDB, removeCalendarSource(source(mainDB, id)));
     expect(
       selectSync(mainDB, { selector: calendarSourceById, args: { id } }),
     ).toBeUndefined();
@@ -497,19 +513,22 @@ describe("CalDAV sources", () => {
       ics: ics("a", "A", "20991110T100000Z"),
     });
     const connect = () =>
-      addCalendarSource(mainDB, config, {
-        userId: "user",
-        spaceId: "space-1",
-        kind: "caldav",
-        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-      });
+      run(
+        mainDB,
+        addCalendarSource({
+          userId: "user",
+          spaceId: "space-1",
+          kind: "caldav",
+          secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+        }),
+      );
     const id = await connect();
     const eventIds = () =>
       selectSync(spaceDb, { selector: allEvents, args: {} }).map((e) => e.id);
     const [eventId] = eventIds();
 
     replaceSecret(mainDB, id, "revoked");
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(source(mainDB, id).status).toBe("error");
 
     expect(await connect()).toBe(id);
@@ -517,14 +536,8 @@ describe("CalDAV sources", () => {
     expect(eventIds()).toEqual([eventId]);
 
     const workKey = `${baseUrl}/dav/calendars/me/work/`;
-    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "all");
-    await setCalendarEnabled(
-      mainDB,
-      config,
-      source(mainDB, id),
-      workKey,
-      false,
-    );
+    await run(mainDB, setCalendarSyncWindow(source(mainDB, id), "all"));
+    await run(mainDB, setCalendarEnabled(source(mainDB, id), workKey, false));
     await connect();
     expect(JSON.parse(source(mainDB, id).disabledCalendarKeys)).toEqual([
       workKey,
@@ -546,16 +559,19 @@ describe("CalDAV sources", () => {
       ics: ics("b", "B", "20991111T100000Z"),
     });
 
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
     expect(davState.reports).toEqual(["listing", "multiget"]);
     expect(
       selectSync(spaceDb, { selector: allCalendars, args: {} }),
-    ).toMatchObject([{ ownerEmails: ["me@example.com"] }]);
+    ).toMatchObject([{ ownerEmails: JSON.stringify(["me@example.com"]) }]);
     const summaries = () =>
       selectSync(spaceDb, { selector: allEvents, args: {} })
         .map((e) => /SUMMARY:(.*)/.exec(e.ics)?.[1])
@@ -564,7 +580,7 @@ describe("CalDAV sources", () => {
     const sync = async () => {
       davState.reports = [];
       davState.multigetHrefs = [];
-      await syncCalendarSource(mainDB, id, config);
+      await run(mainDB, syncCalendarSource(id));
       expect(source(mainDB, id).status).toBe("ok");
     };
 
@@ -608,16 +624,19 @@ describe("CalDAV sources", () => {
 
   test("keeps both of two calendar toggles made at once", async () => {
     const { mainDB } = setup();
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
     const snapshot = source(mainDB, id);
     await Promise.all([
-      setCalendarEnabled(mainDB, config, snapshot, "first", false),
-      setCalendarEnabled(mainDB, config, snapshot, "second", false),
+      run(mainDB, setCalendarEnabled(snapshot, "first", false)),
+      run(mainDB, setCalendarEnabled(snapshot, "second", false)),
     ]);
     expect(
       (JSON.parse(source(mainDB, id).disabledCalendarKeys) as string[]).sort(),
@@ -630,16 +649,19 @@ describe("CalDAV sources", () => {
       etag: '"1"',
       ics: ics("a", "A", "20991110T100000Z"),
     });
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
 
-    const running = syncCalendarSource(mainDB, id, config);
-    const removal = removeCalendarSource(mainDB, source(mainDB, id));
-    const queued = syncCalendarSource(mainDB, id, config);
+    const running = run(mainDB, syncCalendarSource(id));
+    const removal = run(mainDB, removeCalendarSource(source(mainDB, id)));
+    const queued = run(mainDB, syncCalendarSource(id));
     await Promise.all([running, removal, queued]);
 
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
@@ -650,15 +672,18 @@ describe("CalDAV sources", () => {
 
   test("a source whose space was deleted removes itself on its next sync", async () => {
     const { mainDB, userDb } = setup();
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
     syncDispatch(userDb, deleteSpace({ id: "space-1" }));
 
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(
       selectSync(mainDB, { selector: calendarSourceById, args: { id } }),
     ).toBeUndefined();
@@ -667,27 +692,33 @@ describe("CalDAV sources", () => {
   test("rejects wrong credentials before saving the source", async () => {
     const { mainDB } = setup();
     expect(
-      addCalendarSource(mainDB, config, {
-        userId: "user",
-        spaceId: "space-1",
-        kind: "caldav",
-        secret: { url: `${baseUrl}/`, username: "me", password: "wrong" },
-      }),
+      run(
+        mainDB,
+        addCalendarSource({
+          userId: "user",
+          spaceId: "space-1",
+          kind: "caldav",
+          secret: { url: `${baseUrl}/`, username: "me", password: "wrong" },
+        }),
+      ),
     ).rejects.toThrow("rejected the username or password");
   });
 
   test("records a failing source and retries it on the next interval", async () => {
     const { mainDB } = setup();
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
     replaceSecret(mainDB, id, "old");
 
     const before = Date.now();
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     const failed = source(mainDB, id);
     expect(failed.status).toBe("error");
     expect(failed.lastError).toContain("rejected the username or password");
@@ -700,16 +731,19 @@ describe("CalDAV sources", () => {
 describe("CalDAV source safety", () => {
   test("does not send the password to a host found during discovery", async () => {
     const { mainDB } = setup();
-    const error = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: {
-        url: `${baseUrl}/hijacked/`,
-        username: "me",
-        password: "secret",
-      },
-    }).catch((e: unknown) => e);
+    const error = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: {
+          url: `${baseUrl}/hijacked/`,
+          username: "me",
+          password: "secret",
+        },
+      }),
+    ).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(CalendarFetchError);
     expect(davState.foreignAuth).toEqual(["none"]);
   });
@@ -720,23 +754,27 @@ describe("CalDAV source safety", () => {
       etag: '"1"',
       ics: ics("a", "A", "20991110T100000Z"),
     });
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
       1,
     );
 
     replaceSecret(mainDB, id, "revoked");
-    await setCalendarEnabled(
+    await run(
       mainDB,
-      config,
-      source(mainDB, id),
-      `${baseUrl}/dav/calendars/me/work/`,
-      false,
+      setCalendarEnabled(
+        source(mainDB, id),
+        `${baseUrl}/dav/calendars/me/work/`,
+        false,
+      ),
     );
     expect(source(mainDB, id).status).toBe("error");
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
@@ -751,18 +789,21 @@ describe("CalDAV source safety", () => {
       etag: '"1"',
       ics: ics("a", "A", "20991110T100000Z"),
     });
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
 
     davState.events.set("/dav/calendars/me/work/a.ics", {
       etag: '"2"',
       ics: ics("a", "A".repeat(300 * 1024), "20991110T100000Z"),
     });
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
   });
 });
@@ -811,12 +852,15 @@ describe("ICS sources", () => {
       "END:VCALENDAR",
     ].join("\r\n");
 
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "ics",
-      secret: { url: `${baseUrl}/feed.ics` },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "ics",
+        secret: { url: `${baseUrl}/feed.ics` },
+      }),
+    );
 
     expect(source(mainDB, id)).toMatchObject({
       name: "Personal",
@@ -834,12 +878,15 @@ describe("ICS sources", () => {
     const { mainDB, spaceDb } = setup();
     davState.feed = ics("a", "A", "20991110T100000Z");
     davState.feedEtag = '"1"';
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "ics",
-      secret: { url: `${baseUrl}/feed.ics` },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "ics",
+        secret: { url: `${baseUrl}/feed.ics` },
+      }),
+    );
     const summary = () =>
       selectSync(spaceDb, { selector: allEvents, args: {} }).map(
         (e) => /SUMMARY:(.*)/.exec(e.ics)?.[1],
@@ -848,12 +895,12 @@ describe("ICS sources", () => {
 
     // Same ETag: the body is not read again.
     davState.feed = ics("a", "A2", "20991110T100000Z");
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(source(mainDB, id).status).toBe("ok");
     expect(summary()).toEqual(["A"]);
 
     davState.feedEtag = '"2"';
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(summary()).toEqual(["A2"]);
   });
 
@@ -861,12 +908,15 @@ describe("ICS sources", () => {
     const { mainDB } = setup();
     davState.feed = "<html>nope</html>";
     expect(
-      addCalendarSource(mainDB, config, {
-        userId: "user",
-        spaceId: "space-1",
-        kind: "ics",
-        secret: { url: `${baseUrl}/feed.ics` },
-      }),
+      run(
+        mainDB,
+        addCalendarSource({
+          userId: "user",
+          spaceId: "space-1",
+          kind: "ics",
+          secret: { url: `${baseUrl}/feed.ics` },
+        }),
+      ),
     ).rejects.toThrow("did not return an iCalendar feed");
   });
 });
@@ -900,29 +950,32 @@ describe("sync window", () => {
       ics: ics("recent", "Recent", utc(Date.now() - 20 * DAY)),
     });
 
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "caldav",
-      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      }),
+    );
     expect(resources(spaceDb)).toEqual([href("recent"), href("soon")]);
 
     // Widening re-lists even though the calendar's token has not moved.
-    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "all");
+    await run(mainDB, setCalendarSyncWindow(source(mainDB, id), "all"));
     expect(resources(spaceDb)).toEqual([
       href("old"),
       href("recent"),
       href("soon"),
     ]);
 
-    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "1-month");
+    await run(mainDB, setCalendarSyncWindow(source(mainDB, id), "1-month"));
     expect(resources(spaceDb)).toEqual([href("recent"), href("soon")]);
 
     // An event that ages out of the window goes without a full listing.
     setSystemTime(new Date(Date.now() + 15 * DAY));
     davState.reports = [];
-    await syncCalendarSource(mainDB, id, config);
+    await run(mainDB, syncCalendarSource(id));
     expect(davState.reports).toEqual([]);
     expect(resources(spaceDb)).toEqual([href("soon")]);
   });
@@ -934,15 +987,18 @@ describe("sync window", () => {
       vevent("old", "Long ago", "20100101T100000Z"),
     );
     davState.feedEtag = '"1"';
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "ics",
-      secret: { url: `${baseUrl}/feed.ics` },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "ics",
+        secret: { url: `${baseUrl}/feed.ics` },
+      }),
+    );
     expect(resources(spaceDb)).toEqual(["soon"]);
 
-    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "all");
+    await run(mainDB, setCalendarSyncWindow(source(mainDB, id), "all"));
     expect(resources(spaceDb)).toEqual(["old", "soon"]);
   });
 });
@@ -951,12 +1007,15 @@ describe("syncDueCalendarSources", () => {
   test("syncs due sources of loaded spaces only", async () => {
     const { mainDB, spaceDb } = setup();
     davState.feed = ics("a", "A", "20991110T100000Z");
-    const id = await addCalendarSource(mainDB, config, {
-      userId: "user",
-      spaceId: "space-1",
-      kind: "ics",
-      secret: { url: `${baseUrl}/feed.ics` },
-    });
+    const id = await run(
+      mainDB,
+      addCalendarSource({
+        userId: "user",
+        spaceId: "space-1",
+        kind: "ics",
+        secret: { url: `${baseUrl}/feed.ics` },
+      }),
+    );
     davState.feed = vcalendar(
       vevent("a", "A", "20991110T100000Z"),
       vevent("b", "B", "20991111T100000Z"),
@@ -964,7 +1023,7 @@ describe("syncDueCalendarSources", () => {
     const due = source(mainDB, id).nextSyncAt;
 
     spyOn(databases, "getLoadedHyperDBs").mockReturnValue([]);
-    await syncDueCalendarSources(mainDB, config, due);
+    await run(mainDB, syncDueCalendarSources(due));
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
       1,
     );
@@ -972,12 +1031,12 @@ describe("syncDueCalendarSources", () => {
     spyOn(databases, "getLoadedHyperDBs").mockReturnValue([
       { database: "space-space-1", dbType: "space", db: spaceDb },
     ]);
-    await syncDueCalendarSources(mainDB, config, due - 1);
+    await run(mainDB, syncDueCalendarSources(due - 1));
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
       1,
     );
 
-    await syncDueCalendarSources(mainDB, config, due);
+    await run(mainDB, syncDueCalendarSources(due));
     expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
       2,
     );
@@ -987,12 +1046,15 @@ describe("syncDueCalendarSources", () => {
     const { mainDB, spaceDb } = setup();
     davState.feed = ics("a", "A", "20991110T100000Z");
     const connect = (path: string) =>
-      addCalendarSource(mainDB, config, {
-        userId: "user",
-        spaceId: "space-1",
-        kind: "ics",
-        secret: { url: `${baseUrl}${path}` },
-      });
+      run(
+        mainDB,
+        addCalendarSource({
+          userId: "user",
+          spaceId: "space-1",
+          kind: "ics",
+          secret: { url: `${baseUrl}${path}` },
+        }),
+      );
     await connect("/held.ics");
     await connect("/feed.ics");
     spyOn(databases, "getLoadedHyperDBs").mockReturnValue([
@@ -1006,14 +1068,14 @@ describe("syncDueCalendarSources", () => {
     const feedRequested = new Promise<void>((resolve) => {
       davState.onFeedRequest = resolve;
     });
-    const pass = syncDueCalendarSources(mainDB, config, Infinity);
+    const pass = run(mainDB, syncDueCalendarSources(Infinity));
     await feedRequested;
     release();
     await pass;
   });
 });
 
-describe("guardedFetch", () => {
+describe("guarded calendar HTTP", () => {
   test.each([
     ["127.0.0.1", true],
     ["10.1.2.3", true],
@@ -1035,47 +1097,52 @@ describe("guardedFetch", () => {
     expect(isPrivateAddress(ip)).toBe(expected);
   });
 
-  test("refuses private hosts unless allowed", async () => {
-    expect(
-      guardedFetch(`${baseUrl}/big`, {}, { allowPrivateNetworks: false }),
-    ).rejects.toThrow("private network address");
-    expect(
-      guardedFetch(
-        `http://[::ffff:127.0.0.1]:${server.port}/big`,
-        {},
-        { allowPrivateNetworks: false },
+  const send = (
+    url: string,
+    options: CalendarHttpOptions,
+    authorization?: string,
+  ) =>
+    Effect.runPromise(
+      sendCalendarRequest(HttpClientRequest.get(url), authorization).pipe(
+        Effect.flatMap(responseText),
+        Effect.provideService(
+          HttpClient.HttpClient,
+          guardedHttpClient(options),
+        ),
       ),
+    );
+
+  test("refuses private hosts unless allowed", async () => {
+    const blocked = { allowPrivateNetworks: false };
+    expect(send(`${baseUrl}/big`, blocked)).rejects.toThrow(
+      "private network address",
+    );
+    expect(
+      send(`http://[::ffff:127.0.0.1]:${server.port}/big`, blocked),
     ).rejects.toThrow("private network address");
     // Resolved names are checked by the lookup the connection itself uses.
     expect(
-      guardedFetch(
-        `http://localhost:${server.port}/big`,
-        {},
-        { allowPrivateNetworks: false },
-      ),
+      send(`http://localhost:${server.port}/big`, blocked),
     ).rejects.toThrow("private network address");
     expect(
-      guardedFetch("file:///etc/passwd", {}, { allowPrivateNetworks: true }),
+      send("file:///etc/passwd", { allowPrivateNetworks: true }),
     ).rejects.toBeInstanceOf(CalendarFetchError);
   });
 
   test("caps the response size", async () => {
     expect(
-      guardedFetch(
-        `${baseUrl}/big`,
-        {},
-        { allowPrivateNetworks: true, maxBytes: 1024 },
-      ),
+      send(`${baseUrl}/big`, { allowPrivateNetworks: true, maxBytes: 1024 }),
     ).rejects.toThrow("too large");
   });
 
   test("drops credentials when redirected to another site", async () => {
-    const result = await guardedFetch(
-      `${baseUrl}/redirect-elsewhere`,
-      { authorization: "Basic abc" },
-      { allowPrivateNetworks: true },
-    );
-    expect(result.body).toBe("none");
+    expect(
+      await send(
+        `${baseUrl}/redirect-elsewhere`,
+        { allowPrivateNetworks: true },
+        "Basic abc",
+      ),
+    ).toBe("none");
   });
 
   test.each([

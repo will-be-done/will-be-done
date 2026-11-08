@@ -24,7 +24,6 @@ import type { AppRouter } from "./appRouter";
 import { createContext } from "./trpc";
 import { v1Routes } from "./http/v1";
 import { syncV4Routes } from "./sync/routes";
-import { calendarSyncPlugin } from "./calendars/scheduler";
 import type { DB } from "@will-be-done/hyperdb";
 import { setupSentryErrorHandler } from "./instrument";
 import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
@@ -134,7 +133,6 @@ export function createServer({
     prefix: "/api/sync/v4",
     mainDB,
   });
-  server.register(calendarSyncPlugin, { mainDB });
 
   server.register(async (trpcServer) => {
     const appRateLimiter = rateLimitEnabled

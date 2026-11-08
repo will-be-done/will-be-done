@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { format } from "date-fns";
-import { expect, test, type Page } from "playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "playwright/test";
 import {
   createSpace,
   openSpace,
@@ -14,21 +19,21 @@ const caldavUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_CALDAV_PORT ?? "523
 
 // A Radicale user of its own per test, so parallel tests never share calendars.
 // The address doubles as the account's email for invitation replies.
-function radicaleCalendar() {
+function radicaleCalendar(request: APIRequestContext) {
   const user = `e2e-${randomUUID()}@example.com`;
   const auth = `Basic ${Buffer.from(`${user}:secret`).toString("base64")}`;
   const calendarUrl = `${caldavUrl}/${user}/work/`;
 
   const send = async (method: string, url: string, body?: string) => {
-    const response = await fetch(url, {
+    const response = await request.fetch(url, {
       method,
       headers: {
         authorization: auth,
         "content-type": method === "PUT" ? "text/calendar" : "application/xml",
       },
-      body,
+      data: body,
     });
-    expect(response.ok, `${method} ${url}: ${response.status}`).toBe(true);
+    expect(response.ok(), `${method} ${url}: ${response.status()}`).toBe(true);
   };
 
   const icsTime = (date: Date) =>
@@ -91,6 +96,7 @@ async function refreshCalendars(page: Page) {
 
 test("shows CalDAV events and follows their changes on the server", async ({
   page,
+  request,
 }) => {
   const spaceName = uniqueE2EName("Calendar Events Space");
   const title = uniqueE2EName("Design review");
@@ -102,7 +108,7 @@ test("shows CalDAV events and follows their changes on the server", async ({
   const end = new Date(start);
   end.setHours(11);
 
-  const radicale = radicaleCalendar();
+  const radicale = radicaleCalendar(request);
   await radicale.create();
   await radicale.putEvent(
     "review",

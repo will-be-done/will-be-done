@@ -283,9 +283,16 @@ export class Syncer {
       }
       yield* Effect.logInfo("This tab leads sync");
       const serverChanges = yield* ServerChanges;
-      yield* serverChanges
+      const watchServerChanges = serverChanges
         .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
-        .pipe(Stream.runForEach(this.onServerChange), Effect.forkScoped);
+        .pipe(
+          // A failed subscription is over, e.g. for a space the server did not
+          // have yet; the next completed session subscribes again.
+          Stream.takeUntil((event) => event._tag === "Failed"),
+          Stream.runForEach(this.onServerChange),
+          Effect.forkScoped,
+        );
+      let watcher = yield* watchServerChanges;
 
       // let's delay so faster startup
       yield* Effect.sleep(SYNC_START_DELAY_MS);
@@ -314,6 +321,9 @@ export class Syncer {
           );
           if (completed && this.syncConfig.dbType === "user") {
             completedUserSyncs.modify((version) => version + 1);
+          }
+          if (completed && watcher.pollUnsafe()) {
+            watcher = yield* watchServerChanges;
           }
         } else {
           this.setStatus({

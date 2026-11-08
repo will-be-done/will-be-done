@@ -7,6 +7,7 @@ import {
   externalCalendarType,
   externalEventsTable,
   externalEventType,
+  type ExternalCalendar,
   type ExternalEvent,
 } from "./tables";
 
@@ -219,6 +220,9 @@ const organizerOf = (event: ICAL.Event) => {
 
 const attendeesOf = (event: ICAL.Event) =>
   event.component.getAllProperties("attendee").map(personFrom);
+
+const ownerEmailsOf = (calendar: ExternalCalendar | undefined) =>
+  new Set<string>(calendar ? JSON.parse(calendar.ownerEmails) : []);
 
 const ownerResponse = (event: ICAL.Event, ownerEmails: ReadonlySet<string>) => {
   if (ownerEmails.size === 0) return null;
@@ -458,7 +462,7 @@ export const externalEventOccurrencesInRange = selector({
     for (const row of rows) {
       const calendar = calendars.get(row.calendarId);
       if (!calendar) continue;
-      const ownerEmails = new Set(calendar.ownerEmails);
+      const ownerEmails = ownerEmailsOf(calendar);
       for (const occurrence of expandExternalEvent(
         row,
         fromMs,
@@ -547,7 +551,7 @@ export const externalEventDetails = selector({
     const calendar = yield* selectFrom(externalCalendarsTable, "byId")
       .where((q) => q.eq("id", row.calendarId))
       .first();
-    const ownerEmails = new Set(calendar?.ownerEmails);
+    const ownerEmails = ownerEmailsOf(calendar);
     const withOwner = (person: Person) => ({
       ...person,
       isOwner: ownerEmails.has(person.email),
@@ -638,6 +642,7 @@ export const applyExternalCalendar = action({
     removed,
   }) {
     const calendarId = yield* calendarIdFor(sourceId, calendarKey);
+    const encodedOwnerEmails = JSON.stringify(ownerEmails);
     const calendar = yield* selectFrom(externalCalendarsTable, "byId")
       .where((q) => q.eq("id", calendarId))
       .first();
@@ -646,7 +651,7 @@ export const applyExternalCalendar = action({
       calendar.name !== name ||
       calendar.color !== color ||
       calendar.sourceId !== sourceId ||
-      (calendar.ownerEmails ?? []).join("\n") !== ownerEmails.join("\n")
+      calendar.ownerEmails !== encodedOwnerEmails
     ) {
       yield* upsert(externalCalendarsTable, [
         {
@@ -655,7 +660,7 @@ export const applyExternalCalendar = action({
           sourceId,
           name,
           color,
-          ownerEmails,
+          ownerEmails: encodedOwnerEmails,
         },
       ]);
     }

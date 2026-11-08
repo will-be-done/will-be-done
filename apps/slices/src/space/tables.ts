@@ -332,9 +332,9 @@ export const externalCalendarsTable = defineTable("external_calendars", {
   sourceId: v.string(),
   name: v.string(),
   color: v.union(v.string(), v.null()),
-  // The account's own addresses, lowercased, to find its replies to
-  // invitations.
-  ownerEmails: v.optional(v.array(v.string())),
+  // JSON-encoded lowercased addresses of the account, to find its replies to
+  // invitations. Synced rows carry only primitive values.
+  ownerEmails: v.string(),
 }).index("byIds", ["id"]);
 registerSpaceSyncableTable(externalCalendarsTable, externalCalendarType, {
   serverOwned: true,

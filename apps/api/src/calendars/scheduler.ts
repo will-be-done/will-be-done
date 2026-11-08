@@ -1,10 +1,14 @@
-import { selectAsync, type DB } from "@will-be-done/hyperdb";
-import type { FastifyPluginAsync } from "fastify";
-import { getLoadedHyperDBs, getMainHyperDB } from "../db/db";
+import { selectAsync } from "@will-be-done/hyperdb";
+import { Clock, Context, Effect, Layer } from "effect";
+import { HttpClient } from "effect/http";
+import { getLoadedHyperDBs } from "../db/db";
+import { MainDatabase } from "../db/mainDatabase";
+import { AppEnv } from "../env";
+import { guardedHttpClient } from "./http";
 import {
-  getCalendarConfig,
+  calendarSettingsFrom,
+  CalendarConfig,
   syncCalendarSource,
-  type CalendarConfig,
 } from "./service";
 import { calendarSourcesBySpace } from "./sources";
 
@@ -12,62 +16,57 @@ const CHECK_INTERVAL_MS = 60_000;
 // A slow calendar server holds up only one of these.
 const SYNC_CONCURRENCY = 4;
 
-// Refreshes due sources of spaces this server has loaded. Spaces load when a
-// client syncs, so active spaces stay fresh without opening every database.
-export async function syncDueCalendarSources(
-  mainDB: DB,
-  config: CalendarConfig,
-  now = Date.now(),
-) {
-  const due: string[] = [];
-  for (const { dbType, database } of getLoadedHyperDBs()) {
-    if (dbType !== "space") continue;
-    const sources = await selectAsync(mainDB, {
-      selector: calendarSourcesBySpace,
-      args: { spaceId: database.slice("space-".length) },
-    });
-    for (const source of sources) {
-      if (source.nextSyncAt <= now) due.push(source.id);
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(SYNC_CONCURRENCY, due.length) }, async () => {
-      for (let id = due.shift(); id; id = due.shift()) {
-        await syncCalendarSource(mainDB, id, config);
-      }
+export type CalendarServices =
+  | MainDatabase
+  | CalendarConfig
+  | HttpClient.HttpClient;
+
+// What calendar effects run with; undefined when calendars are turned off.
+export class Calendars extends Context.Service<
+  Calendars,
+  Context.Context<CalendarServices> | undefined
+>()("@will-be-done/api/Calendars") {
+  static readonly layer = Layer.effect(
+    Calendars,
+    Effect.gen(function* () {
+      const settings = calendarSettingsFrom(yield* AppEnv);
+      if (!settings) return undefined;
+      return Context.make(MainDatabase, yield* MainDatabase).pipe(
+        Context.add(CalendarConfig, settings),
+        Context.add(HttpClient.HttpClient, guardedHttpClient(settings)),
+      );
     }),
   );
 }
 
-export const calendarSyncPlugin: FastifyPluginAsync<{ mainDB?: DB }> = async (
-  server,
-  options,
-) => {
-  const config = getCalendarConfig();
-  if (!config) return;
-
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      await syncDueCalendarSources(
-        options.mainDB ?? (await getMainHyperDB()),
-        config,
-      );
-    } catch (error) {
-      server.log.error({ err: error }, "Calendar sync check failed");
-    } finally {
-      running = false;
-    }
-  };
-
-  let interval: ReturnType<typeof setInterval> | undefined;
-  server.addHook("onReady", async () => {
-    interval = setInterval(() => void tick(), CHECK_INTERVAL_MS);
-    interval.unref?.();
+// Refreshes due sources of spaces this server has loaded. Spaces load when a
+// client syncs, so active spaces stay fresh without opening every database.
+export const syncDueCalendarSources = (now?: number) =>
+  Effect.gen(function* () {
+    const mainDB = yield* MainDatabase;
+    const at = now ?? (yield* Clock.currentTimeMillis);
+    const sources = yield* Effect.forEach(
+      getLoadedHyperDBs().filter(({ dbType }) => dbType === "space"),
+      ({ database }) =>
+        Effect.promise(() =>
+          selectAsync(mainDB, {
+            selector: calendarSourcesBySpace,
+            args: { spaceId: database.slice("space-".length) },
+          }),
+        ),
+    );
+    yield* Effect.forEach(
+      sources.flat().filter((source) => source.nextSyncAt <= at),
+      (source) => syncCalendarSource(source.id),
+      { concurrency: SYNC_CONCURRENCY, discard: true },
+    );
   });
-  server.addHook("onClose", async () => {
-    if (interval) clearInterval(interval);
-  });
-};
+
+// Checks for due sources every minute while its scope is open.
+export const calendarSyncLoop = syncDueCalendarSources().pipe(
+  Effect.catchCause((cause) =>
+    Effect.logError("[Calendars] Sync check failed", cause),
+  ),
+  Effect.delay(CHECK_INTERVAL_MS),
+  Effect.forever,
+);

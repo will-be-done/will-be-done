@@ -637,6 +637,29 @@ describe("applyExternalCalendar", () => {
     ownerEmails: [],
   };
 
+  it("stores only primitive values, as synced rows must", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        ...calendar,
+        ownerEmails: ["me@example.com"],
+        removed: [],
+        events: [input("a.ics", "a", "20261110T100000Z", "1")],
+      }),
+    );
+    const rows = [
+      ...selectSync(db, { selector: allCalendars, args: {} }),
+      ...selectSync(db, { selector: allEvents, args: {} }),
+    ];
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      for (const value of Object.values(row)) {
+        expect(value === null || typeof value !== "object").toBe(true);
+      }
+    }
+  });
+
   it("mirrors the source and rewrites nothing when it is unchanged", () => {
     const db = createDB();
     const a = input("a.ics", "a", "20261110T100000Z", "1");

@@ -1,10 +1,12 @@
+import { Effect } from "effect";
+import { HttpClientRequest, type HttpMethod } from "effect/http";
 import { XMLParser } from "fast-xml-parser";
 import {
   CalendarFetchError,
-  guardedFetch,
-  type GuardedFetchOptions,
   mayShareCredentials,
-} from "./guardedFetch";
+  responseText,
+  sendCalendarRequest,
+} from "./http";
 import type { DiscoveredCalendar } from "./tables";
 
 export type CalDavAccount = {
@@ -110,127 +112,125 @@ const ownerEmailsOf = (props: DavProps) =>
     return match ? [match[1]!.toLowerCase()] : [];
   });
 
-export class CalDavClient {
-  private readonly authorization: string;
+const multistatusRequest = (
+  method: "PROPFIND" | "REPORT",
+  url: string,
+  depth: "0" | "1",
+  body: string,
+) =>
+  // WebDAV methods are outside HttpMethod's list; the transport sends any.
+  HttpClientRequest.make(method as HttpMethod.HttpMethod)(url).pipe(
+    HttpClientRequest.setHeader("depth", depth),
+    HttpClientRequest.bodyText(body, "application/xml; charset=utf-8"),
+  );
 
-  constructor(
-    private readonly account: CalDavAccount,
-    private readonly fetchOptions: GuardedFetchOptions,
-  ) {
-    this.authorization = `Basic ${Buffer.from(
-      `${account.username}:${account.password}`,
-    ).toString("base64")}`;
-  }
+export const makeCalDavClient = (account: CalDavAccount) => {
+  const authorization = `Basic ${Buffer.from(
+    `${account.username}:${account.password}`,
+  ).toString("base64")}`;
 
-  private async request(
-    method: string,
+  const request = (
+    method: "PROPFIND" | "REPORT",
     url: string,
     depth: "0" | "1",
     body: string,
-  ) {
-    // Discovery follows server-provided links; only those near the account
-    // URL get the password.
-    const trusted = mayShareCredentials(
-      new URL(this.account.url),
-      new URL(url),
-    );
-    const response = await guardedFetch(
-      url,
-      {
-        method,
-        headers: { depth, "content-type": "application/xml; charset=utf-8" },
-        body,
-        ...(trusted ? { authorization: this.authorization } : {}),
-      },
-      this.fetchOptions,
-    );
-    if (response.status === 401 || response.status === 403) {
-      throw new CalendarFetchError(
-        "The server rejected the username or password",
-        response.status,
+  ) =>
+    Effect.gen(function* () {
+      // Discovery follows server-provided links; only those near the account
+      // URL get the password.
+      const trusted = mayShareCredentials(new URL(account.url), new URL(url));
+      const response = yield* sendCalendarRequest(
+        multistatusRequest(method, url, depth, body),
+        trusted ? authorization : undefined,
       );
-    }
-    if (response.status !== 207) {
-      throw new CalendarFetchError(
-        `${method} ${new URL(url).pathname} failed with HTTP ${response.status}`,
-        response.status,
-      );
-    }
-    return { ...parseMultistatus(response.body), url: response.url };
-  }
+      if (response.status === 401 || response.status === 403) {
+        return yield* new CalendarFetchError({
+          message: "The server rejected the username or password",
+          status: response.status,
+        });
+      }
+      if (response.status !== 207) {
+        return yield* new CalendarFetchError({
+          message: `${method} ${new URL(url).pathname} failed with HTTP ${response.status}`,
+          status: response.status,
+        });
+      }
+      return {
+        ...parseMultistatus(yield* responseText(response)),
+        url: response.request.url,
+      };
+    });
 
-  private propfind(url: string, depth: "0" | "1", props: string) {
-    return this.request(
+  const propfind = (url: string, depth: "0" | "1", props: string) =>
+    request(
       "PROPFIND",
       url,
       depth,
       `<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/"><d:prop>${props}</d:prop></d:propfind>`,
     );
-  }
 
-  private async findCalendarHome(): Promise<{
-    home: string;
-    ownerEmails: string[];
-  }> {
-    const candidates = [
-      this.account.url,
-      new URL("/.well-known/caldav", this.account.url).href,
-    ];
-    let lastError: unknown = null;
-    for (const candidate of candidates) {
-      try {
-        const { responses, url } = await this.propfind(
-          candidate,
-          "0",
-          "<d:current-user-principal/><c:calendar-home-set/><c:calendar-user-address-set/><d:resourcetype/>",
-        );
-        const props = responses[0]?.props ?? {};
-        if (isCalendar(props)) return { home: url, ownerEmails: [] };
-        const home = hrefOf(props["calendar-home-set"]);
-        if (home) {
-          return {
-            home: new URL(home, url).href,
-            ownerEmails: ownerEmailsOf(props),
-          };
-        }
-        const principal = hrefOf(props["current-user-principal"]);
-        if (!principal) continue;
-        const principalUrl = new URL(principal, url).href;
-        const found = await this.propfind(
-          principalUrl,
-          "0",
-          "<c:calendar-home-set/><c:calendar-user-address-set/>",
-        );
-        const principalProps = found.responses[0]?.props ?? {};
-        const principalHome = hrefOf(principalProps["calendar-home-set"]);
-        if (principalHome) {
-          return {
+  const homeFrom = (candidate: string) =>
+    Effect.gen(function* () {
+      const { responses, url } = yield* propfind(
+        candidate,
+        "0",
+        "<d:current-user-principal/><c:calendar-home-set/><c:calendar-user-address-set/><d:resourcetype/>",
+      );
+      const props = responses[0]?.props ?? {};
+      if (isCalendar(props)) return { home: url, ownerEmails: [] };
+      const home = hrefOf(props["calendar-home-set"]);
+      if (home) {
+        return {
+          home: new URL(home, url).href,
+          ownerEmails: ownerEmailsOf(props),
+        };
+      }
+      const principal = hrefOf(props["current-user-principal"]);
+      if (!principal) return null;
+      const found = yield* propfind(
+        new URL(principal, url).href,
+        "0",
+        "<c:calendar-home-set/><c:calendar-user-address-set/>",
+      );
+      const principalProps = found.responses[0]?.props ?? {};
+      const principalHome = hrefOf(principalProps["calendar-home-set"]);
+      return principalHome
+        ? {
             home: new URL(principalHome, found.url).href,
             ownerEmails: ownerEmailsOf(principalProps),
-          };
-        }
-      } catch (error) {
-        if (error instanceof CalendarFetchError && error.status === 401) {
-          throw error;
-        }
-        lastError = error;
-      }
-    }
-    if (lastError instanceof Error) throw lastError;
-    throw new CalendarFetchError("No CalDAV calendars found at this address");
-  }
+          }
+        : null;
+    });
 
-  async discoverCalendars(): Promise<{
-    calendars: DiscoveredCollection[];
-    ownerEmails: string[];
-  }> {
-    const { home, ownerEmails } = await this.findCalendarHome();
-    const { responses, url } = await this.propfind(
+  const findCalendarHome = Effect.gen(function* () {
+    let lastError: CalendarFetchError | null = null;
+    for (const candidate of [
+      account.url,
+      new URL("/.well-known/caldav", account.url).href,
+    ]) {
+      const found = yield* homeFrom(candidate).pipe(
+        Effect.catchTag("CalendarFetchError", (error) => {
+          if (error.status === 401) return Effect.fail(error);
+          lastError = error;
+          return Effect.succeed(null);
+        }),
+      );
+      if (found) return found;
+    }
+    return yield* lastError ??
+      new CalendarFetchError({
+        message: "No CalDAV calendars found at this address",
+      });
+  });
+
+  const discoverCalendars = Effect.gen(function* () {
+    const { home, ownerEmails } = yield* findCalendarHome;
+    const { responses, url } = yield* propfind(
       home,
       "1",
       "<d:resourcetype/><d:displayname/><a:calendar-color/><c:supported-calendar-component-set/><d:sync-token/>",
     );
-    const calendars = responses
+    const calendars: DiscoveredCollection[] = responses
       .filter(({ props }) => isCalendar(props) && supportsEvents(props))
       .map(({ href, props }) => {
         const key = new URL(href, url).href;
@@ -241,111 +241,116 @@ export class CalDavClient {
           syncToken: text(props["sync-token"]),
         };
       });
-    const username = this.account.username.trim().toLowerCase();
-    if (ownerEmails.length === 0 && username.includes("@")) {
-      ownerEmails.push(username);
-    }
-    return { calendars, ownerEmails };
-  }
+    const username = account.username.trim().toLowerCase();
+    return {
+      calendars,
+      ownerEmails:
+        ownerEmails.length === 0 && username.includes("@")
+          ? [username]
+          : ownerEmails,
+    };
+  });
 
   // Resources changed since `syncToken` (RFC 6578), mapped to their new ETag,
-  // or to null when deleted. Throws CalendarFetchError with the HTTP status
-  // when the server refuses the token.
-  async changesSince(
-    calendarUrl: string,
-    syncToken: string,
-  ): Promise<{ changes: Map<string, string | null>; syncToken: string }> {
-    const calendarPath = new URL(calendarUrl).pathname;
-    const changes = new Map<string, string | null>();
-    let token = syncToken;
-    for (let round = 0; round < MAX_SYNC_ROUNDS; round += 1) {
-      const result = await this.request(
-        "REPORT",
-        calendarUrl,
-        "0",
-        `<?xml version="1.0" encoding="utf-8"?><d:sync-collection xmlns:d="DAV:"><d:sync-token>${escapeXml(token)}</d:sync-token><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>`,
-      );
-      if (!result.syncToken) {
-        throw new CalendarFetchError("The server sent no sync token");
-      }
-      token = result.syncToken;
-      let truncated = false;
-      for (const { href, status, props } of result.responses) {
-        const path = new URL(href, calendarUrl).pathname;
-        if (samePath(path, calendarPath)) {
-          truncated ||= hasStatus(status, 507);
-          continue;
-        }
-        changes.set(
-          path,
-          hasStatus(status, 404) ? null : (text(props.getetag) ?? ""),
+  // or to null when deleted. Fails with the HTTP status when the server
+  // refuses the token.
+  const changesSince = (calendarUrl: string, syncToken: string) =>
+    Effect.gen(function* () {
+      const calendarPath = new URL(calendarUrl).pathname;
+      const changes = new Map<string, string | null>();
+      let token = syncToken;
+      for (let round = 0; round < MAX_SYNC_ROUNDS; round += 1) {
+        const result = yield* request(
+          "REPORT",
+          calendarUrl,
+          "0",
+          `<?xml version="1.0" encoding="utf-8"?><d:sync-collection xmlns:d="DAV:"><d:sync-token>${escapeXml(token)}</d:sync-token><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>`,
         );
+        if (!result.syncToken) {
+          return yield* new CalendarFetchError({
+            message: "The server sent no sync token",
+          });
+        }
+        token = result.syncToken;
+        let truncated = false;
+        for (const { href, status, props } of result.responses) {
+          const path = new URL(href, calendarUrl).pathname;
+          if (samePath(path, calendarPath)) {
+            truncated ||= hasStatus(status, 507);
+            continue;
+          }
+          changes.set(
+            path,
+            hasStatus(status, 404) ? null : (text(props.getetag) ?? ""),
+          );
+        }
+        if (!truncated) return { changes, syncToken: token };
       }
-      if (!truncated) return { changes, syncToken: token };
-    }
-    throw new CalendarFetchError("The calendar has too many changes to sync");
-  }
+      return yield* new CalendarFetchError({
+        message: "The calendar has too many changes to sync",
+      });
+    });
 
   // ETags of every event resource with an occurrence after `fromMs`, or of
   // every event resource when it is null.
-  async listEventEtags(
-    calendarUrl: string,
-    fromMs: number | null,
-  ): Promise<Map<string, string>> {
-    const timeRange =
-      fromMs === null
-        ? ""
-        : `<c:time-range start="${new Date(fromMs)
-            .toISOString()
-            .replace(/[-:]/g, "")
-            .replace(/\.\d{3}/, "")}"/>`;
-    const { responses } = await this.request(
-      "REPORT",
-      calendarUrl,
-      "1",
-      `<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">${timeRange}</c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`,
-    );
-    const calendarPath = new URL(calendarUrl).pathname;
-    const etags = new Map<string, string>();
-    for (const { href, props } of responses) {
-      const path = new URL(href, calendarUrl).pathname;
-      const etag = text(props.getetag);
-      if (path === calendarPath || !etag) continue;
-      etags.set(path, etag);
-    }
-    return etags;
-  }
-
-  async fetchEvents(
-    calendarUrl: string,
-    paths: string[],
-  ): Promise<{ resource: string; etag: string; ics: string }[]> {
-    const result: { resource: string; etag: string; ics: string }[] = [];
-    for (let i = 0; i < paths.length; i += MULTIGET_BATCH) {
-      const hrefs = paths
-        .slice(i, i + MULTIGET_BATCH)
-        .map((path) => `<d:href>${escapeXml(path)}</d:href>`)
-        .join("");
-      const { responses } = await this.request(
+  const listEventEtags = (calendarUrl: string, fromMs: number | null) =>
+    Effect.gen(function* () {
+      const timeRange =
+        fromMs === null
+          ? ""
+          : `<c:time-range start="${new Date(fromMs)
+              .toISOString()
+              .replace(/[-:]/g, "")
+              .replace(/\.\d{3}/, "")}"/>`;
+      const { responses } = yield* request(
         "REPORT",
         calendarUrl,
         "1",
-        `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>${hrefs}</c:calendar-multiget>`,
+        `<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">${timeRange}</c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`,
       );
+      const calendarPath = new URL(calendarUrl).pathname;
+      const etags = new Map<string, string>();
       for (const { href, props } of responses) {
+        const path = new URL(href, calendarUrl).pathname;
         const etag = text(props.getetag);
-        const ics = text(props["calendar-data"]);
-        if (!etag || !ics) continue;
-        result.push({
-          resource: new URL(href, calendarUrl).pathname,
-          etag,
-          ics,
-        });
+        if (path === calendarPath || !etag) continue;
+        etags.set(path, etag);
       }
-    }
-    return result;
-  }
-}
+      return etags;
+    });
+
+  const fetchEvents = (calendarUrl: string, paths: string[]) =>
+    Effect.gen(function* () {
+      const result: { resource: string; etag: string; ics: string }[] = [];
+      for (let i = 0; i < paths.length; i += MULTIGET_BATCH) {
+        const hrefs = paths
+          .slice(i, i + MULTIGET_BATCH)
+          .map((path) => `<d:href>${escapeXml(path)}</d:href>`)
+          .join("");
+        const { responses } = yield* request(
+          "REPORT",
+          calendarUrl,
+          "1",
+          `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>${hrefs}</c:calendar-multiget>`,
+        );
+        for (const { href, props } of responses) {
+          const etag = text(props.getetag);
+          const ics = text(props["calendar-data"]);
+          if (!etag || !ics) continue;
+          result.push({
+            resource: new URL(href, calendarUrl).pathname,
+            etag,
+            ics,
+          });
+        }
+      }
+      return result;
+    });
+
+  return { discoverCalendars, changesSince, listEventEtags, fetchEvents };
+};
+
+export type CalDavClient = ReturnType<typeof makeCalDavClient>;
 
 const isCalendar = (props: DavProps) => {
   const type = props.resourcetype;

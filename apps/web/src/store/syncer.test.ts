@@ -1032,6 +1032,32 @@ describe("syncer notification baseline", () => {
     await stop(syncer, run);
   });
 
+  it("resubscribes after a failed subscription once a session completes", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    let sessions = 0;
+    vi.spyOn(
+      syncer as unknown as SyncerTestAccess,
+      "syncV4",
+    ).mockImplementation(() => {
+      sessions += 1;
+      return Effect.succeed(true);
+    });
+
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(env.serverChanges.watches()).toBe(1);
+
+    env.serverChanges.emit({ _tag: "Failed", cause: new Error("not found") });
+    await vi.waitFor(() => expect(sessions).toBe(2));
+    await vi.waitFor(() => expect(env.serverChanges.watches()).toBe(2));
+
+    env.serverChanges.emit({ _tag: "ChangesAvailable" });
+    await vi.waitFor(() => expect(sessions).toBe(3));
+    expect(env.serverChanges.watches()).toBe(2);
+    await stop(syncer, run);
+  });
+
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {
       env.serverChanges.emit({ _tag: "ChangesAvailable" });

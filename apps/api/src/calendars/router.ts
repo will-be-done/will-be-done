@@ -1,15 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { selectAsync, type DB } from "@will-be-done/hyperdb";
+import { Effect, type Context } from "effect";
 import { z } from "zod";
+import { MainDatabase } from "../db/mainDatabase";
 import { enforceRateLimit, protectedProcedure, router } from "../trpc";
-import { CalendarFetchError } from "./guardedFetch";
+import type { CalendarFetchError } from "./http";
+import type { CalendarServices } from "./scheduler";
 import {
   addCalendarSource,
-  CalendarsDisabledError,
-  getCalendarConfig,
   publicCalendarSource,
   removeCalendarSource,
-  requireCalendarConfig,
   setCalendarEnabled,
   setCalendarSyncWindow,
   syncCalendarSource,
@@ -25,21 +25,9 @@ const httpUrl = z
   .transform((value) => value.replace(/^webcals?:\/\//i, "https://"))
   .pipe(z.url({ protocol: /^https?$/ }));
 
-const toTRPCError = (error: unknown) => {
-  if (error instanceof CalendarsDisabledError) {
-    return new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: error.message,
-    });
-  }
-  if (error instanceof CalendarFetchError) {
-    return new TRPCError({ code: "BAD_REQUEST", message: error.message });
-  }
-  return error;
-};
-
 export function calendarsRouter(
   mainDB: DB,
+  calendars: Context.Context<CalendarServices> | undefined,
   checkSpaceAccess: CheckSpaceAccess,
 ) {
   const ownedSource = async (sourceId: string, userId: string) => {
@@ -54,12 +42,26 @@ export function calendarsRouter(
     return source;
   };
 
-  const run = async <T>(fn: () => Promise<T>) => {
-    try {
-      return await fn();
-    } catch (error) {
-      throw toTRPCError(error);
+  const run = <A>(
+    effect: Effect.Effect<A, CalendarFetchError, CalendarServices>,
+  ) => {
+    if (!calendars) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message:
+          "Calendar connections are turned off on this server. Set WBD_CALENDAR_ENCRYPTION_KEY to enable them.",
+      });
     }
+    return Effect.runPromise(
+      effect.pipe(
+        Effect.catchTag("CalendarFetchError", (error) =>
+          Effect.fail(
+            new TRPCError({ code: "BAD_REQUEST", message: error.message }),
+          ),
+        ),
+        Effect.provideContext(calendars),
+      ),
+    );
   };
 
   return router({
@@ -72,7 +74,7 @@ export function calendarsRouter(
           args: { spaceId: input.spaceId },
         });
         return {
-          enabled: getCalendarConfig() !== null,
+          enabled: calendars !== undefined,
           sources: sources
             .filter((source) => source.userId === ctx.user.id)
             .map(publicCalendarSource),
@@ -89,10 +91,10 @@ export function calendarsRouter(
         }),
       )
       .use(enforceRateLimit("calendarConnect"))
-      .mutation(({ ctx, input }) =>
-        run(async () => {
-          await checkSpaceAccess(input.spaceId, ctx.user.id);
-          const id = await addCalendarSource(mainDB, requireCalendarConfig(), {
+      .mutation(async ({ ctx, input }) => {
+        await checkSpaceAccess(input.spaceId, ctx.user.id);
+        const id = await run(
+          addCalendarSource({
             userId: ctx.user.id,
             spaceId: input.spaceId,
             kind: "caldav",
@@ -101,26 +103,26 @@ export function calendarsRouter(
               username: input.username,
               password: input.password,
             },
-          });
-          return { id };
-        }),
-      ),
+          }),
+        );
+        return { id };
+      }),
 
     addIcs: protectedProcedure
       .input(z.object({ spaceId: z.string(), url: httpUrl }))
       .use(enforceRateLimit("calendarConnect"))
-      .mutation(({ ctx, input }) =>
-        run(async () => {
-          await checkSpaceAccess(input.spaceId, ctx.user.id);
-          const id = await addCalendarSource(mainDB, requireCalendarConfig(), {
+      .mutation(async ({ ctx, input }) => {
+        await checkSpaceAccess(input.spaceId, ctx.user.id);
+        const id = await run(
+          addCalendarSource({
             userId: ctx.user.id,
             spaceId: input.spaceId,
             kind: "ics",
             secret: { url: input.url },
-          });
-          return { id };
-        }),
-      ),
+          }),
+        );
+        return { id };
+      }),
 
     setCalendarEnabled: protectedProcedure
       .input(
@@ -132,19 +134,11 @@ export function calendarsRouter(
       )
       // Each change runs a full sync of the source.
       .use(enforceRateLimit("calendarRefresh"))
-      .mutation(({ ctx, input }) =>
-        run(async () => {
-          const source = await ownedSource(input.sourceId, ctx.user.id);
-          await setCalendarEnabled(
-            mainDB,
-            requireCalendarConfig(),
-            source,
-            input.calendarKey,
-            input.enabled,
-          );
-          return { success: true };
-        }),
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const source = await ownedSource(input.sourceId, ctx.user.id);
+        await run(setCalendarEnabled(source, input.calendarKey, input.enabled));
+        return { success: true };
+      }),
 
     setSyncWindow: protectedProcedure
       .input(
@@ -155,38 +149,32 @@ export function calendarsRouter(
       )
       // Each change runs a full sync of the source.
       .use(enforceRateLimit("calendarRefresh"))
-      .mutation(({ ctx, input }) =>
-        run(async () => {
-          const source = await ownedSource(input.sourceId, ctx.user.id);
-          await setCalendarSyncWindow(
-            mainDB,
-            requireCalendarConfig(),
-            source,
-            input.syncWindow,
-          );
-          return { success: true };
-        }),
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const source = await ownedSource(input.sourceId, ctx.user.id);
+        await run(setCalendarSyncWindow(source, input.syncWindow));
+        return { success: true };
+      }),
 
     refresh: protectedProcedure
       .input(z.object({ sourceId: z.string() }))
       .use(enforceRateLimit("calendarRefresh"))
-      .mutation(({ ctx, input }) =>
-        run(async () => {
-          const source = await ownedSource(input.sourceId, ctx.user.id);
-          await syncCalendarSource(mainDB, source.id, requireCalendarConfig());
-          return { success: true };
-        }),
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const source = await ownedSource(input.sourceId, ctx.user.id);
+        await run(syncCalendarSource(source.id));
+        return { success: true };
+      }),
 
+    // Works with calendars turned off, so a source can still be removed.
     remove: protectedProcedure
       .input(z.object({ sourceId: z.string() }))
-      .mutation(({ ctx, input }) =>
-        run(async () => {
-          const source = await ownedSource(input.sourceId, ctx.user.id);
-          await removeCalendarSource(mainDB, source);
-          return { success: true };
-        }),
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const source = await ownedSource(input.sourceId, ctx.user.id);
+        await Effect.runPromise(
+          removeCalendarSource(source).pipe(
+            Effect.provideService(MainDatabase, mainDB),
+          ),
+        );
+        return { success: true };
+      }),
   });
 }
