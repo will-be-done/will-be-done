@@ -11,9 +11,11 @@ import {
   removeCalendarSource,
   requireCalendarConfig,
   setCalendarEnabled,
+  setCalendarSyncWindow,
   syncCalendarSource,
 } from "./service";
 import { calendarSourceById, calendarSourcesBySpace } from "./sources";
+import { calendarSyncWindows } from "./tables";
 
 type CheckSpaceAccess = (spaceId: string, userId: string) => Promise<void>;
 
@@ -137,6 +139,26 @@ export function calendarsRouter(
             source,
             input.calendarKey,
             input.enabled,
+          );
+          return { success: true };
+        }),
+      ),
+
+    setSyncWindow: protectedProcedure
+      .input(
+        z.object({
+          sourceId: z.string(),
+          syncWindow: z.enum(calendarSyncWindows),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        run(async () => {
+          const source = await ownedSource(input.sourceId, ctx.user.id);
+          await setCalendarSyncWindow(
+            mainDB,
+            requireCalendarConfig(),
+            source,
+            input.syncWindow,
           );
           return { success: true };
         }),

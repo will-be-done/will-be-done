@@ -43,6 +43,7 @@ import {
 } from "./syncCompatibility";
 
 const SYNC_POLL_INTERVAL_MS = 60000;
+const SYNC_RETRY_BASE_MS = 1000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -170,6 +171,12 @@ export class Syncer {
   }
 
   private setupWebSocketSubscription() {
+    const wake = () => {
+      if (this.status.get().phase === "synced") {
+        this.setStatus({ phase: "waiting", progress: null });
+      }
+      this.wsNotification.modify((version) => version + 1);
+    };
     const subscription = trpcClient.onChangesAvailable.subscribe(
       {
         dbId: this.syncConfig.dbId,
@@ -177,12 +184,12 @@ export class Syncer {
         syncVersion: CURRENT_SYNC_VERSION,
       },
       {
+        // Changes made before the server registered this subscription (on
+        // resubscribe or socket reconnect) were never announced.
+        onStarted: wake,
         onData: () => {
           syncerLog("WebSocket notification received");
-          if (this.status.get().phase === "synced") {
-            this.setStatus({ phase: "waiting", progress: null });
-          }
-          this.wsNotification.modify((version) => version + 1);
+          wake();
         },
         onError: (err) => {
           if (isUnsupportedSyncVersionError(err)) {
@@ -190,6 +197,9 @@ export class Syncer {
             return;
           }
           console.error("WebSocket subscription error:", err);
+          // A failed subscription is over; the loop resubscribes after a
+          // session succeeds, so a failing server is not retried in a loop.
+          this.cleanupWebSocket();
           this.wsNotification.modify((version) => version + 1);
         },
       },
@@ -210,6 +220,7 @@ export class Syncer {
     // let's delay so faster startup
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    let failures = 0;
     while (true) {
       // Snapshot before the session so a local write or server notification
       // that arrives while syncV4 is running remains a pending wake-up.
@@ -224,6 +235,8 @@ export class Syncer {
         syncerLog("running sync v4 session");
         this.setStatus({ phase: "connecting", progress: null, error: null });
         const completed = await this.syncV4();
+        failures = 0;
+        if (completed && !this.wsUnsubscribe) this.setupWebSocketSubscription();
         const hasPendingWake =
           this.wsNotification.get() > wsVersion ||
           this.forceSyncNotification.get() > forceSyncVersion;
@@ -237,6 +250,7 @@ export class Syncer {
           this.stopForRequiredUpdate();
           return;
         }
+        failures += 1;
         this.setStatus({
           phase: "error",
           progress: null,
@@ -252,7 +266,18 @@ export class Syncer {
         console.error(e);
       }
 
-      await this.waitForNextSyncTrigger(wsVersion, forceSyncVersion);
+      await this.waitForNextSyncTrigger(
+        wsVersion,
+        forceSyncVersion,
+        failures > 0
+          ? Math.min(
+              SYNC_RETRY_BASE_MS * 2 ** (failures - 1),
+              SYNC_POLL_INTERVAL_MS,
+            )
+          : process.env.NODE_ENV === "development"
+            ? null
+            : SYNC_POLL_INTERVAL_MS,
+      );
     }
   }
 
@@ -568,6 +593,7 @@ export class Syncer {
   private async waitForNextSyncTrigger(
     wsVersion: number,
     forceSyncVersion: number,
+    timeoutMs: number | null,
   ) {
     return new Promise<"timeout" | "ws" | "local">((resolve) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -605,8 +631,8 @@ export class Syncer {
         finish("local");
       }
 
-      if (!settled && process.env.NODE_ENV !== "development") {
-        timeoutId = setTimeout(() => finish("timeout"), SYNC_POLL_INTERVAL_MS);
+      if (!settled && timeoutMs !== null) {
+        timeoutId = setTimeout(() => finish("timeout"), timeoutMs);
       }
     });
   }

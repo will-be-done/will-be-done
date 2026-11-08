@@ -1,10 +1,4 @@
-import {
-  deleteRows,
-  insert,
-  selectFrom,
-  upsert,
-  v,
-} from "@will-be-done/hyperdb";
+import { deleteRows, selectFrom, upsert, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { calendarSourcesTable, type CalendarSource } from "./tables";
 
@@ -31,11 +25,24 @@ export const calendarSourceById = selector({
   },
 });
 
-export const insertCalendarSource = action({
-  name: "insertCalendarSource",
+// Connecting an account again replaces its credentials and keeps the
+// calendars the user unticked.
+export const saveCalendarSource = action({
+  name: "saveCalendarSource",
   args: { source: calendarSourceRow },
-  handler: function* insertCalendarSource({ source }) {
-    yield* insert(calendarSourcesTable, [source]);
+  handler: function* saveCalendarSource({ source }) {
+    const current = yield* selectFrom(calendarSourcesTable, "byId")
+      .where((q) => q.eq("id", source.id))
+      .first();
+    yield* upsert(calendarSourcesTable, [
+      current
+        ? {
+            ...source,
+            disabledCalendarKeys: current.disabledCalendarKeys,
+            createdAt: current.createdAt,
+          }
+        : source,
+    ]);
   },
 });
 

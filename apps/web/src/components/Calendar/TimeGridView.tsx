@@ -36,6 +36,7 @@ import {
   externalEventStyle,
 } from "@/components/ExternalEvents/externalEventsModel.ts";
 import { ExternalEventChip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { ExternalEventPopover } from "@/components/ExternalEvents/ExternalEventPopover.tsx";
 
 const hourHeight = 48;
 const gutterWidth = "4.5rem";
@@ -422,28 +423,31 @@ const ExternalBlock = ({
   const start = event.startMinutes;
   const length = event.endMinutes - event.startMinutes;
   return (
-    <div
-      title={eventTooltip(event)}
-      data-external-event
-      className={cn(
-        externalEventClass,
-        "absolute z-10 overflow-hidden px-1.5 py-0.5 text-xs",
-        isShortBlock(length) && "flex items-baseline gap-1.5",
-      )}
-      style={{
-        ...externalEventStyle(event),
-        ...blockPosition(layout),
-        top: percent(start),
-        height: blockHeight(start, length),
-      }}
-    >
-      <BlockContent
-        title={event.occurrence.title || "Untitled event"}
-        start={start}
-        length={length}
-        durationMinutes={null}
-      />
-    </div>
+    <ExternalEventPopover occurrence={event.occurrence}>
+      <button
+        type="button"
+        title={eventTooltip(event)}
+        data-external-event
+        className={cn(
+          externalEventClass(event),
+          "absolute z-10 overflow-hidden px-1.5 py-0.5 text-xs",
+          isShortBlock(length) && "flex items-baseline gap-1.5",
+        )}
+        style={{
+          ...externalEventStyle(event),
+          ...blockPosition(layout),
+          top: percent(start),
+          height: blockHeight(start, length),
+        }}
+      >
+        <BlockContent
+          title={event.occurrence.title || "Untitled event"}
+          start={start}
+          length={length}
+          durationMinutes={null}
+        />
+      </button>
+    </ExternalEventPopover>
   );
 };
 

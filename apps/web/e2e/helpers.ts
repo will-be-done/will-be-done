@@ -195,6 +195,31 @@ export async function openSpaceSettings(page: Page) {
   return dialog;
 }
 
+// A new space reaches the server with its first sync; server-side calls fail
+// with "Space not found" before that.
+export async function waitForSpaceOnServer(page: Page) {
+  const spaceId = new URL(page.url()).pathname.split("/")[2];
+  expect(spaceId).toBeTruthy();
+  const sessionToken = await page.evaluate(() =>
+    localStorage.getItem("auth_token"),
+  );
+  expect(sessionToken).toBeTruthy();
+  const authorization = { Authorization: `Bearer ${sessionToken}` };
+  await expect
+    .poll(
+      async () =>
+        (
+          await page.request.get(`/api/v1/spaces/${spaceId}/projects`, {
+            headers: authorization,
+          })
+        ).status(),
+      { timeout: 15_000 },
+    )
+    .toBe(200);
+
+  return { spaceId, authorization };
+}
+
 export function taskItem(page: Page, title: string): Locator {
   return page.locator("[data-focusable-key]").filter({ hasText: title });
 }

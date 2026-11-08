@@ -35,10 +35,15 @@ import { createCrossTabChanges } from "./crossTabChanges";
 import { createLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 
+type SubscriptionHandlers = {
+  onStarted: () => void;
+  onData: () => void;
+  onError: (error: unknown) => void;
+};
+
 const subscription = vi.hoisted(() => ({
-  handlers: undefined as
-    | { onData: () => void; onError: (error: unknown) => void }
-    | undefined,
+  handlers: undefined as SubscriptionHandlers | undefined,
+  subscribed: 0,
 }));
 
 const statusBus = vi.hoisted(() => ({
@@ -54,15 +59,11 @@ const statusBus = vi.hoisted(() => ({
 vi.mock("@/lib/trpc.ts", () => ({
   trpcClient: {
     onChangesAvailable: {
-      subscribe: vi.fn(
-        (
-          _input: unknown,
-          handlers: { onData: () => void; onError: (error: unknown) => void },
-        ) => {
-          subscription.handlers = handlers;
-          return { unsubscribe: vi.fn() };
-        },
-      ),
+      subscribe: vi.fn((_input: unknown, handlers: SubscriptionHandlers) => {
+        subscription.handlers = handlers;
+        subscription.subscribed += 1;
+        return { unsubscribe: vi.fn() };
+      }),
     },
   },
 }));
@@ -166,6 +167,7 @@ const deferred = () => {
 
 beforeEach(() => {
   subscription.handlers = undefined;
+  subscription.subscribed = 0;
   statusBus.channels = [];
   statusBus.nextIsLeader = true;
   statusBus.delayChanges = false;
@@ -260,6 +262,25 @@ describe("sync status", () => {
     syncer.forceSync();
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
     expect(syncer.status.get().error).toBeNull();
+    await stop(syncer, run);
+  });
+
+  it("retries a failed session with backoff instead of waiting for a poll", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { syncer } = createSyncer();
+    // A new space is unknown to the server until its user DB syncs.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ error: "Space not found" }, 404)),
+    );
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("error"));
+
+    stubSuccessfulSync();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
     await stop(syncer, run);
   });
 
@@ -817,5 +838,37 @@ describe("syncer notification baseline", () => {
     await verifyPendingNotificationStartsNextSession((syncer) => {
       syncer.forceSync();
     });
+  });
+
+  it("resubscribes after a failed subscription once a session completes", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { syncer } = createSyncer();
+    const access = syncer as unknown as SyncerTestAccess;
+    let sessions = 0;
+    vi.spyOn(access, "syncV4").mockImplementation(async () => {
+      sessions += 1;
+      if (sessions === 1) {
+        // A new space is unknown to the server until its user DB syncs.
+        subscription.handlers?.onError(new Error("Space not found"));
+        throw new TypeError("Failed to fetch");
+      }
+      expect(subscription.subscribed).toBe(1);
+      return true;
+    });
+
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(subscription.subscribed).toBe(2));
+    expect(sessions).toBe(2);
+
+    // Writes between that session and the server registering the new
+    // subscription are picked up by one more session.
+    subscription.handlers?.onStarted();
+    await vi.waitFor(() => expect(sessions).toBe(3));
+
+    access.runId += 1;
+    syncer.forceSync();
+    await run;
   });
 });

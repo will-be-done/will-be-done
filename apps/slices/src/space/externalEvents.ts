@@ -17,9 +17,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_OCCURRENCES = 50_000;
 const UNBOUNDED = Number.MAX_SAFE_INTEGER;
 
+export type ExternalEventResponse =
+  | "accepted"
+  | "declined"
+  | "tentative"
+  | "needs-action";
+
 export type ExternalEventOccurrence = {
   key: string;
   eventId: string;
+  recurrenceKey: string;
   calendarId: string;
   calendarName: string;
   color: string | null;
@@ -29,6 +36,11 @@ export type ExternalEventOccurrence = {
   // Absolute ms. All-day and floating times are placed in the device's zone.
   startMs: number;
   endMs: number;
+  status: "confirmed" | "tentative";
+  // TRANSP:TRANSPARENT: shown, but does not block time.
+  free: boolean;
+  // The account's reply when it was invited; null for its own events.
+  response: ExternalEventResponse | null;
 };
 
 type ParsedSeries = {
@@ -145,10 +157,57 @@ type RawOccurrence = {
   fromRule: boolean;
 };
 
+const upperProperty = (event: ICAL.Event, name: string) =>
+  String(event.component.getFirstPropertyValue(name) ?? "").toUpperCase();
+
 const isCancelled = (event: ICAL.Event) =>
-  String(
-    event.component.getFirstPropertyValue("status") ?? "",
-  ).toUpperCase() === "CANCELLED";
+  upperProperty(event, "status") === "CANCELLED";
+
+const RESPONSES: Partial<Record<string, ExternalEventResponse>> = {
+  ACCEPTED: "accepted",
+  DECLINED: "declined",
+  TENTATIVE: "tentative",
+  "NEEDS-ACTION": "needs-action",
+};
+
+type Person = {
+  name: string | null;
+  email: string;
+  response: ExternalEventResponse | null;
+};
+
+const personFrom = (prop: ICAL.Property): Person => {
+  const cn = prop.getParameter("cn");
+  const partstat = prop.getParameter("partstat");
+  return {
+    name: typeof cn === "string" && cn ? cn : null,
+    email: String(prop.getFirstValue() ?? "")
+      .replace(/^mailto:/i, "")
+      .toLowerCase(),
+    // RFC 5545 defaults PARTSTAT to NEEDS-ACTION.
+    response:
+      RESPONSES[typeof partstat === "string" ? partstat.toUpperCase() : ""] ??
+      (partstat === undefined || partstat === null ? "needs-action" : null),
+  };
+};
+
+const organizerOf = (event: ICAL.Event) => {
+  const prop = event.component.getFirstProperty("organizer");
+  return prop ? personFrom(prop) : null;
+};
+
+const attendeesOf = (event: ICAL.Event) =>
+  event.component.getAllProperties("attendee").map(personFrom);
+
+const ownerResponse = (event: ICAL.Event, ownerEmails: ReadonlySet<string>) => {
+  if (ownerEmails.size === 0) return null;
+  const organizer = organizerOf(event);
+  if (organizer && ownerEmails.has(organizer.email)) return null;
+  return (
+    attendeesOf(event).find((attendee) => ownerEmails.has(attendee.email))
+      ?.response ?? null
+  );
+};
 
 const recurRules = (master: ICAL.Event) =>
   master.component
@@ -308,6 +367,7 @@ export function expandExternalEvent(
   row: ExternalEvent,
   fromMs: number,
   toMs: number,
+  ownerEmails: ReadonlySet<string> = new Set(),
 ): Omit<ExternalEventOccurrence, "calendarName" | "color">[] {
   const series = cachedSeries(row);
   if (!series) return [];
@@ -329,18 +389,26 @@ export function expandExternalEvent(
     result.push({
       key: `${row.id}:${occurrence.recurrenceKey}`,
       eventId: row.id,
+      recurrenceKey: occurrence.recurrenceKey,
       calendarId: row.calendarId,
       title: occurrence.item.summary ?? "",
       location: occurrence.item.location || null,
       allDay: occurrence.start.isDate,
       startMs,
       endMs,
+      status:
+        upperProperty(occurrence.item, "status") === "TENTATIVE"
+          ? "tentative"
+          : "confirmed",
+      free: upperProperty(occurrence.item, "transp") === "TRANSPARENT",
+      response: ownerResponse(occurrence.item, ownerEmails),
     });
   }
   return result.sort((a, b) => a.startMs - b.startMs);
 }
 
-// Occurrences overlapping [fromMs, toMs), sorted by start.
+// Occurrences overlapping [fromMs, toMs), sorted by start. Invitations the
+// account declined are left out.
 export const externalEventOccurrencesInRange = selector({
   name: "externalEventOccurrencesInRange",
   args: { fromMs: v.number(), toMs: v.number() },
@@ -362,7 +430,14 @@ export const externalEventOccurrencesInRange = selector({
     for (const row of rows) {
       const calendar = calendars.get(row.calendarId);
       if (!calendar) continue;
-      for (const occurrence of expandExternalEvent(row, fromMs, toMs)) {
+      const ownerEmails = new Set(calendar.ownerEmails);
+      for (const occurrence of expandExternalEvent(
+        row,
+        fromMs,
+        toMs,
+        ownerEmails,
+      )) {
+        if (occurrence.response === "declined") continue;
         occurrences.push({
           ...occurrence,
           calendarName: calendar.name,
@@ -379,34 +454,136 @@ export const externalEventOccurrencesInRange = selector({
   },
 });
 
+const MEETING_PROPERTIES = [
+  "x-google-conference",
+  "x-microsoft-skypeteamsmeetingurl",
+];
+const MEETING_HOSTS =
+  /^https:\/\/([\w-]+\.)*(zoom\.us\/(j|my|w)\/|meet\.google\.com\/|teams\.microsoft\.com\/l\/meetup-join\/|teams\.live\.com\/meet\/|webex\.com\/|whereby\.com\/|meet\.jit\.si\/|facetime\.apple\.com\/)/i;
+
+const urlsIn = (text: string) =>
+  (text.match(/https?:\/\/[^\s<>"']+/g) ?? []).map((url) =>
+    url.replace(/[).,;:!?]+$/, ""),
+  );
+
+const decodeEntities = (text: string) =>
+  text.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (_, code) => {
+    const lower = String(code).toLowerCase();
+    if (lower.startsWith("#x"))
+      return String.fromCodePoint(parseInt(lower.slice(2), 16));
+    if (lower.startsWith("#"))
+      return String.fromCodePoint(Number(lower.slice(1)));
+    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }[
+      lower
+    ]!;
+  });
+
+// Google and Outlook send HTML descriptions; show them as plain text.
+const descriptionText = (raw: string) => {
+  if (!/<[a-z!/][^>]*>/i.test(raw)) return raw.trim();
+  const text = raw
+    .replace(/\r?\n/g, " ")
+    .replace(
+      /<a\b[^>]*href\s*=\s*["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      (_, href: string, label: string) => {
+        const plain = label.replace(/<[^>]*>/g, "").trim();
+        return !plain || plain === href ? href : `${plain} (${href})`;
+      },
+    )
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
+    .replace(/<[^>]*>/g, "");
+  return decodeEntities(text)
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
+// Read when an occurrence is opened rather than for every visible one.
+export const externalEventDetails = selector({
+  name: "externalEventDetails",
+  args: { eventId: v.string(), recurrenceKey: v.string() },
+  handler: function* externalEventDetails({ eventId, recurrenceKey }) {
+    const row = yield* selectFrom(externalEventsTable, "byId")
+      .where((q) => q.eq("id", eventId))
+      .first();
+    if (!row) return null;
+    const series = cachedSeries(row);
+    const item =
+      series?.overrides.find(
+        (event) => event.recurrenceId?.toString() === recurrenceKey,
+      ) ?? series?.master;
+    if (!item) return null;
+    const calendar = yield* selectFrom(externalCalendarsTable, "byId")
+      .where((q) => q.eq("id", row.calendarId))
+      .first();
+    const ownerEmails = new Set(calendar?.ownerEmails);
+    const withOwner = (person: Person) => ({
+      ...person,
+      isOwner: ownerEmails.has(person.email),
+    });
+
+    const description = descriptionText(item.description ?? "") || null;
+    const url =
+      String(item.component.getFirstPropertyValue("url") ?? "") || null;
+    const meetingUrl =
+      MEETING_PROPERTIES.map((name) =>
+        String(item.component.getFirstPropertyValue(name) ?? ""),
+      ).find((value) => /^https:\/\//i.test(value)) ??
+      [item.location ?? "", url ?? "", description ?? ""]
+        .flatMap(urlsIn)
+        .find((candidate) => MEETING_HOSTS.test(candidate)) ??
+      null;
+    const organizer = organizerOf(item);
+
+    return {
+      description,
+      url,
+      meetingUrl,
+      organizer: organizer ? withOwner(organizer) : null,
+      attendees: attendeesOf(item).map(withOwner),
+    };
+  },
+});
+
 const calendarIdFor = (sourceId: string, calendarKey: string) =>
   genUUIDV5(externalCalendarType, `${sourceId}/${calendarKey}`);
 
 const externalEventInput = v.object({
   resource: v.string(),
+  uid: v.string(),
   etag: v.union(v.string(), v.null()),
   ics: v.string(),
   seriesStart: v.number(),
   seriesEnd: v.number(),
 });
 
-export const externalEventResourceEtags = selector({
-  name: "externalEventResourceEtags",
+export const externalEventResources = selector({
+  name: "externalEventResources",
   args: { sourceId: v.string(), calendarKey: v.string() },
-  handler: function* externalEventResourceEtags({ sourceId, calendarKey }) {
+  handler: function* externalEventResources({ sourceId, calendarKey }) {
     const calendarId = yield* calendarIdFor(sourceId, calendarKey);
     const rows = yield* selectFrom(
       externalEventsTable,
       "byCalendarResource",
     ).where((q) => q.eq("calendarId", calendarId));
-    return new Map(rows.map((row) => [row.resource, row.etag]));
+    return new Map(
+      rows.map((row) => [
+        row.resource,
+        { etag: row.etag, seriesEnd: row.seriesEnd },
+      ]),
+    );
   },
 });
 
 // Mirrors one fetched calendar. `calendarKey` identifies it within its source
-// (the CalDAV collection URL). `resources` lists every resource the source
-// still has; `events` carries the bodies that were fetched. Unchanged rows
-// are not rewritten, so a refresh with no news writes nothing.
+// (the CalDAV collection URL). `events` carries the bodies that were fetched
+// and `removed` the resources the source no longer has, so an incremental
+// sync touches only what changed. An event's id comes from its UID, so it
+// survives the server moving it to another path. Unchanged rows are not
+// rewritten, so a refresh with no news writes nothing.
 export const applyExternalCalendar = action({
   name: "applyExternalCalendar",
   args: {
@@ -414,16 +591,18 @@ export const applyExternalCalendar = action({
     calendarKey: v.string(),
     name: v.string(),
     color: v.union(v.string(), v.null()),
-    resources: v.array(v.string()),
+    ownerEmails: v.array(v.string()),
     events: v.array(externalEventInput),
+    removed: v.array(v.string()),
   },
   handler: function* applyExternalCalendar({
     sourceId,
     calendarKey,
     name,
     color,
-    resources,
+    ownerEmails,
     events,
+    removed,
   }) {
     const calendarId = yield* calendarIdFor(sourceId, calendarKey);
     const calendar = yield* selectFrom(externalCalendarsTable, "byId")
@@ -433,28 +612,53 @@ export const applyExternalCalendar = action({
       !calendar ||
       calendar.name !== name ||
       calendar.color !== color ||
-      calendar.sourceId !== sourceId
+      calendar.sourceId !== sourceId ||
+      (calendar.ownerEmails ?? []).join("\n") !== ownerEmails.join("\n")
     ) {
       yield* upsert(externalCalendarsTable, [
-        { type: externalCalendarType, id: calendarId, sourceId, name, color },
+        {
+          type: externalCalendarType,
+          id: calendarId,
+          sourceId,
+          name,
+          color,
+          ownerEmails,
+        },
       ]);
     }
 
-    const existing = new Map(
-      (yield* selectFrom(externalEventsTable, "byCalendarResource").where((q) =>
-        q.eq("calendarId", calendarId),
-      )).map((row) => [row.resource, row]),
-    );
-
     const ids = yield* genUUIDV5Many(
       externalEventType,
-      events.map((event) => `${calendarId}/${event.resource}`),
+      events.map((event) => `${calendarId}/${event.uid}`),
     );
+    const existingById = new Map(
+      ids.length > 0
+        ? (yield* selectFrom(externalEventsTable, "byId").where((q) =>
+            ids.map((id) => q.eq("id", id)),
+          )).map((row) => [row.id, row])
+        : [],
+    );
+    const removedSet = new Set(removed);
+
+    const kept = new Set<string>();
     const changed: ExternalEvent[] = [];
-    events.forEach((event, index) => {
-      const current = existing.get(event.resource);
+    events.forEach(({ uid: _uid, ...event }, index) => {
+      const id = ids[index]!;
+      const current = existingById.get(id);
+      // A UID held by two resources (against RFC 4791) keeps the one already
+      // stored, so the row does not flip between them on every refresh.
+      if (
+        kept.has(id) ||
+        (current &&
+          current.resource !== event.resource &&
+          !removedSet.has(current.resource))
+      ) {
+        return;
+      }
+      kept.add(id);
       if (
         current &&
+        current.resource === event.resource &&
         current.etag === event.etag &&
         current.ics === event.ics &&
         current.seriesStart === event.seriesStart &&
@@ -462,20 +666,22 @@ export const applyExternalCalendar = action({
       ) {
         return;
       }
-      changed.push({
-        type: externalEventType,
-        id: current?.id ?? ids[index]!,
-        calendarId,
-        ...event,
-      });
+      changed.push({ type: externalEventType, id, calendarId, ...event });
     });
     if (changed.length > 0) yield* upsert(externalEventsTable, changed);
 
-    const present = new Set(resources);
-    const removed = [...existing.values()]
-      .filter((row) => !present.has(row.resource))
-      .map((row) => row.id);
-    if (removed.length > 0) yield* deleteRows(externalEventsTable, removed);
+    const gone =
+      removed.length > 0
+        ? (yield* selectFrom(externalEventsTable, "byCalendarResource").where(
+            (q) =>
+              removed.map((resource) =>
+                q.eq("calendarId", calendarId).eq("resource", resource),
+              ),
+          ))
+            .filter((row) => !kept.has(row.id))
+            .map((row) => row.id)
+        : [];
+    if (gone.length > 0) yield* deleteRows(externalEventsTable, gone);
   },
 });
 

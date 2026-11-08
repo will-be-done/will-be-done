@@ -253,6 +253,9 @@ export const externalCalendarsTable = defineTable("external_calendars", {
   sourceId: v.string(),
   name: v.string(),
   color: v.union(v.string(), v.null()),
+  // The account's own addresses, lowercased, to find its replies to
+  // invitations.
+  ownerEmails: v.optional(v.array(v.string())),
 }).index("byIds", ["id"]);
 registerSpaceSyncableTable(externalCalendarsTable, externalCalendarType, {
   serverOwned: true,
@@ -260,8 +263,8 @@ registerSpaceSyncableTable(externalCalendarsTable, externalCalendarType, {
 export type ExternalCalendar = ExtractSchema<typeof externalCalendarsTable>;
 
 export const externalEventType = "externalEvent";
-// One row per event series (calendar resource); occurrences are expanded on
-// read.
+// One row per event series, identified by its UID within the calendar;
+// occurrences are expanded on read.
 export const externalEventsTable = defineTable("external_events", {
   type: v.literal(externalEventType),
   id: v.string(),

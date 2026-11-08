@@ -1,14 +1,18 @@
 import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import {
   applyExternalCalendar,
-  externalEventResourceEtags,
+  externalEventResources,
   removeExternalCalendars,
 } from "@will-be-done/slices/space";
-import { uuidv7 } from "uuidv7";
+import { v5 as uuidv5 } from "uuid";
 import { spaceDBConfig } from "../db/configs";
 import { getHyperDB } from "../db/db";
 import { getEnvConfig } from "../env";
-import { CalDavClient, normalizeColor } from "./caldav";
+import {
+  CalDavClient,
+  normalizeColor,
+  type DiscoveredCollection,
+} from "./caldav";
 import {
   CalendarFetchError,
   guardedFetch,
@@ -19,18 +23,31 @@ import { decryptSecret, encryptSecret } from "./secrets";
 import {
   calendarSourceById,
   deleteCalendarSource,
-  insertCalendarSource,
+  saveCalendarSource,
   updateCalendarSource,
 } from "./sources";
 import type {
   CalendarSource,
   CalendarSourceSecret,
+  CalendarSyncCursor,
+  CalendarSyncWindow,
   DiscoveredCalendar,
 } from "./tables";
 
-// Older events are not fetched; the calendar views rarely look that far back.
-export const CALENDAR_PAST_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SYNC_WINDOW_DAYS: Record<CalendarSyncWindow, number | null> = {
+  "2-weeks": 14,
+  "1-month": 30,
+  "3-months": 91,
+  "6-months": 182,
+  all: null,
+};
+export const DEFAULT_SYNC_WINDOW: CalendarSyncWindow = "1-month";
 const ICS_CALENDAR_KEY = "feed";
+// Bump when the stored form of events changes, so the next sync re-reads
+// every calendar instead of trusting its cursor.
+const MIRROR_VERSION = 1;
+const SOURCE_ID_NAMESPACE = "253391e3-98b0-4e27-aabb-d4b28def53a3";
 
 export type CalendarConfig = {
   encryptionKey: string;
@@ -67,25 +84,49 @@ const fetchOptions = (config: CalendarConfig): GuardedFetchOptions => ({
   allowPrivateNetworks: config.allowPrivateNetworks,
 });
 
-async function fetchIcsFeed(url: string, config: CalendarConfig) {
+// Null when the feed is unchanged since `cursor`.
+async function fetchIcsFeed(
+  url: string,
+  config: CalendarConfig,
+  cursor?: CalendarSyncCursor,
+) {
   const response = await guardedFetch(
     url,
-    { method: "GET", headers: { accept: "text/calendar, */*;q=0.5" } },
+    {
+      method: "GET",
+      headers: {
+        accept: "text/calendar, */*;q=0.5",
+        ...(cursor?.etag ? { "if-none-match": cursor.etag } : {}),
+        ...(cursor?.lastModified
+          ? { "if-modified-since": cursor.lastModified }
+          : {}),
+      },
+    },
     fetchOptions(config),
   );
+  if (response.status === 304 && cursor) return null;
   if (response.status !== 200) {
     throw new CalendarFetchError(
       `The calendar feed returned HTTP ${response.status}`,
       response.status,
     );
   }
+  let feed: ReturnType<typeof splitIcsFeed>;
   try {
-    return splitIcsFeed(response.body);
+    feed = splitIcsFeed(response.body);
   } catch {
     throw new CalendarFetchError(
       "The address did not return an iCalendar feed",
     );
   }
+  const { etag, "last-modified": lastModified } = response.headers;
+  return {
+    ...feed,
+    validators: {
+      ...(etag ? { etag } : {}),
+      ...(lastModified ? { lastModified } : {}),
+    },
+  };
 }
 
 const caldavClient = (secret: CalendarSourceSecret, config: CalendarConfig) =>
@@ -100,19 +141,25 @@ const caldavClient = (secret: CalendarSourceSecret, config: CalendarConfig) =>
 
 const parseJson = <T>(value: string): T => JSON.parse(value) as T;
 
+const EMAIL = /^[^\s@]+@[^\s@]+$/;
+
 async function mirrorSource(
   source: CalendarSource,
   config: CalendarConfig,
   now: number,
-): Promise<DiscoveredCalendar[]> {
+): Promise<{
+  calendars: DiscoveredCalendar[];
+  cursors: Record<string, CalendarSyncCursor>;
+}> {
   const spaceDb = (await getHyperDB(spaceDBConfig(source.spaceId))).db;
   const disabled = new Set(parseJson<string[]>(source.disabledCalendarKeys));
+  const previous = parseJson<DiscoveredCalendar[]>(source.calendars);
   // Unticked calendars disappear even when the remote fetch below fails.
   await asyncDispatch(
     spaceDb,
     removeExternalCalendars({
       sourceId: source.id,
-      keepCalendarKeys: parseJson<DiscoveredCalendar[]>(source.calendars)
+      keepCalendarKeys: previous
         .filter((calendar) => !disabled.has(calendar.key))
         .map((calendar) => calendar.key),
     }),
@@ -120,11 +167,39 @@ async function mirrorSource(
   const secret = parseJson<CalendarSourceSecret>(
     decryptSecret(source.secret, config.encryptionKey),
   );
-  const notBefore = now - CALENDAR_PAST_WINDOW_MS;
+  const window = source.syncWindow ?? DEFAULT_SYNC_WINDOW;
+  const windowDays = SYNC_WINDOW_DAYS[window];
+  const notBefore = windowDays === null ? null : now - windowDays * DAY_MS;
+  const stamp = { version: MIRROR_VERSION, window };
+  const storedCursors = parseJson<Record<string, CalendarSyncCursor>>(
+    source.syncCursors ?? "{}",
+  );
+  // Only enabled calendars keep a cursor: a re-enabled one starts over.
+  const cursorFor = (key: string) => {
+    const cursor = storedCursors[key];
+    return !disabled.has(key) &&
+      cursor?.version === stamp.version &&
+      cursor.window === stamp.window
+      ? cursor
+      : undefined;
+  };
+  const cursors: Record<string, CalendarSyncCursor> = {};
+  const localResources = (calendarKey: string) =>
+    selectAsync(spaceDb, {
+      selector: externalEventResources,
+      args: { sourceId: source.id, calendarKey },
+    });
 
   let calendars: DiscoveredCalendar[];
   if (source.kind === "ics") {
-    const feed = await fetchIcsFeed(secret.url, config);
+    const cursor = cursorFor(ICS_CALENDAR_KEY);
+    const feed = await fetchIcsFeed(secret.url, config, cursor);
+    if (!feed) {
+      return {
+        calendars: previous,
+        cursors: cursor ? { [ICS_CALENDAR_KEY]: cursor } : {},
+      };
+    }
     const calendar: DiscoveredCalendar = {
       key: ICS_CALENDAR_KEY,
       name: feed.name ?? source.name,
@@ -134,8 +209,11 @@ async function mirrorSource(
     if (!disabled.has(calendar.key)) {
       const events = feed.events.flatMap(({ uid, ics }) => {
         const prepared = prepareEventIcs(ics, notBefore);
-        return prepared ? [{ resource: uid, etag: null, ...prepared }] : [];
+        return prepared
+          ? [{ ...prepared, resource: uid, uid, etag: null }]
+          : [];
       });
+      const kept = new Set(events.map((event) => event.resource));
       await asyncDispatch(
         spaceDb,
         applyExternalCalendar({
@@ -143,35 +221,58 @@ async function mirrorSource(
           calendarKey: calendar.key,
           name: calendar.name,
           color: calendar.color,
-          resources: events.map((event) => event.resource),
+          // Google names a primary calendar's feed after its owner's address.
+          ownerEmails:
+            feed.name && EMAIL.test(feed.name) ? [feed.name.toLowerCase()] : [],
           events,
+          removed: [...(await localResources(calendar.key)).keys()].filter(
+            (resource) => !kept.has(resource),
+          ),
         }),
       );
+      cursors[calendar.key] = { ...stamp, ...feed.validators };
     }
   } else {
     const client = caldavClient(secret, config);
-    calendars = await client.discoverCalendars();
-    for (const calendar of calendars) {
+    const discovered = await client.discoverCalendars();
+    calendars = discovered.calendars.map(
+      ({ syncToken: _, ...calendar }) => calendar,
+    );
+    for (const calendar of discovered.calendars) {
       if (disabled.has(calendar.key)) continue;
-      const remote = await client.listEventEtags(calendar.key, notBefore);
-      const local = await selectAsync(spaceDb, {
-        selector: externalEventResourceEtags,
-        args: { sourceId: source.id, calendarKey: calendar.key },
-      });
-      const changed = [...remote]
-        .filter(([resource, etag]) => local.get(resource) !== etag)
-        .map(([resource]) => resource);
+      const local = await localResources(calendar.key);
+      const changes = await changedResources(
+        client,
+        calendar,
+        cursorFor(calendar.key)?.syncToken,
+        local,
+        notBefore,
+      );
       const fetched =
-        changed.length > 0
-          ? await client.fetchEvents(calendar.key, changed)
+        changes.changed.length > 0
+          ? await client.fetchEvents(calendar.key, changes.changed)
           : [];
+      const changed = new Set(changes.changed);
+      // Neither a sync token nor an unchanged listing reports events that
+      // have aged out of the window.
+      const agedOut = [...local]
+        .filter(
+          ([resource, { seriesEnd }]) =>
+            notBefore !== null &&
+            seriesEnd < notBefore &&
+            !changed.has(resource),
+        )
+        .map(([resource]) => resource);
       // A fetched body that can't be stored drops the old row instead of
       // leaving a stale version visible.
-      const rejected = new Set<string>();
+      const removed = [...changes.removed, ...agedOut];
       const events = fetched.flatMap(({ resource, etag, ics }) => {
         const prepared = prepareEventIcs(ics, notBefore);
-        if (!prepared) rejected.add(resource);
-        return prepared ? [{ resource, etag, ...prepared }] : [];
+        if (!prepared) {
+          removed.push(resource);
+          return [];
+        }
+        return [{ ...prepared, resource, uid: prepared.uid ?? resource, etag }];
       });
       await asyncDispatch(
         spaceDb,
@@ -180,10 +281,14 @@ async function mirrorSource(
           calendarKey: calendar.key,
           name: calendar.name,
           color: calendar.color,
-          resources: [...remote.keys()].filter((key) => !rejected.has(key)),
+          ownerEmails: discovered.ownerEmails,
           events,
+          removed,
         }),
       );
+      if (changes.syncToken) {
+        cursors[calendar.key] = { ...stamp, syncToken: changes.syncToken };
+      }
     }
   }
 
@@ -196,7 +301,57 @@ async function mirrorSource(
         .map((calendar) => calendar.key),
     }),
   );
-  return calendars;
+  return { calendars, cursors };
+}
+
+// What changed in a CalDAV calendar since the mirrored `syncToken`. Without
+// one, or when the server refuses it, the full listing is compared against
+// the local ETags instead.
+async function changedResources(
+  client: CalDavClient,
+  calendar: DiscoveredCollection,
+  syncToken: string | undefined,
+  local: Map<string, { etag: string | null }>,
+  notBefore: number | null,
+): Promise<{ changed: string[]; removed: string[]; syncToken: string | null }> {
+  if (syncToken && syncToken === calendar.syncToken) {
+    return { changed: [], removed: [], syncToken };
+  }
+  if (syncToken) {
+    try {
+      const result = await client.changesSince(calendar.key, syncToken);
+      const entries = [...result.changes];
+      return {
+        changed: entries
+          .filter(
+            ([resource, etag]) =>
+              etag !== null && local.get(resource)?.etag !== etag,
+          )
+          .map(([resource]) => resource),
+        removed: entries
+          .filter(([, etag]) => etag === null)
+          .map(([resource]) => resource),
+        syncToken: result.syncToken,
+      };
+    } catch (error) {
+      if (
+        !(error instanceof CalendarFetchError) ||
+        error.status === undefined
+      ) {
+        throw error;
+      }
+    }
+  }
+  // The token is read before the listing, so a change made in between is
+  // seen again next time rather than missed.
+  const remote = await client.listEventEtags(calendar.key, notBefore);
+  return {
+    changed: [...remote]
+      .filter(([resource, etag]) => local.get(resource)?.etag !== etag)
+      .map(([resource]) => resource),
+    removed: [...local.keys()].filter((resource) => !remote.has(resource)),
+    syncToken: calendar.syncToken,
+  };
 }
 
 const inFlight = new Map<string, Promise<void>>();
@@ -209,13 +364,14 @@ async function runSync(mainDB: DB, sourceId: string, config: CalendarConfig) {
   if (!source) return;
   const now = Date.now();
   try {
-    const calendars = await mirrorSource(source, config, now);
+    const { calendars, cursors } = await mirrorSource(source, config, now);
     await asyncDispatch(
       mainDB,
       updateCalendarSource({
         id: source.id,
         patch: {
           calendars: JSON.stringify(calendars),
+          syncCursors: JSON.stringify(cursors),
           status: "ok",
           lastError: null,
           lastSyncedAt: now,
@@ -277,12 +433,15 @@ export async function addCalendarSource(
   let calendars: DiscoveredCalendar[];
   if (input.kind === "ics") {
     const feed = await fetchIcsFeed(url.href, config);
+    if (!feed) throw new CalendarFetchError("The calendar feed is empty");
     name = feed.name ?? name;
     calendars = [
       { key: ICS_CALENDAR_KEY, name, color: normalizeColor(feed.color) },
     ];
   } else {
-    calendars = await caldavClient(input.secret, config).discoverCalendars();
+    calendars = (
+      await caldavClient(input.secret, config).discoverCalendars()
+    ).calendars.map(({ syncToken: _, ...calendar }) => calendar);
     if (calendars.length === 0) {
       throw new CalendarFetchError("This account has no event calendars");
     }
@@ -290,10 +449,20 @@ export async function addCalendarSource(
   }
 
   const now = Date.now();
-  const id = uuidv7();
+  // Event ids derive from the source id, so reconnecting an account keeps them.
+  const id = uuidv5(
+    JSON.stringify([
+      input.userId,
+      input.spaceId,
+      input.kind,
+      url.href,
+      input.secret.username ?? null,
+    ]),
+    SOURCE_ID_NAMESPACE,
+  );
   await asyncDispatch(
     mainDB,
-    insertCalendarSource({
+    saveCalendarSource({
       source: {
         id,
         userId: input.userId,
@@ -338,6 +507,19 @@ export async function setCalendarEnabled(
   await syncCalendarSource(mainDB, source.id, config);
 }
 
+export async function setCalendarSyncWindow(
+  mainDB: DB,
+  config: CalendarConfig,
+  source: CalendarSource,
+  syncWindow: CalendarSyncWindow,
+) {
+  await asyncDispatch(
+    mainDB,
+    updateCalendarSource({ id: source.id, patch: { syncWindow } }),
+  );
+  await syncCalendarSource(mainDB, source.id, config);
+}
+
 export async function removeCalendarSource(mainDB: DB, source: CalendarSource) {
   await inFlight.get(source.id)?.catch(() => undefined);
   await asyncDispatch(mainDB, deleteCalendarSource({ id: source.id }));
@@ -357,6 +539,7 @@ export function publicCalendarSource(source: CalendarSource) {
     status: source.status,
     lastError: source.lastError,
     lastSyncedAt: source.lastSyncedAt,
+    syncWindow: source.syncWindow ?? DEFAULT_SYNC_WINDOW,
     calendars: parseJson<DiscoveredCalendar[]>(source.calendars).map(
       (calendar) => ({ ...calendar, enabled: !disabled.has(calendar.key) }),
     ),

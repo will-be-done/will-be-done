@@ -20,7 +20,7 @@
 - ProjectSectionTaskStats: derived counts of total, todo, and done Tasks for a ProjectSection.
 - ScheduledTodoTask: a derived index row for a todo Task scheduled through a DailyEntry.
 - ExternalCalendar: a read-only calendar mirrored by the server from a connected CalDAV account or ICS link. Its connection and credentials live in the server's main DB, not in the space.
-- ExternalEvent: one read-only event series (a CalDAV resource or ICS UID) of an ExternalCalendar, stored as raw iCalendar text with series bounds.
+- ExternalEvent: one read-only event series of an ExternalCalendar, identified by its iCalendar UID, stored as raw iCalendar text with series bounds.
 - ExternalEventOccurrence: a derived occurrence of an ExternalEvent, expanded on read for a time range. Events are fixed instants, unlike floating Task times.
 - SpaceMigration: a record that a space-level migration has been applied.
 - Model / AnyModel: a syncable domain object from the space tables.

@@ -1,5 +1,8 @@
 import { lookup as dnsLookup, type LookupAddress } from "node:dns";
-import http, { type IncomingMessage } from "node:http";
+import http, {
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+} from "node:http";
 import https from "node:https";
 import { BlockList, isIP, type LookupFunction } from "node:net";
 import { getDomain } from "tldts";
@@ -32,6 +35,7 @@ export type GuardedRequest = {
 export type GuardedResponse = {
   status: number;
   url: string;
+  headers: IncomingHttpHeaders;
   body: string;
 };
 
@@ -215,6 +219,6 @@ export async function guardedFetch(
         throw fail(error);
       },
     );
-    return { status, url: url.href, body };
+    return { status, url: url.href, headers: response.headers, body };
   }
 }

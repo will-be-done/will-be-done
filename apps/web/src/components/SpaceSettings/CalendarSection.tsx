@@ -4,16 +4,36 @@ import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   CalendarDays,
+  ChevronDown,
   LoaderCircle,
   Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
 import { useTRPC } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { Route } from "@/routes/spaces.$spaceId";
 
 type Kind = "caldav" | "ics";
+
+const syncWindowLabels = {
+  "2-weeks": "2 weeks back",
+  "1-month": "1 month back",
+  "3-months": "3 months back",
+  "6-months": "6 months back",
+  all: "All events",
+} as const;
+type SyncWindow = keyof typeof syncWindowLabels;
+const isSyncWindow = (value: string): value is SyncWindow =>
+  value in syncWindowLabels;
 
 const inputClass =
   "w-full min-w-0 rounded-lg bg-white/[0.05] px-3 py-2 text-[12px] text-content placeholder:text-content-tinted/40 ring-1 ring-white/10 outline-none focus:ring-white/20 transition-all";
@@ -49,6 +69,9 @@ export function CalendarSection() {
   );
   const setEnabled = useMutation(
     trpc.calendars.setCalendarEnabled.mutationOptions({ onSettled: refetch }),
+  );
+  const setSyncWindow = useMutation(
+    trpc.calendars.setSyncWindow.mutationOptions({ onSettled: refetch }),
   );
 
   const adding = addCalDav.isPending || addIcs.isPending;
@@ -86,7 +109,8 @@ export function CalendarSection() {
     listQuery.error?.message ??
     refresh.error?.message ??
     remove.error?.message ??
-    setEnabled.error?.message;
+    setEnabled.error?.message ??
+    setSyncWindow.error?.message;
   const enabled = listQuery.data?.enabled ?? true;
   const sources = listQuery.data?.sources ?? [];
 
@@ -211,6 +235,11 @@ export function CalendarSection() {
                 refresh.isPending && refresh.variables?.sourceId === source.id;
               const isRemoving =
                 remove.isPending && remove.variables?.sourceId === source.id;
+              const pendingSyncWindow =
+                setSyncWindow.isPending &&
+                setSyncWindow.variables?.sourceId === source.id
+                  ? setSyncWindow.variables.syncWindow
+                  : null;
               return (
                 <div key={source.id} className="px-4 py-3">
                   <div className="flex items-start gap-3">
@@ -266,6 +295,52 @@ export function CalendarSection() {
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
                     </button>
+                  </div>
+
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-content-tinted/70">
+                    <span>Sync</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        disabled={pendingSyncWindow !== null || !enabled}
+                        className="flex cursor-pointer items-center gap-0.5 rounded px-1 py-0.5 text-content-tinted transition-colors hover:bg-white/8 hover:text-content disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {
+                          syncWindowLabels[
+                            pendingSyncWindow ?? source.syncWindow
+                          ]
+                        }
+                        {pendingSyncWindow ? (
+                          <LoaderCircle className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuLabel>Past events</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={source.syncWindow}
+                          onValueChange={(value) => {
+                            if (
+                              isSyncWindow(value) &&
+                              value !== source.syncWindow
+                            ) {
+                              setSyncWindow.mutate({
+                                sourceId: source.id,
+                                syncWindow: value,
+                              });
+                            }
+                          }}
+                        >
+                          {Object.entries(syncWindowLabels).map(
+                            ([value, label]) => (
+                              <DropdownMenuRadioItem key={value} value={value}>
+                                {label}
+                              </DropdownMenuRadioItem>
+                            ),
+                          )}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {source.kind === "caldav" && source.calendars.length > 0 && (

@@ -17,8 +17,9 @@ import { externalCalendarsTable, externalEventsTable } from "./tables";
 import {
   applyExternalCalendar,
   expandExternalEvent,
+  externalEventDetails,
   externalEventOccurrencesInRange,
-  externalEventResourceEtags,
+  externalEventResources,
   externalEventSeriesBounds,
   removeExternalCalendars,
 } from "./externalEvents";
@@ -331,6 +332,168 @@ describe("expandExternalEvent", () => {
   });
 });
 
+describe("invitations", () => {
+  const invite = (...lines: string[]) =>
+    vcalendar(
+      vevent(
+        "UID:sync",
+        "SUMMARY:Sync",
+        "DTSTART:20261110T100000Z",
+        "DTEND:20261110T110000Z",
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "ORGANIZER;CN=Ann:mailto:ann@example.com",
+        ...lines,
+      ),
+      vevent(
+        "UID:sync",
+        "SUMMARY:Sync",
+        "RECURRENCE-ID:20261111T100000Z",
+        "DTSTART:20261111T100000Z",
+        "DTEND:20261111T110000Z",
+        "ORGANIZER;CN=Ann:mailto:ann@example.com",
+        "ATTENDEE;PARTSTAT=DECLINED:mailto:Me@Example.com",
+      ),
+    );
+
+  it("reads the owner's reply per instance", () => {
+    const occurrences = expandExternalEvent(
+      row(invite("ATTENDEE;PARTSTAT=TENTATIVE:mailto:me@example.com")),
+      0,
+      Infinity,
+      new Set(["me@example.com"]),
+    );
+    expect(occurrences.map((o) => o.response)).toEqual([
+      "tentative",
+      "declined",
+      "tentative",
+    ]);
+    expect(
+      expandExternalEvent(row(invite()), 0, Infinity).map((o) => o.response),
+    ).toEqual([null, null, null]);
+  });
+
+  it("marks tentative and free events", () => {
+    const [event] = expandExternalEvent(
+      row(
+        vcalendar(
+          vevent(
+            "UID:x",
+            "STATUS:TENTATIVE",
+            "TRANSP:TRANSPARENT",
+            "DTSTART:20261110T100000Z",
+            "DTEND:20261110T110000Z",
+          ),
+        ),
+      ),
+      0,
+      Infinity,
+    );
+    expect(event).toMatchObject({ status: "tentative", free: true });
+  });
+
+  it("hides declined instances from the range", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        sourceId: "source",
+        calendarKey: "/cal/work/",
+        name: "Work",
+        color: null,
+        ownerEmails: ["me@example.com"],
+        removed: [],
+        events: [
+          {
+            resource: "sync.ics",
+            uid: "sync",
+            etag: null,
+            ics: invite("ATTENDEE;PARTSTAT=ACCEPTED:mailto:me@example.com"),
+            seriesStart: 0,
+            seriesEnd: Number.MAX_SAFE_INTEGER,
+          },
+        ],
+      }),
+    );
+    const occurrences = selectSync(db, {
+      selector: externalEventOccurrencesInRange,
+      args: { fromMs: 0, toMs: utc("2027-01-01T00:00:00Z") },
+    });
+    expect(occurrences.map((o) => new Date(o.startMs).toISOString())).toEqual([
+      "2026-11-10T10:00:00.000Z",
+      "2026-11-12T10:00:00.000Z",
+    ]);
+
+    const [first] = occurrences;
+    expect(
+      selectSync(db, {
+        selector: externalEventDetails,
+        args: { eventId: first!.eventId, recurrenceKey: first!.recurrenceKey },
+      }),
+    ).toMatchObject({
+      organizer: { name: "Ann", email: "ann@example.com", isOwner: false },
+      attendees: [
+        { email: "me@example.com", response: "accepted", isOwner: true },
+      ],
+    });
+  });
+});
+
+describe("externalEventDetails", () => {
+  it("reads the description as text and finds the meeting link", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        sourceId: "source",
+        calendarKey: "/cal/work/",
+        name: "Work",
+        color: null,
+        ownerEmails: [],
+        removed: [],
+        events: [
+          {
+            resource: "call.ics",
+            uid: "call",
+            etag: null,
+            ics: vcalendar(
+              vevent(
+                "UID:call",
+                "SUMMARY:Call",
+                "DTSTART:20261110T100000Z",
+                "DTEND:20261110T110000Z",
+                "DESCRIPTION:<p>Agenda &amp; notes<br>Join: https://us02web.zoom.us/j/123?pwd=abc</p>",
+                "URL:https://example.com/event",
+              ),
+            ),
+            seriesStart: 0,
+            seriesEnd: Number.MAX_SAFE_INTEGER,
+          },
+        ],
+      }),
+    );
+    const [occurrence] = selectSync(db, {
+      selector: externalEventOccurrencesInRange,
+      args: { fromMs: 0, toMs: utc("2027-01-01T00:00:00Z") },
+    });
+    expect(
+      selectSync(db, {
+        selector: externalEventDetails,
+        args: {
+          eventId: occurrence!.eventId,
+          recurrenceKey: occurrence!.recurrenceKey,
+        },
+      }),
+    ).toEqual({
+      description:
+        "Agenda & notes\nJoin: https://us02web.zoom.us/j/123?pwd=abc",
+      url: "https://example.com/event",
+      meetingUrl: "https://us02web.zoom.us/j/123?pwd=abc",
+      organizer: null,
+      attendees: [],
+    });
+  });
+});
+
 describe("externalEventSeriesBounds", () => {
   it("pads a single event", () => {
     const bounds = externalEventSeriesBounds(
@@ -418,12 +581,15 @@ const eventIcs = (uid: string, start: string) =>
   vcalendar(
     vevent(`UID:${uid}`, `SUMMARY:${uid}`, `DTSTART:${start}`, "DURATION:PT1H"),
   );
-const input = (resource: string, ics: string, etag: string | null = null) => ({
-  resource,
-  etag,
-  ics,
-  ...externalEventSeriesBounds(ics)!,
-});
+const input = (
+  resource: string,
+  uid: string,
+  start: string,
+  etag: string | null = null,
+) => {
+  const ics = eventIcs(uid, start);
+  return { resource, uid, etag, ics, ...externalEventSeriesBounds(ics)! };
+};
 
 describe("applyExternalCalendar", () => {
   const calendar = {
@@ -431,30 +597,31 @@ describe("applyExternalCalendar", () => {
     calendarKey: "/cal/work/",
     name: "Work",
     color: "#ff0000",
+    ownerEmails: [],
   };
 
   it("mirrors the source and rewrites nothing when it is unchanged", () => {
     const db = createDB();
-    const a = input("a.ics", eventIcs("a", "20261110T100000Z"), "1");
-    const b = input("b.ics", eventIcs("b", "20261111T100000Z"), "1");
+    const a = input("a.ics", "a", "20261110T100000Z", "1");
+    const b = input("b.ics", "b", "20261111T100000Z", "1");
     syncDispatch(
       db,
       applyExternalCalendar({
         ...calendar,
-        resources: ["a.ics", "b.ics"],
+        removed: [],
         events: [a, b],
       }),
     );
     expect(selectSync(db, { selector: allEvents, args: {} })).toHaveLength(2);
     expect(
       selectSync(db, {
-        selector: externalEventResourceEtags,
+        selector: externalEventResources,
         args: { sourceId: "source", calendarKey: "/cal/work/" },
       }),
     ).toEqual(
       new Map([
-        ["a.ics", "1"],
-        ["b.ics", "1"],
+        ["a.ics", { etag: "1", seriesEnd: a.seriesEnd }],
+        ["b.ics", { etag: "1", seriesEnd: b.seriesEnd }],
       ]),
     );
 
@@ -471,19 +638,19 @@ describe("applyExternalCalendar", () => {
       db,
       applyExternalCalendar({
         ...calendar,
-        resources: ["a.ics", "b.ics"],
+        removed: [],
         events: [a],
       }),
     );
     expect(writes).toBe(0);
 
-    const changedA = input("a.ics", eventIcs("a", "20261110T120000Z"), "2");
+    const changedA = input("a.ics", "a", "20261110T120000Z", "2");
     syncDispatch(
       db,
       applyExternalCalendar({
         ...calendar,
         name: "Work (renamed)",
-        resources: ["a.ics"],
+        removed: ["b.ics"],
         events: [changedA],
       }),
     );
@@ -510,6 +677,65 @@ describe("applyExternalCalendar", () => {
     ]);
   });
 
+  it("keeps an event's id by UID when its resource path changes", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        ...calendar,
+        removed: [],
+        events: [input("old.ics", "a", "20261110T100000Z", "1")],
+      }),
+    );
+    const [before] = selectSync(db, { selector: allEvents, args: {} });
+
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        ...calendar,
+        removed: ["old.ics"],
+        events: [input("new.ics", "a", "20261111T100000Z", "1")],
+      }),
+    );
+    const events = selectSync(db, { selector: allEvents, args: {} });
+    expect(events.map((e) => [e.id, e.resource])).toEqual([
+      [before!.id, "new.ics"],
+    ]);
+  });
+
+  it("keeps the stored resource when two resources share a UID", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        ...calendar,
+        removed: [],
+        events: [
+          input("a.ics", "a", "20261110T100000Z", "1"),
+          input("b.ics", "a", "20261111T100000Z", "1"),
+        ],
+      }),
+    );
+    expect(
+      selectSync(db, { selector: allEvents, args: {} }).map((e) => e.resource),
+    ).toEqual(["a.ics"]);
+
+    let writes = 0;
+    db.afterUpsert(function* () {
+      writes += 1;
+      yield* noop();
+    });
+    syncDispatch(
+      db,
+      applyExternalCalendar({
+        ...calendar,
+        removed: [],
+        events: [input("b.ics", "a", "20261111T100000Z", "1")],
+      }),
+    );
+    expect(writes).toBe(0);
+  });
+
   it("removes calendars that are no longer kept, with their events", () => {
     const db = createDB();
     for (const calendarKey of ["/cal/work/", "/cal/home/"]) {
@@ -518,8 +744,8 @@ describe("applyExternalCalendar", () => {
         applyExternalCalendar({
           ...calendar,
           calendarKey,
-          resources: ["a.ics"],
-          events: [input("a.ics", eventIcs("a", "20261110T100000Z"))],
+          removed: [],
+          events: [input("a.ics", "a", "20261110T100000Z")],
         }),
       );
     }
@@ -550,8 +776,8 @@ describe("applyExternalCalendar", () => {
       db,
       applyExternalCalendar({
         ...calendar,
-        resources: ["a.ics"],
-        events: [input("a.ics", eventIcs("a", "20261110T100000Z"))],
+        removed: [],
+        events: [input("a.ics", "a", "20261110T100000Z")],
       }),
     );
 

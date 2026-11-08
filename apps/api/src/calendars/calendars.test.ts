@@ -5,6 +5,7 @@ import {
   describe,
   expect,
   mock,
+  setSystemTime,
   spyOn,
   test,
 } from "bun:test";
@@ -22,6 +23,7 @@ import {
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
   externalCalendarsTable,
+  externalEventSeriesBounds,
   externalEventsTable,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
@@ -39,6 +41,7 @@ import {
   addCalendarSource,
   removeCalendarSource,
   setCalendarEnabled,
+  setCalendarSyncWindow,
   syncCalendarSource,
   type CalendarConfig,
 } from "./service";
@@ -103,7 +106,22 @@ const davState = {
   events: new Map<string, FakeEvent>(),
   multigetHrefs: [] as string[][],
   feed: "",
+  feedEtag: null as string | null,
   foreignAuth: [] as string[],
+  // RFC 6578: a token is a position in `changeLog`; off unless a test opts in.
+  syncSupport: false,
+  changeLog: [] as string[],
+  syncPageSize: Infinity,
+  reports: [] as string[],
+};
+
+const putEvent = (href: string, event: FakeEvent) => {
+  davState.events.set(href, event);
+  davState.changeLog.push(href);
+};
+const deleteEvent = (href: string) => {
+  davState.events.delete(href);
+  davState.changeLog.push(href);
 };
 
 const multistatus = (responses: string[]) =>
@@ -124,8 +142,17 @@ beforeAll(() => {
     async fetch(request) {
       const url = new URL(request.url);
       if (url.pathname === "/feed.ics") {
+        if (
+          davState.feedEtag &&
+          request.headers.get("if-none-match") === davState.feedEtag
+        ) {
+          return new Response(null, { status: 304 });
+        }
         return new Response(davState.feed, {
-          headers: { "content-type": "text/calendar" },
+          headers: {
+            "content-type": "text/calendar",
+            ...(davState.feedEtag ? { etag: davState.feedEtag } : {}),
+          },
         });
       }
       if (url.pathname === "/redirect-elsewhere") {
@@ -174,7 +201,7 @@ beforeAll(() => {
         return multistatus([
           response(
             "/dav/principals/me/",
-            "<C:calendar-home-set><D:href>/dav/calendars/me/</D:href></C:calendar-home-set>",
+            "<C:calendar-home-set><D:href>/dav/calendars/me/</D:href></C:calendar-home-set><C:calendar-user-address-set><D:href>mailto:Me@Example.com</D:href><D:href>/dav/principals/me/</D:href></C:calendar-user-address-set>",
           ),
         ]);
       }
@@ -186,7 +213,7 @@ beforeAll(() => {
           ),
           response(
             "/dav/calendars/me/work/",
-            '<D:resourcetype><D:collection/><C:calendar/></D:resourcetype><D:displayname>Work</D:displayname><A:calendar-color>#FF8800FF</A:calendar-color><C:supported-calendar-component-set><C:comp name="VEVENT"/></C:supported-calendar-component-set>',
+            `<D:resourcetype><D:collection/><C:calendar/></D:resourcetype><D:displayname>Work</D:displayname><A:calendar-color>#FF8800FF</A:calendar-color><C:supported-calendar-component-set><C:comp name="VEVENT"/></C:supported-calendar-component-set>${davState.syncSupport ? `<D:sync-token>v${davState.changeLog.length}</D:sync-token>` : ""}`,
           ),
           response(
             "/dav/calendars/me/todos/",
@@ -198,7 +225,37 @@ beforeAll(() => {
         url.pathname === "/dav/calendars/me/work/" &&
         request.method === "REPORT"
       ) {
+        if (body.includes("sync-collection")) {
+          davState.reports.push("sync");
+          const from = Number(/<d:sync-token>v(\d+)</.exec(body)?.[1] ?? NaN);
+          if (!davState.syncSupport || !(from <= davState.changeLog.length)) {
+            return new Response(
+              '<?xml version="1.0"?><D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>',
+              { status: 403 },
+            );
+          }
+          const to = Math.min(
+            davState.changeLog.length,
+            from + davState.syncPageSize,
+          );
+          const hrefs = [...new Set(davState.changeLog.slice(from, to))];
+          return multistatus([
+            ...hrefs.map((href) => {
+              const event = davState.events.get(href);
+              return event
+                ? response(href, `<D:getetag>${event.etag}</D:getetag>`)
+                : `<D:response><D:href>${href}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`;
+            }),
+            ...(to < davState.changeLog.length
+              ? [
+                  "<D:response><D:href>/dav/calendars/me/work/</D:href><D:status>HTTP/1.1 507 Insufficient Storage</D:status></D:response>",
+                ]
+              : []),
+            `<D:sync-token>v${to}</D:sync-token>`,
+          ]);
+        }
         if (body.includes("calendar-multiget")) {
+          davState.reports.push("multiget");
           const hrefs = [...body.matchAll(/<d:href>([^<]+)<\/d:href>/g)].map(
             (m) => m[1]!,
           );
@@ -217,10 +274,31 @@ beforeAll(() => {
             }),
           );
         }
+        davState.reports.push("listing");
+        const start =
+          /time-range start="(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z"/.exec(
+            body,
+          );
+        const fromMs = start
+          ? Date.UTC(
+              Number(start[1]),
+              Number(start[2]) - 1,
+              Number(start[3]),
+              Number(start[4]),
+              Number(start[5]),
+              Number(start[6]),
+            )
+          : -Infinity;
         return multistatus(
-          [...davState.events].map(([href, event]) =>
-            response(href, `<D:getetag>${event.etag}</D:getetag>`),
-          ),
+          [...davState.events]
+            .filter(
+              ([, event]) =>
+                (externalEventSeriesBounds(event.ics)?.seriesEnd ?? 0) >=
+                fromMs,
+            )
+            .map(([href, event]) =>
+              response(href, `<D:getetag>${event.etag}</D:getetag>`),
+            ),
         );
       }
       return new Response("not found", { status: 404 });
@@ -262,9 +340,15 @@ const source = (mainDB: DB, id: string) => {
 
 afterEach(() => {
   mock.restore();
+  setSystemTime();
   davState.events.clear();
   davState.multigetHrefs = [];
   davState.foreignAuth = [];
+  davState.feedEtag = null;
+  davState.syncSupport = false;
+  davState.changeLog = [];
+  davState.syncPageSize = Infinity;
+  davState.reports = [];
 });
 
 const replaceSecret = (mainDB: DB, id: string, password: string) => {
@@ -365,6 +449,120 @@ describe("CalDAV sources", () => {
     expect(selectSync(spaceDb, { selector: allCalendars, args: {} })).toEqual(
       [],
     );
+  });
+
+  test("reconnecting an account keeps its source, event ids and unticked calendars", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.events.set("/dav/calendars/me/work/a.ics", {
+      etag: '"1"',
+      ics: ics("a", "A", "20991110T100000Z"),
+    });
+    const connect = () =>
+      addCalendarSource(mainDB, config, {
+        userId: "user",
+        spaceId: "space-1",
+        kind: "caldav",
+        secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+      });
+    const id = await connect();
+    const eventIds = () =>
+      selectSync(spaceDb, { selector: allEvents, args: {} }).map((e) => e.id);
+    const [eventId] = eventIds();
+
+    replaceSecret(mainDB, id, "revoked");
+    await syncCalendarSource(mainDB, id, config);
+    expect(source(mainDB, id).status).toBe("error");
+
+    expect(await connect()).toBe(id);
+    expect(source(mainDB, id).status).toBe("ok");
+    expect(eventIds()).toEqual([eventId]);
+
+    const workKey = `${baseUrl}/dav/calendars/me/work/`;
+    await setCalendarEnabled(
+      mainDB,
+      config,
+      source(mainDB, id),
+      workKey,
+      false,
+    );
+    await connect();
+    expect(JSON.parse(source(mainDB, id).disabledCalendarKeys)).toEqual([
+      workKey,
+    ]);
+    expect(eventIds()).toEqual([]);
+  });
+
+  test("follows changes through sync-collection", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.syncSupport = true;
+    const href = (name: string) => `/dav/calendars/me/work/${name}.ics`;
+    putEvent(href("a"), {
+      etag: '"1"',
+      ics: ics("a", "A", "20991110T100000Z"),
+    });
+    putEvent(href("b"), {
+      etag: '"1"',
+      ics: ics("b", "B", "20991111T100000Z"),
+    });
+
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+    expect(davState.reports).toEqual(["listing", "multiget"]);
+    expect(
+      selectSync(spaceDb, { selector: allCalendars, args: {} }),
+    ).toMatchObject([{ ownerEmails: ["me@example.com"] }]);
+    const summaries = () =>
+      selectSync(spaceDb, { selector: allEvents, args: {} })
+        .map((e) => /SUMMARY:(.*)/.exec(e.ics)?.[1])
+        .sort();
+
+    const sync = async () => {
+      davState.reports = [];
+      davState.multigetHrefs = [];
+      await syncCalendarSource(mainDB, id, config);
+      expect(source(mainDB, id).status).toBe("ok");
+    };
+
+    await sync();
+    expect(davState.reports).toEqual([]);
+
+    putEvent(href("a"), {
+      etag: '"2"',
+      ics: ics("a", "A2", "20991110T100000Z"),
+    });
+    deleteEvent(href("b"));
+    await sync();
+    expect(davState.reports).toEqual(["sync", "multiget"]);
+    expect(davState.multigetHrefs).toEqual([[href("a")]]);
+    expect(summaries()).toEqual(["A2"]);
+
+    davState.syncPageSize = 1;
+    putEvent(href("c"), {
+      etag: '"1"',
+      ics: ics("c", "C", "20991112T100000Z"),
+    });
+    putEvent(href("d"), {
+      etag: '"1"',
+      ics: ics("d", "D", "20991113T100000Z"),
+    });
+    await sync();
+    expect(davState.reports).toEqual(["sync", "sync", "multiget"]);
+    expect(summaries()).toEqual(["A2", "C", "D"]);
+
+    // A server that forgot its history refuses the token.
+    davState.syncPageSize = Infinity;
+    davState.changeLog = [];
+    deleteEvent(href("d"));
+    await sync();
+    expect(davState.reports).toEqual(["sync", "listing"]);
+    expect(summaries()).toEqual(["A2", "C"]);
+
+    await sync();
+    expect(davState.reports).toEqual([]);
   });
 
   test("rejects wrong credentials before saving the source", async () => {
@@ -533,6 +731,33 @@ describe("ICS sources", () => {
     expect(events[0]!.seriesEnd).toBe(Number.MAX_SAFE_INTEGER);
   });
 
+  test("skips a feed the server reports unchanged", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.feed = ics("a", "A", "20991110T100000Z");
+    davState.feedEtag = '"1"';
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "ics",
+      secret: { url: `${baseUrl}/feed.ics` },
+    });
+    const summary = () =>
+      selectSync(spaceDb, { selector: allEvents, args: {} }).map(
+        (e) => /SUMMARY:(.*)/.exec(e.ics)?.[1],
+      );
+    expect(summary()).toEqual(["A"]);
+
+    // Same ETag: the body is not read again.
+    davState.feed = ics("a", "A2", "20991110T100000Z");
+    await syncCalendarSource(mainDB, id, config);
+    expect(source(mainDB, id).status).toBe("ok");
+    expect(summary()).toEqual(["A"]);
+
+    davState.feedEtag = '"2"';
+    await syncCalendarSource(mainDB, id, config);
+    expect(summary()).toEqual(["A2"]);
+  });
+
   test("rejects an address that is not a calendar", async () => {
     const { mainDB } = setup();
     davState.feed = "<html>nope</html>";
@@ -544,6 +769,82 @@ describe("ICS sources", () => {
         secret: { url: `${baseUrl}/feed.ics` },
       }),
     ).rejects.toThrow("did not return an iCalendar feed");
+  });
+});
+
+describe("sync window", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const utc = (ms: number) =>
+    new Date(ms)
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
+  const resources = (spaceDb: SubscribableDB) =>
+    selectSync(spaceDb, { selector: allEvents, args: {} })
+      .map((e) => e.resource)
+      .sort();
+
+  test("mirrors only as far back as the source's window", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.syncSupport = true;
+    const href = (name: string) => `/dav/calendars/me/work/${name}.ics`;
+    putEvent(href("soon"), {
+      etag: '"1"',
+      ics: ics("soon", "Soon", "20991110T100000Z"),
+    });
+    putEvent(href("old"), {
+      etag: '"1"',
+      ics: ics("old", "Long ago", "20100101T100000Z"),
+    });
+    putEvent(href("recent"), {
+      etag: '"1"',
+      ics: ics("recent", "Recent", utc(Date.now() - 20 * DAY)),
+    });
+
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+    expect(resources(spaceDb)).toEqual([href("recent"), href("soon")]);
+
+    // Widening re-lists even though the calendar's token has not moved.
+    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "all");
+    expect(resources(spaceDb)).toEqual([
+      href("old"),
+      href("recent"),
+      href("soon"),
+    ]);
+
+    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "1-month");
+    expect(resources(spaceDb)).toEqual([href("recent"), href("soon")]);
+
+    // An event that ages out of the window goes without a full listing.
+    setSystemTime(new Date(Date.now() + 15 * DAY));
+    davState.reports = [];
+    await syncCalendarSource(mainDB, id, config);
+    expect(davState.reports).toEqual([]);
+    expect(resources(spaceDb)).toEqual([href("soon")]);
+  });
+
+  test("re-reads an unchanged feed when the window widens", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.feed = vcalendar(
+      vevent("soon", "Soon", "20991110T100000Z"),
+      vevent("old", "Long ago", "20100101T100000Z"),
+    );
+    davState.feedEtag = '"1"';
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "ics",
+      secret: { url: `${baseUrl}/feed.ics` },
+    });
+    expect(resources(spaceDb)).toEqual(["soon"]);
+
+    await setCalendarSyncWindow(mainDB, config, source(mainDB, id), "all");
+    expect(resources(spaceDb)).toEqual(["old", "soon"]);
   });
 });
 

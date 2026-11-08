@@ -14,9 +14,16 @@ export type CalDavAccount = {
 };
 
 type DavProps = Record<string, unknown>;
-type DavResponse = { href: string; props: DavProps };
+type DavResponse = { href: string; status: string | null; props: DavProps };
 
 const MULTIGET_BATCH = 100;
+// Each round of a truncated (507) sync-collection report continues the last.
+const MAX_SYNC_ROUNDS = 50;
+
+export type DiscoveredCollection = DiscoveredCalendar & {
+  // RFC 6578 collection version; null when the server has no sync support.
+  syncToken: string | null;
+};
 
 const parser = new XMLParser({
   removeNSPrefix: true,
@@ -38,11 +45,17 @@ const text = (value: unknown): string | null => {
 const escapeXml = (value: string) =>
   value.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export function parseMultistatus(xml: string): DavResponse[] {
+export function parseMultistatus(xml: string): {
+  responses: DavResponse[];
+  syncToken: string | null;
+} {
   const doc = parser.parse(xml) as {
-    multistatus?: { response?: Record<string, unknown>[] };
+    multistatus?: {
+      response?: Record<string, unknown>[];
+      "sync-token"?: unknown;
+    };
   };
-  return (doc.multistatus?.response ?? []).flatMap((response) => {
+  const responses = (doc.multistatus?.response ?? []).flatMap((response) => {
     const href = text(response.href);
     if (!href) return [];
     const props: DavProps = {};
@@ -53,9 +66,22 @@ export function parseMultistatus(xml: string): DavResponse[] {
       if (!/\s2\d\d\s/.test(` ${text(propstat.status) ?? ""} `)) continue;
       Object.assign(props, propstat.prop ?? {});
     }
-    return [{ href: decodeURIComponentSafe(href), props }];
+    return [
+      {
+        href: decodeURIComponentSafe(href),
+        status: text(response.status),
+        props,
+      },
+    ];
   });
+  return { responses, syncToken: text(doc.multistatus?.["sync-token"]) };
 }
+
+const hasStatus = (status: string | null, code: number) =>
+  status !== null && ` ${status} `.includes(` ${code} `);
+
+const samePath = (a: string, b: string) =>
+  a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
 
 const decodeURIComponentSafe = (href: string) => {
   try {
@@ -65,12 +91,24 @@ const decodeURIComponentSafe = (href: string) => {
   }
 };
 
-const hrefOf = (value: unknown) => {
+const hrefsOf = (value: unknown): string[] => {
   if (value && typeof value === "object" && "href" in value) {
-    return text((value as { href: unknown }).href);
+    const hrefs = (value as { href: unknown }).href;
+    return (Array.isArray(hrefs) ? hrefs : [hrefs]).flatMap(
+      (href) => text(href) ?? [],
+    );
   }
-  return null;
+  return [];
 };
+
+const hrefOf = (value: unknown) => hrefsOf(value)[0] ?? null;
+
+// The account's own addresses, to find its replies to invitations.
+const ownerEmailsOf = (props: DavProps) =>
+  hrefsOf(props["calendar-user-address-set"]).flatMap((href) => {
+    const match = /^mailto:(.+)$/i.exec(href.trim());
+    return match ? [match[1]!.toLowerCase()] : [];
+  });
 
 export class CalDavClient {
   private readonly authorization: string;
@@ -118,7 +156,7 @@ export class CalDavClient {
         response.status,
       );
     }
-    return { responses: parseMultistatus(response.body), url: response.url };
+    return { ...parseMultistatus(response.body), url: response.url };
   }
 
   private propfind(url: string, depth: "0" | "1", props: string) {
@@ -130,7 +168,10 @@ export class CalDavClient {
     );
   }
 
-  private async findCalendarHome(): Promise<string> {
+  private async findCalendarHome(): Promise<{
+    home: string;
+    ownerEmails: string[];
+  }> {
     const candidates = [
       this.account.url,
       new URL("/.well-known/caldav", this.account.url).href,
@@ -141,24 +182,33 @@ export class CalDavClient {
         const { responses, url } = await this.propfind(
           candidate,
           "0",
-          "<d:current-user-principal/><c:calendar-home-set/><d:resourcetype/>",
+          "<d:current-user-principal/><c:calendar-home-set/><c:calendar-user-address-set/><d:resourcetype/>",
         );
         const props = responses[0]?.props ?? {};
-        if (isCalendar(props)) return url;
+        if (isCalendar(props)) return { home: url, ownerEmails: [] };
         const home = hrefOf(props["calendar-home-set"]);
-        if (home) return new URL(home, url).href;
+        if (home) {
+          return {
+            home: new URL(home, url).href,
+            ownerEmails: ownerEmailsOf(props),
+          };
+        }
         const principal = hrefOf(props["current-user-principal"]);
         if (!principal) continue;
         const principalUrl = new URL(principal, url).href;
         const found = await this.propfind(
           principalUrl,
           "0",
-          "<c:calendar-home-set/>",
+          "<c:calendar-home-set/><c:calendar-user-address-set/>",
         );
-        const principalHome = hrefOf(
-          found.responses[0]?.props["calendar-home-set"],
-        );
-        if (principalHome) return new URL(principalHome, found.url).href;
+        const principalProps = found.responses[0]?.props ?? {};
+        const principalHome = hrefOf(principalProps["calendar-home-set"]);
+        if (principalHome) {
+          return {
+            home: new URL(principalHome, found.url).href,
+            ownerEmails: ownerEmailsOf(principalProps),
+          };
+        }
       } catch (error) {
         if (error instanceof CalendarFetchError && error.status === 401) {
           throw error;
@@ -170,14 +220,17 @@ export class CalDavClient {
     throw new CalendarFetchError("No CalDAV calendars found at this address");
   }
 
-  async discoverCalendars(): Promise<DiscoveredCalendar[]> {
-    const home = await this.findCalendarHome();
+  async discoverCalendars(): Promise<{
+    calendars: DiscoveredCollection[];
+    ownerEmails: string[];
+  }> {
+    const { home, ownerEmails } = await this.findCalendarHome();
     const { responses, url } = await this.propfind(
       home,
       "1",
-      "<d:resourcetype/><d:displayname/><a:calendar-color/><c:supported-calendar-component-set/>",
+      "<d:resourcetype/><d:displayname/><a:calendar-color/><c:supported-calendar-component-set/><d:sync-token/>",
     );
-    return responses
+    const calendars = responses
       .filter(({ props }) => isCalendar(props) && supportsEvents(props))
       .map(({ href, props }) => {
         const key = new URL(href, url).href;
@@ -185,24 +238,72 @@ export class CalDavClient {
           key,
           name: text(props.displayname)?.trim() || calendarNameFromUrl(key),
           color: normalizeColor(text(props["calendar-color"])),
+          syncToken: text(props["sync-token"]),
         };
       });
+    const username = this.account.username.trim().toLowerCase();
+    if (ownerEmails.length === 0 && username.includes("@")) {
+      ownerEmails.push(username);
+    }
+    return { calendars, ownerEmails };
   }
 
-  // ETags of every event resource with an occurrence after `fromMs`.
+  // Resources changed since `syncToken` (RFC 6578), mapped to their new ETag,
+  // or to null when deleted. Throws CalendarFetchError with the HTTP status
+  // when the server refuses the token.
+  async changesSince(
+    calendarUrl: string,
+    syncToken: string,
+  ): Promise<{ changes: Map<string, string | null>; syncToken: string }> {
+    const calendarPath = new URL(calendarUrl).pathname;
+    const changes = new Map<string, string | null>();
+    let token = syncToken;
+    for (let round = 0; round < MAX_SYNC_ROUNDS; round += 1) {
+      const result = await this.request(
+        "REPORT",
+        calendarUrl,
+        "0",
+        `<?xml version="1.0" encoding="utf-8"?><d:sync-collection xmlns:d="DAV:"><d:sync-token>${escapeXml(token)}</d:sync-token><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>`,
+      );
+      if (!result.syncToken) {
+        throw new CalendarFetchError("The server sent no sync token");
+      }
+      token = result.syncToken;
+      let truncated = false;
+      for (const { href, status, props } of result.responses) {
+        const path = new URL(href, calendarUrl).pathname;
+        if (samePath(path, calendarPath)) {
+          truncated ||= hasStatus(status, 507);
+          continue;
+        }
+        changes.set(
+          path,
+          hasStatus(status, 404) ? null : (text(props.getetag) ?? ""),
+        );
+      }
+      if (!truncated) return { changes, syncToken: token };
+    }
+    throw new CalendarFetchError("The calendar has too many changes to sync");
+  }
+
+  // ETags of every event resource with an occurrence after `fromMs`, or of
+  // every event resource when it is null.
   async listEventEtags(
     calendarUrl: string,
-    fromMs: number,
+    fromMs: number | null,
   ): Promise<Map<string, string>> {
-    const start = new Date(fromMs)
-      .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}/, "");
+    const timeRange =
+      fromMs === null
+        ? ""
+        : `<c:time-range start="${new Date(fromMs)
+            .toISOString()
+            .replace(/[-:]/g, "")
+            .replace(/\.\d{3}/, "")}"/>`;
     const { responses } = await this.request(
       "REPORT",
       calendarUrl,
       "1",
-      `<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="${start}"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`,
+      `<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">${timeRange}</c:comp-filter></c:comp-filter></c:filter></c:calendar-query>`,
     );
     const calendarPath = new URL(calendarUrl).pathname;
     const etags = new Map<string, string>();

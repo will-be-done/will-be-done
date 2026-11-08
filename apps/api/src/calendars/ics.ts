@@ -89,22 +89,25 @@ const stringProperty = (component: ICAL.Component, name: string) => {
 };
 
 // Readies one CalDAV resource for storage: drops attachments, enforces the
-// size cap and computes bounds. Null when it should not be stored.
-export function prepareEventIcs(ics: string, notBeforeMs: number) {
+// size cap, computes bounds and reads the UID. Null when it should not be
+// stored, including a series that ended before `notBeforeMs`.
+export function prepareEventIcs(ics: string, notBeforeMs: number | null) {
+  let root: ICAL.Component;
+  try {
+    root = new ICAL.Component(ICAL.parse(ics));
+  } catch {
+    return null;
+  }
+  const events = root.getAllSubcomponents("vevent");
   let normalized = ics;
-  if (/^ATTACH[;:]/im.test(ics)) {
-    try {
-      const root = new ICAL.Component(ICAL.parse(ics));
-      for (const event of root.getAllSubcomponents("vevent")) {
-        event.removeAllProperties("attach");
-      }
-      normalized = root.toString();
-    } catch {
-      return null;
-    }
+  if (events.some((event) => event.hasProperty("attach"))) {
+    for (const event of events) event.removeAllProperties("attach");
+    normalized = root.toString();
   }
   if (Buffer.byteLength(normalized) > MAX_EVENT_ICS_BYTES) return null;
   const bounds = externalEventSeriesBounds(normalized);
-  if (!bounds || bounds.seriesEnd < notBeforeMs) return null;
-  return { ics: normalized, ...bounds };
+  if (!bounds || bounds.seriesEnd < (notBeforeMs ?? -Infinity)) return null;
+  const uid =
+    events.map((event) => stringProperty(event, "uid")).find(Boolean) ?? null;
+  return { uid, ics: normalized, ...bounds };
 }

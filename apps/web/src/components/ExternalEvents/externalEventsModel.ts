@@ -1,4 +1,5 @@
-import { addDays, startOfDay } from "date-fns";
+import { addDays, isSameDay, startOfDay } from "date-fns";
+import { cn } from "@/lib/utils.ts";
 import {
   getDMY,
   type ExternalEventOccurrence,
@@ -76,6 +77,32 @@ export const formatEventTime = (event: DayExternalEvent) =>
         event.occurrence.endMs,
       )}`;
 
+const dateFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+// The whole occurrence, not just its part on one day.
+export const formatEventWhen = ({
+  allDay,
+  startMs,
+  endMs,
+}: ExternalEventOccurrence) => {
+  // All-day ends are exclusive midnights.
+  const lastMs = allDay ? Math.max(startMs, endMs - 1) : endMs;
+  const sameDay = isSameDay(startMs, lastMs);
+  if (allDay) {
+    return sameDay
+      ? dateFormat.format(startMs)
+      : `${dateFormat.format(startMs)} – ${dateFormat.format(lastMs)}`;
+  }
+  const start = `${dateFormat.format(startMs)}, ${clockFormat.format(startMs)}`;
+  return sameDay
+    ? `${start} – ${clockFormat.format(endMs)}`
+    : `${start} – ${dateFormat.format(endMs)}, ${clockFormat.format(endMs)}`;
+};
+
 export const eventTooltip = (event: DayExternalEvent) =>
   [
     event.occurrence.title || "Untitled event",
@@ -88,9 +115,30 @@ export const eventTooltip = (event: DayExternalEvent) =>
 
 const fallbackColor = "rgb(148 163 184)";
 
-export const externalEventClass =
-  "select-none rounded-md border-l-[3px] bg-white/[0.04] text-left text-content-tinted cursor-default";
+// Unanswered and tentative events may not happen.
+export const isTentativeEvent = ({
+  status,
+  response,
+}: ExternalEventOccurrence) =>
+  status === "tentative" ||
+  response === "tentative" ||
+  response === "needs-action";
 
-export const externalEventStyle = (event: DayExternalEvent) => ({
-  borderLeftColor: event.occurrence.color ?? fallbackColor,
+// Free time is see-through; tentative events are striped.
+export const externalEventClass = ({ occurrence }: DayExternalEvent) =>
+  cn(
+    "select-none rounded-md border-l-[3px] text-left text-content-tinted cursor-pointer hover:brightness-125",
+    occurrence.free
+      ? "bg-transparent ring-1 ring-inset ring-white/10"
+      : "bg-white/[0.04]",
+  );
+
+export const externalEventStyle = ({ occurrence }: DayExternalEvent) => ({
+  borderLeftColor: occurrence.color ?? fallbackColor,
+  ...(isTentativeEvent(occurrence)
+    ? {
+        backgroundImage:
+          "repeating-linear-gradient(135deg, rgb(255 255 255 / 0.07) 0 4px, transparent 4px 8px)",
+      }
+    : {}),
 });

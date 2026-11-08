@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { trpcClient, resetWsClient } from "@/lib/trpc";
+import { trpcClient } from "@/lib/trpc";
 import { authUtils } from "@/lib/auth";
 import {
   captureWebAnalytics,
@@ -185,7 +185,6 @@ export function useGoogleFlow(
           queryClient.clear();
           authUtils.setToken(credentials.token);
           authUtils.setUserId(credentials.userId);
-          resetWsClient();
           identifyWebAnalyticsUser(credentials.userId);
           setBusy(false);
           void navigate({ to: "/spaces" });

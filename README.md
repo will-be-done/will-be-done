@@ -353,6 +353,10 @@ pnpm test
 pnpm test:e2e
 ```
 
+The web E2E suite starts a [Radicale](https://radicale.org/) CalDAV server, so
+`radicale` must be on your `PATH` (`uv tool install radicale` or
+`pipx install radicale`).
+
 ## Why another task manager?
 
 I am building Will Be Done as the task manager I want to use for the rest of my life.

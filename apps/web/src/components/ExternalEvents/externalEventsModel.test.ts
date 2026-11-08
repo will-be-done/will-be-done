@@ -10,6 +10,7 @@ const occurrence = (
 ): ExternalEventOccurrence => ({
   key,
   eventId: key,
+  recurrenceKey: "",
   calendarId: "calendar",
   calendarName: "Work",
   color: null,
@@ -18,6 +19,9 @@ const occurrence = (
   allDay,
   startMs: start.getTime(),
   endMs: end.getTime(),
+  status: "confirmed",
+  free: false,
+  response: null,
 });
 
 const days = [new Date(2026, 10, 10), new Date(2026, 10, 11)];
