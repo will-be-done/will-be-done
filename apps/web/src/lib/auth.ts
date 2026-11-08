@@ -19,6 +19,8 @@ export const authUtils = {
   setToken: (token: string): void => {
     localStorage.setItem(AUTH_TOKEN_KEY, token);
     notifyAuthListeners();
+    // The socket authenticates once, by the token in its URL.
+    resetWsClient();
   },
 
   setUserId: (userId: string): void => {

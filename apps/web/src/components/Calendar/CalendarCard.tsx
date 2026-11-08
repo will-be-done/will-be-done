@@ -5,7 +5,11 @@ import { useFocusStore } from "@/store/focusSlice.ts";
 import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { type CalendarEvent, isDraggable } from "./calendarModel";
 import { cardClass } from "./styles";
-import { type DragCommit, startCalendarDrag } from "./calendarDrag";
+import {
+  type DragCommit,
+  holdTouchScroll,
+  startCalendarDrag,
+} from "./calendarDrag";
 
 // "chip" is a single line (month), "card" stacks title and time (plan and
 // the all-day row).
@@ -30,6 +34,7 @@ export const CalendarCard = ({
 
   return (
     <div
+      ref={canDrag ? holdTouchScroll : undefined}
       role="button"
       tabIndex={0}
       data-focusable-key={event.focusKey}

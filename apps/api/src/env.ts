@@ -56,6 +56,14 @@ const EnvConfigSchema = Schema.Struct({
   WBD_TASK_GENERATION_INTERVAL_MS: withDefault(intFromString(1_000), "60000"),
   WBD_POSTHOG_KEY: optionalNonEmptyTrimmed,
   WBD_POSTHOG_HOST: withDefault(url, "https://eu.i.posthog.com"),
+  WBD_CALENDAR_ENCRYPTION_KEY: Schema.optional(
+    Schema.Trim.check(Schema.isMinLength(32)),
+  ),
+  WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: withDefault(
+    literals(["true", "false"]),
+    "false",
+  ),
+  WBD_CALENDAR_SYNC_INTERVAL_MS: withDefault(intFromString(60_000), "900000"),
   PORT: withDefault(intFromString(0), "3000"),
 });
 
@@ -104,6 +112,8 @@ export const parseEnvConfig = (env: NodeJS.ProcessEnv) => {
     ...parsed,
     WBD_DB_PATH: parsed.WBD_DB_PATH ?? `${parsed.WBD_STORAGE_PATH}/db`,
     WBD_RATE_LIMIT_ENABLED: rateLimitEnabled,
+    WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS:
+      parsed.WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS === "true",
   };
 };
 

@@ -50,6 +50,8 @@ import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-sc
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { DayEventsStrip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { useDayExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
 
 const ChevronLeft = () => (
   <svg
@@ -115,6 +117,7 @@ const SingleDayColumn = ({
     selector: doneDailyEntryChildrenForDisplay,
     args: { dailyListId: dailyList.id },
   });
+  const externalEvents = useDayExternalEvents(dailyList.date);
 
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -259,6 +262,8 @@ const SingleDayColumn = ({
         ref={scrollableRef}
         className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
       >
+        <DayEventsStrip events={externalEvents} />
+
         {occurrences.map((occurrence) => (
           <ProjectedTaskCard
             key={occurrence.id}

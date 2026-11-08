@@ -206,6 +206,30 @@ export class Syncer {
     }
   }
 
+  // Resolves once a session that started after this call has applied and
+  // persisted everything; a session already running may predate the caller's
+  // server-side change.
+  syncNow(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.terminal) {
+        reject(new Error("Update the app to resume syncing."));
+        return;
+      }
+      let started = false;
+      const unsubscribe = this.status.subscribe(({ phase, error }) => {
+        if (phase === "connecting") started = true;
+        if (phase === "update-required" || (started && phase === "error")) {
+          unsubscribe();
+          reject(new Error(error ?? "Update the app to resume syncing."));
+        } else if (started && phase === "synced") {
+          unsubscribe();
+          resolve();
+        }
+      });
+      this.forceSync();
+    });
+  }
+
   private receiveStatus(message: SyncStatusMessage) {
     if (message.type === "status") {
       if (!this.leadership.isLeader() && !this.terminal) {
@@ -264,12 +288,9 @@ export class Syncer {
           ),
         ),
       UpdateRequired: () => Effect.sync(() => this.stopForRequiredUpdate()),
+      // Waking here would loop against a server that keeps rejecting it.
       Failed: ({ cause }) =>
-        Effect.logError("Server change subscription failed", cause).pipe(
-          Effect.tap(
-            Effect.sync(() => Queue.offerUnsafe(this.wakes, undefined)),
-          ),
-        ),
+        Effect.logError("Server change subscription failed", cause),
     }),
   );
 
@@ -283,9 +304,16 @@ export class Syncer {
       }
       yield* Effect.logInfo("This tab leads sync");
       const serverChanges = yield* ServerChanges;
-      yield* serverChanges
+      const watchServerChanges = serverChanges
         .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
-        .pipe(Stream.runForEach(this.onServerChange), Effect.forkScoped);
+        .pipe(
+          // A failed subscription is over, e.g. for a space the server did not
+          // have yet; the next completed session subscribes again.
+          Stream.takeUntil((event) => event._tag === "Failed"),
+          Stream.runForEach(this.onServerChange),
+          Effect.forkScoped,
+        );
+      let watcher = yield* watchServerChanges;
 
       // let's delay so faster startup
       yield* Effect.sleep(SYNC_START_DELAY_MS);
@@ -314,6 +342,9 @@ export class Syncer {
           );
           if (completed && this.syncConfig.dbType === "user") {
             completedUserSyncs.modify((version) => version + 1);
+          }
+          if (completed && watcher.pollUnsafe()) {
+            watcher = yield* watchServerChanges;
           }
         } else {
           this.setStatus({

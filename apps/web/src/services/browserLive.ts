@@ -37,6 +37,10 @@ export const ServerChangesLive = Layer.succeed(ServerChanges, {
           trpcClient.onChangesAvailable.subscribe(
             { dbId, dbType, syncVersion: CURRENT_SYNC_VERSION },
             {
+              // Changes made before the server registered this subscription
+              // (first subscribe or socket reconnect) were never announced.
+              onStarted: () =>
+                Queue.offerUnsafe(queue, { _tag: "ChangesAvailable" }),
               onData: () =>
                 Queue.offerUnsafe(queue, { _tag: "ChangesAvailable" }),
               onError: (cause) =>
