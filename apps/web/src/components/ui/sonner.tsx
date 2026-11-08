@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import "sonner/dist/styles.css";
 
@@ -21,6 +22,10 @@ function Toaster({ ...props }: ToasterProps) {
         right: "12px",
         bottom: "var(--update-toast-mobile-bottom-offset)",
       }}
+      icons={{
+        success: <CircleCheck />,
+        error: <CircleAlert />,
+      }}
       toastOptions={{
         unstyled: true,
         classNames: {
@@ -28,7 +33,9 @@ function Toaster({ ...props }: ToasterProps) {
           // the left (spanning both rows), the two narrow buttons stack in the
           // auto column on the right — Reload on top, Dismiss below.
           toast:
-            "group toast grid w-[var(--width)] grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 rounded-[10px] border border-update-toast-border bg-update-toast-surface p-4 text-[13px] text-update-toast-title shadow-update-toast backdrop-blur-xl",
+            "group toast grid w-[var(--width)] grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 rounded-[10px] border border-update-toast-border bg-update-toast-surface p-4 text-[13px] text-update-toast-title shadow-update-toast backdrop-blur-xl data-[type=error]:pl-11 data-[type=success]:pl-11",
+          // Sits in the left padding, beside the title, outside the grid.
+          icon: "absolute top-[18px] left-4 flex size-4 [&>svg]:size-4 group-data-[type=error]:text-red-400 group-data-[type=success]:text-emerald-400",
           content: "col-start-1 row-span-2 flex min-w-0 flex-col gap-1",
           title:
             "text-[13px] leading-5 font-semibold tracking-[-0.01em] text-update-toast-title",

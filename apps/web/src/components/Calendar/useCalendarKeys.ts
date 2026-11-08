@@ -39,6 +39,7 @@ import {
   timeToMinutes,
 } from "./calendarModel";
 import type { DayActions } from "./DayCells";
+import type { DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
 import { useUndoToast } from "@/store/undo";
 
 const directionKeys: Record<string, CalendarDirection | undefined> = {
@@ -83,11 +84,13 @@ export function useCalendarKeys({
   view,
   days,
   eventsByDate,
+  externalByDate,
   onCreate,
 }: {
   view: CalendarView;
   days: Date[];
   eventsByDate: Map<string, CalendarEvent[]>;
+  externalByDate: Map<string, DayExternalEvent[]>;
   onCreate: DayActions["onCreate"];
 }) {
   const dispatch = useAsyncDispatch();
@@ -106,7 +109,11 @@ export function useCalendarKeys({
 
       const dates = days.map((day) => getDMY(day));
       const shown = dates.map((date) =>
-        shownDayEvents(view, eventsByDate.get(date) ?? []),
+        shownDayEvents(
+          view,
+          eventsByDate.get(date) ?? [],
+          externalByDate.get(date)?.length,
+        ),
       );
       const event = shown
         .flat()
@@ -265,5 +272,13 @@ export function useCalendarKeys({
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [view, days, eventsByDate, onCreate, dispatch, deleteWithUndo]);
+  }, [
+    view,
+    days,
+    eventsByDate,
+    externalByDate,
+    onCreate,
+    dispatch,
+    deleteWithUndo,
+  ]);
 }

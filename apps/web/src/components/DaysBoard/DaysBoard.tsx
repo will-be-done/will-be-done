@@ -38,14 +38,19 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { DayEventsStrip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { useExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
+import type { DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
 
 const ColumnView = ({
   dailyList,
   occurrences,
+  externalEvents,
   onTaskAdd,
 }: {
   dailyList: DailyList;
   occurrences: TaskTemplateOccurrence[];
+  externalEvents: DayExternalEvent[];
   onTaskAdd: (dailyList: DailyList) => void;
 }) => {
   const currentDate = useCurrentDMY();
@@ -72,7 +77,8 @@ const ColumnView = ({
     isManuallyHidden ||
     (itemsForDisplay.length == 0 &&
       doneItemsForDisplay.length == 0 &&
-      occurrences.length == 0);
+      occurrences.length == 0 &&
+      externalEvents.length == 0);
   const handleHideClick = () => toggleIsHidden(dailyList.id);
 
   const handleAddClick = () => {
@@ -116,6 +122,8 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
+        <DayEventsStrip events={externalEvents} />
+
         {occurrences.map((occurrence) => (
           <ProjectedTaskCard
             key={occurrence.id}
@@ -168,6 +176,7 @@ const BoardView = ({
   selectedDate,
   dailyLists,
   occurrencesOf,
+  externalEventsByDate,
   selectedProjectId,
 }: {
   previousDate: Date;
@@ -175,6 +184,7 @@ const BoardView = ({
   selectedDate: Date;
   dailyLists: DailyList[];
   occurrencesOf: (date: string) => TaskTemplateOccurrence[];
+  externalEventsByDate: Map<string, DayExternalEvent[]>;
   selectedProjectId: string;
 }) => {
   const dispatch = useAsyncDispatch();
@@ -308,6 +318,7 @@ const BoardView = ({
             <ColumnView
               dailyList={dailyList}
               occurrences={occurrencesOf(dailyList.date)}
+              externalEvents={externalEventsByDate.get(dailyList.date) ?? []}
               onTaskAdd={handleAddTask}
               key={dailyList.id}
             />
@@ -353,6 +364,7 @@ export const Board = ({
     args: { dates: weekDays.map((date) => date.getTime()) },
   });
   const occurrencesOf = useUpcomingOccurrences(weekDays);
+  const externalEventsByDate = useExternalEvents(weekDays);
   const dispatch = useAsyncDispatch();
 
   useEffect(() => {
@@ -370,6 +382,7 @@ export const Board = ({
       selectedDate={selectedDate}
       dailyLists={dailyLists}
       occurrencesOf={occurrencesOf}
+      externalEventsByDate={externalEventsByDate}
       selectedProjectId={selectedProjectId}
     />
   );

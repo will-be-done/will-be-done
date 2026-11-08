@@ -10,6 +10,7 @@ import {
 import path from "path";
 import { getEnvConfig } from "../env";
 import { googleFlowsTable } from "../google/tables";
+import { calendarSourcesTable } from "../calendars/tables";
 import { backfillUserEmails } from "../slices/authSlice";
 import { accountEmailTables } from "../email/tables";
 import {
@@ -164,6 +165,7 @@ export const getMainHyperDB = async () => {
       db.loadTables([
         ...accountEmailTables,
         googleFlowsTable,
+        calendarSourcesTable,
         usersTable,
         tokensTable,
         dbsTable,

@@ -8,7 +8,9 @@ import {
   dailyEntryChildrenForDisplay,
   doneDailyEntryChildrenForDisplay,
   inboxProjectId,
+  externalEventOccurrencesInRange,
 } from "@will-be-done/slices/space";
+import { externalEventsRange } from "@/components/ExternalEvents/useExternalEvents.ts";
 
 export const Route = createFileRoute(
   "/spaces/$spaceId/_withSidebar/dates/$date",
@@ -35,6 +37,15 @@ export const Route = createFileRoute(
     appendPromise(
       preloadSelectorAsync(db, { selector: inboxProjectId, args: {} }),
     );
+
+    for (const date of dates) {
+      appendPromise(
+        preloadSelectorAsync(db, {
+          selector: externalEventOccurrencesInRange,
+          args: externalEventsRange([new Date(date)]),
+        }),
+      );
+    }
 
     for (const dailyList of dailyLists) {
       appendPromise(
