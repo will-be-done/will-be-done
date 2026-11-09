@@ -6,6 +6,7 @@ import { ALT_KEY, MOD_KEY } from "@/components/RichText/keys";
 import { useDevtoolsEnabled } from "@/lib/devtools";
 import { useFocusStore } from "@/store/focusSlice";
 import { isInputElement } from "@/utils/isInputElement";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DESKTOP_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
 const TOUCH_DEVICE_PATTERN = /Android|iPad|iPhone|iPod|Mobile|Tablet/i;
@@ -455,7 +456,7 @@ export function KeyboardShortcutsDialog() {
                 </button>
               </header>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
+              <ScrollArea rootClassName="min-h-0 flex-1" className="p-3 sm:p-5">
                 <div className="grid items-start gap-3 md:grid-cols-2">
                   {(["left", "right"] as const).map((column) => (
                     <div key={column} className="grid gap-3">
@@ -467,7 +468,7 @@ export function KeyboardShortcutsDialog() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </ScrollArea>
 
               <footer className="flex shrink-0 items-center justify-center gap-2 border-t border-dialog-border px-5 py-3 text-[10px] text-content-tinted-2">
                 <Keycap>Esc</Keycap>

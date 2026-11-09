@@ -38,6 +38,7 @@ import {
 } from "@/components/ExternalEvents/externalEventsModel.ts";
 import { ExternalEventChip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
 import { ExternalEventPopover } from "@/components/ExternalEvents/ExternalEventPopover.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const hourHeight = 48;
 const gutterWidth = "4.5rem";
@@ -91,7 +92,7 @@ export const TimeGridView = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div
-        className="grid overflow-y-hidden border-b border-white/5 [scrollbar-gutter:stable]"
+        className="grid border-b border-white/5"
         style={{ gridTemplateColumns: columns }}
       >
         <div />
@@ -145,10 +146,7 @@ export const TimeGridView = ({
         })}
       </div>
 
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
-      >
+      <ScrollArea ref={scrollRef} rootClassName="min-h-0 flex-1">
         <div
           className="relative grid"
           style={{
@@ -187,7 +185,7 @@ export const TimeGridView = ({
             );
           })}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -205,14 +203,15 @@ const UntimedCell = ({
 }) => {
   const isDropTarget = useIsDropTarget(date, null);
   return (
-    <div
+    <ScrollArea
       data-calendar-date={date}
       data-calendar-untimed
       onClick={(e) => {
         if (e.target === e.currentTarget) actions.onCreate(date, null);
       }}
+      rootClassName="min-w-0"
       className={cn(
-        "flex max-h-32 min-h-9 min-w-0 flex-col gap-1 overflow-y-auto border-l border-white/5 p-1",
+        "flex max-h-32 min-h-9 flex-col gap-1 border-l border-white/5 p-1",
         isDropTarget && "bg-accent/10",
       )}
     >
@@ -228,7 +227,7 @@ const UntimedCell = ({
           onCommit={actions.onCommit}
         />
       ))}
-    </div>
+    </ScrollArea>
   );
 };
 

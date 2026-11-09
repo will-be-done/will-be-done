@@ -23,6 +23,7 @@ import { TemplateBody } from "./TemplateBody.tsx";
 import { NoteBody } from "./NoteBody.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   useItemDetailsSize,
   useItemDetailsOpen,
@@ -186,33 +187,35 @@ export function ItemDetails() {
           aria-hidden={!isPanelOpen}
           data-testid="item-details-panel"
           className={cn(
-            "h-full overflow-y-auto transition-[transform,opacity] duration-300 ease-out",
+            "h-full transition-[transform,opacity] duration-300 ease-out",
             isPanelOpen
               ? "translate-x-0 opacity-100"
               : "translate-x-6 opacity-0 pointer-events-none",
           )}
           style={{ width: `${width}px` }}
         >
-          {/* Header */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
-            <span className="text-content-tinted text-xs font-medium flex-1">
-              Item Details
-            </span>
-          </div>
-
-          {focusedItem ? (
-            <ItemDetailsBody
-              item={focusedItem}
-              isEditingTitle={isEditingTitle}
-              setIsEditingTitle={setIsEditingTitle}
-              isEditingDescription={isEditingDescription}
-              setIsEditingDescription={setIsEditingDescription}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
-              Select a task
+          <ScrollArea rootClassName="h-full">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
+              <span className="text-content-tinted text-xs font-medium flex-1">
+                Item Details
+              </span>
             </div>
-          )}
+
+            {focusedItem ? (
+              <ItemDetailsBody
+                item={focusedItem}
+                isEditingTitle={isEditingTitle}
+                setIsEditingTitle={setIsEditingTitle}
+                isEditingDescription={isEditingDescription}
+                setIsEditingDescription={setIsEditingDescription}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
+                Select a task
+              </div>
+            )}
+          </ScrollArea>
         </div>
       </div>
     </div>
@@ -261,8 +264,8 @@ export function ItemDetailsPage({
         </div>
       </div>
 
-      <div
-        className="min-h-0 flex-1 overflow-y-auto"
+      <ScrollArea
+        rootClassName="min-h-0 flex-1"
         style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
       >
         {item ? (
@@ -279,7 +282,7 @@ export function ItemDetailsPage({
             Task details are not available.
           </div>
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

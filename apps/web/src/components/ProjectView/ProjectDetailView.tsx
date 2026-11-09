@@ -25,6 +25,7 @@ import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
 import { ProjectIcon } from "@/components/ui/emoji";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUndoToast } from "@/store/undo";
 
 const DeleteIcon = () => (
@@ -94,9 +95,10 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   if (!project) return null;
 
   return (
-    <div
+    <ScrollArea
       data-scroll-restoration-id={scrollRestorationId}
-      className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden"
+      rootClassName="h-full"
+      className="flex flex-col sm:overflow-y-hidden"
       id="main-scrollable-area"
     >
       <div className="pointer-events-none absolute top-0 left-0 right-0 z-0 h-4" />
@@ -161,13 +163,13 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 overflow-x-auto pb-4">
+        <ScrollArea rootClassName="flex-1 min-h-0" className="flex pb-4">
           <div className="min-w-max h-full px-4">
             <ProjectItemsList project={project} isFocusRegion={false} />
           </div>
-        </div>
+        </ScrollArea>
       )}
-    </div>
+    </ScrollArea>
   );
 };
 
