@@ -14,6 +14,20 @@ Project sections appear as columns on a project's board. Drag tasks between
 sections to organize them, or move a task to another project through its action
 menu. The inbox is a project for tasks you have not organized yet.
 
+To give a project its own background, select **Change background** beside the
+project title. Choose **Upload photo** to select a JPEG, PNG, WebP or AVIF image
+up to 20 MB, or paste a direct HTTP or HTTPS image link. Save to apply it,
+or select **Remove background** to clear it. Uploaded photos are resized
+automatically, sync across devices and are included in backups. They also work
+offline; linked images need an internet connection to load.
+
+Uploading a photo also suggests a background and accent color for the project's
+cards, including calendar events and task lists. Adjust **Project card colors**
+in the same dialog, select **Use image colors** to generate them again, or
+**Default colors** to restore the standard card theme. Colors sync and are
+included in backups. Some image links do not allow automatic color sampling;
+upload the photo or choose its colors manually instead.
+
 Spaces separate your projects and schedules. For example, work and personal
 tasks can live in different spaces.
 

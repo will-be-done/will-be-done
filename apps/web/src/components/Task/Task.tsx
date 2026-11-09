@@ -35,6 +35,7 @@ import {
 import clsx from "clsx";
 import { CircleDashed, Clock, RotateCw, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getProjectCardStyle } from "@/lib/projectColors";
 import {
   addToDailyList,
   AnyModelType,
@@ -1533,7 +1534,7 @@ export const PreloadedTaskComp = ({
                 ? "ring-ring outline-2 outline-dashed outline-content-tinted-2 text-content hover:ring-ring-hover"
                 : "ring-ring text-content hover:ring-ring-hover",
         )}
-        style={{}}
+        style={getProjectCardStyle(project)}
         onMouseDown={handleSelectionMouseDown}
         onClick={handleClick}
         onBlur={(event) => {

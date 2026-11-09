@@ -52,6 +52,43 @@ const seedDailyEntry = action({
 });
 
 describe("space backup compatibility", () => {
+  it.each([
+    undefined,
+    null,
+    "https://example.com/background.jpg",
+    "data:image/jpeg;base64,/9j/2Q==",
+  ])("round-trips a project background %s", (backgroundImageUrl) => {
+    const db = new DB(new BptreeInmemDriver(), {
+      traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+    });
+    execSync(db.loadTables(registeredSpaceSyncableTables));
+    const project = {
+      id: "project-1",
+      title: "Project",
+      icon: "",
+      cardBackgroundColor: "#123456",
+      accentColor: "#abcdef",
+      isInbox: false,
+      orderToken: "a",
+      createdAt: 1,
+      ...(backgroundImageUrl === undefined ? {} : { backgroundImageUrl }),
+    };
+    syncDispatch(
+      db,
+      loadSpaceBackup({
+        backup: {
+          ...baseBackup,
+          projects: [project],
+          projectSections: [],
+          tasks: [],
+          taskTemplates: [],
+        },
+      }),
+    );
+    const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+    expect(backup.projects).toEqual([project]);
+  });
+
   it("preserves DailyLists omitted from a replacement backup", () => {
     const db = new DB(new BptreeInmemDriver(), {
       traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],

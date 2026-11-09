@@ -798,6 +798,27 @@
                           },
                           "title": { "type": "string" },
                           "icon": { "type": "string" },
+                          "backgroundImageUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "cardBackgroundColor": {
+                            "anyOf": [
+                              { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "accentColor": {
+                            "anyOf": [
+                              { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                              { "type": "null" }
+                            ]
+                          },
                           "isInbox": { "type": "boolean" },
                           "createdAt": {
                             "type": "integer",
@@ -974,6 +995,27 @@
                 "properties": {
                   "title": { "type": "string", "minLength": 1 },
                   "icon": { "type": "string" },
+                  "backgroundImageUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "cardBackgroundColor": {
+                    "anyOf": [
+                      { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "accentColor": {
+                    "anyOf": [
+                      { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                      { "type": "null" }
+                    ]
+                  },
                   "placement": {
                     "oneOf": [
                       {
@@ -1055,6 +1097,27 @@
                         },
                         "title": { "type": "string" },
                         "icon": { "type": "string" },
+                        "backgroundImageUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
+                        "cardBackgroundColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
+                        "accentColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
                         "isInbox": { "type": "boolean" },
                         "createdAt": {
                           "type": "integer",
@@ -1257,6 +1320,27 @@
                         },
                         "title": { "type": "string" },
                         "icon": { "type": "string" },
+                        "backgroundImageUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
+                        "cardBackgroundColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
+                        "accentColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
                         "isInbox": { "type": "boolean" },
                         "createdAt": {
                           "type": "integer",
@@ -1431,7 +1515,28 @@
                 "type": "object",
                 "properties": {
                   "title": { "type": "string", "minLength": 1 },
-                  "icon": { "type": "string" }
+                  "icon": { "type": "string" },
+                  "backgroundImageUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "cardBackgroundColor": {
+                    "anyOf": [
+                      { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "accentColor": {
+                    "anyOf": [
+                      { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                      { "type": "null" }
+                    ]
+                  }
                 },
                 "additionalProperties": false
               }
@@ -1472,6 +1577,27 @@
                         },
                         "title": { "type": "string" },
                         "icon": { "type": "string" },
+                        "backgroundImageUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
+                        "cardBackgroundColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
+                        "accentColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
                         "isInbox": { "type": "boolean" },
                         "createdAt": {
                           "type": "integer",
@@ -1949,6 +2075,27 @@
                         },
                         "title": { "type": "string" },
                         "icon": { "type": "string" },
+                        "backgroundImageUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
+                        "cardBackgroundColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
+                        "accentColor": {
+                          "anyOf": [
+                            { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                            { "type": "null" }
+                          ]
+                        },
                         "isInbox": { "type": "boolean" },
                         "createdAt": {
                           "type": "integer",

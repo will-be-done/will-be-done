@@ -26,6 +26,7 @@ import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
 import { ProjectIcon } from "@/components/ui/emoji";
 import { useUndoToast } from "@/store/undo";
+import { ProjectBackgroundDialog } from "./ProjectBackgroundDialog";
 
 const DeleteIcon = () => (
   <svg
@@ -94,79 +95,96 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   if (!project) return null;
 
   return (
-    <div
-      data-scroll-restoration-id={scrollRestorationId}
-      className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden"
-      id="main-scrollable-area"
-    >
-      <div className="pointer-events-none absolute top-0 left-0 right-0 z-0 h-4" />
-      {/* Header */}
-      <div className="sm:flex-shrink-0 w-full pt-11 sm:pt-5 mb-6">
-        <div className="max-w-lg mx-auto px-4">
-          <div className="flex items-start gap-3">
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-[1.25em] items-center text-3xl flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                >
-                  <ProjectIcon icon={project.icon} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="z-50 w-fit p-0">
-                <EmojiPicker
-                  className="h-[326px] rounded-lg shadow-md"
-                  onEmojiSelect={({ emoji }) => {
-                    void dispatch(
-                      updateProject({
-                        id: project.id,
-                        project: { icon: emoji },
-                      }),
-                    );
-                  }}
-                >
-                  <EmojiPickerSearch />
-                  <EmojiPickerContent />
-                </EmojiPicker>
-              </PopoverContent>
-            </Popover>
+    <div className="relative isolate h-full">
+      {project.backgroundImageUrl && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        >
+          <img
+            src={project.backgroundImageUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-surface/70" />
+        </div>
+      )}
+      <div
+        data-scroll-restoration-id={scrollRestorationId}
+        className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden"
+        id="main-scrollable-area"
+      >
+        <div className="pointer-events-none absolute top-0 left-0 right-0 z-0 h-4" />
+        {/* Header */}
+        <div className="sm:flex-shrink-0 w-full pt-11 sm:pt-5 mb-6">
+          <div className="max-w-lg mx-auto px-4">
+            <div className="flex items-start gap-3">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex h-[1.25em] items-center text-3xl flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <ProjectIcon icon={project.icon} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="z-50 w-fit p-0">
+                  <EmojiPicker
+                    className="h-[326px] rounded-lg shadow-md"
+                    onEmojiSelect={({ emoji }) => {
+                      void dispatch(
+                        updateProject({
+                          id: project.id,
+                          project: { icon: emoji },
+                        }),
+                      );
+                    }}
+                  >
+                    <EmojiPickerSearch />
+                    <EmojiPickerContent />
+                  </EmojiPicker>
+                </PopoverContent>
+              </Popover>
 
-            <button
-              type="button"
-              onClick={() => void handleTitleClick()}
-              className="flex-1 min-w-0 text-left cursor-pointer"
-            >
-              <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">
-                {project.title}
-              </h1>
-            </button>
-
-            <div className="flex self-center flex-shrink-0">
               <button
-                onClick={handleDeleteClick}
                 type="button"
-                className="cursor-pointer text-content-tinted hover:text-notice transition-colors flex justify-center items-center"
+                onClick={() => void handleTitleClick()}
+                className="flex-1 min-w-0 text-left cursor-pointer"
               >
-                <DeleteIcon />
+                <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">
+                  {project.title}
+                </h1>
               </button>
+
+              <div className="flex self-center flex-shrink-0 items-center gap-3">
+                <ProjectBackgroundDialog key={project.id} project={project} />
+                <button
+                  onClick={handleDeleteClick}
+                  type="button"
+                  className="cursor-pointer text-content-tinted hover:text-notice transition-colors flex justify-center items-center"
+                >
+                  <DeleteIcon />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {isSmallScreen ? (
-        <div className="w-full">
-          <div className="max-w-lg mx-auto px-4 pb-4">
-            <ProjectTaskPanel projectId={projectId} embedded />
+        {isSmallScreen ? (
+          <div className="w-full">
+            <div className="max-w-lg mx-auto px-4 pb-4">
+              <ProjectTaskPanel projectId={projectId} embedded />
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex flex-1 min-h-0 overflow-x-auto pb-4">
-          <div className="min-w-max h-full px-4">
-            <ProjectItemsList project={project} isFocusRegion={false} />
+        ) : (
+          <div className="flex flex-1 min-h-0 overflow-x-auto pb-4">
+            <div className="min-w-max h-full px-4">
+              <ProjectItemsList project={project} isFocusRegion={false} />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
