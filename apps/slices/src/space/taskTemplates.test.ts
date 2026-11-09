@@ -559,7 +559,9 @@ describe("taskTemplates timezone consistency", () => {
 
     const generated = syncDispatch(
       db,
-      generateTasksFromTemplates({ toDate: checkpoint + 7 * 24 * 60 * 60 * 1000 }),
+      generateTasksFromTemplates({
+        toDate: checkpoint + 7 * 24 * 60 * 60 * 1000,
+      }),
     );
 
     // lastGeneratedAt syncs to every device; moving it with nothing generated

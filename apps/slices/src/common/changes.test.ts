@@ -616,7 +616,11 @@ describe("local change tracking", () => {
       "phone",
       "0000000010-0001-phone",
     );
-    const moved = firstEdit({ orderToken: "b" }, "laptop", "0000000020-0001-laptop");
+    const moved = firstEdit(
+      { orderToken: "b" },
+      "laptop",
+      "0000000020-0001-laptop",
+    );
 
     for (const order of [
       [renamed, moved],

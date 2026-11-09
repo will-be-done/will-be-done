@@ -704,11 +704,11 @@ export const mergeChanges = action({
                     mergedRow: { id: incomingChange.entityId },
                   }
                 : lwwMerge(
-                  currentChanges?.changes ?? {},
-                  incomingChange.changes,
-                  currentRow ?? { id: incomingChange.entityId },
-                  incomingRow ?? { id: incomingChange.entityId },
-                );
+                    currentChanges?.changes ?? {},
+                    incomingChange.changes,
+                    currentRow ?? { id: incomingChange.entityId },
+                    incomingRow ?? { id: incomingChange.entityId },
+                  );
         // Docs merge only within one incarnation; a newer one replaces them.
         const mergedRow =
           restoreOrder < 0

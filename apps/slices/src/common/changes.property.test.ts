@@ -147,13 +147,16 @@ const valueArb = fc.constantFrom("a", "b", "c");
 const replicaArb = fc.integer({ min: 0, max: REPLICAS - 1 });
 const entityArb = fc.integer({ min: 0, max: ENTITIES - 1 });
 const opArb: fc.Arbitrary<Op> = fc.oneof(
-  fc.record({
-    kind: fc.constant("create" as const),
-    replica: replicaArb,
-    entity: entityArb,
-    title: valueArb,
-    content: fc.option(valueArb, { nil: undefined }),
-  }, { requiredKeys: ["kind", "replica", "entity", "title"] }),
+  fc.record(
+    {
+      kind: fc.constant("create" as const),
+      replica: replicaArb,
+      entity: entityArb,
+      title: valueArb,
+      content: fc.option(valueArb, { nil: undefined }),
+    },
+    { requiredKeys: ["kind", "replica", "entity", "title"] },
+  ),
   fc.record({
     kind: fc.constant("edit" as const),
     replica: replicaArb,
@@ -286,8 +289,7 @@ const toUpload = ({
 }: {
   row: Item | undefined;
   change: Change | undefined;
-}): Upload =>
-  structuredClone({ change: change!, ...(row ? { row } : {}) });
+}): Upload => structuredClone({ change: change!, ...(row ? { row } : {}) });
 
 const permute = <T>(items: T[], order: number[]): T[] =>
   items
@@ -376,9 +378,7 @@ const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
         ).toBe((writer.row as Record<string, unknown>)[field]);
       }
     }
-    expect(Object.keys(row).every((key) => key in change!.changes)).toBe(
-      true,
-    );
+    expect(Object.keys(row).every((key) => key in change!.changes)).toBe(true);
   }
 };
 

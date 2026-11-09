@@ -97,9 +97,7 @@ const startApi = (templates: TaskTemplate[]) => {
   spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
     config.dbType === "user"
       ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
-      : ({ db: spaceDB } as unknown as ReturnType<
-          typeof databases.getHyperDB
-        >),
+      : ({ db: spaceDB } as unknown as ReturnType<typeof databases.getHyperDB>),
   );
   const analyticsEvents: BackendAnalyticsEvent[] = [];
   const analytics = {
