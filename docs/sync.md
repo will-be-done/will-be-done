@@ -5,12 +5,14 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 6, carried over the v4 transport routes. Version 5
+The current sync version is 7, carried over the v4 transport routes. Version 5
 added restore clocks; a v4 client would treat a restored entity as still deleted.
 Version 6 added the server-owned external calendar tables, which a v5 client
-cannot apply. The server rejects older clients and they must update. A new
-synced table always needs a version bump for the same reason. v3 upload and download
-procedures must not be reintroduced as an alternate path.
+cannot apply. Version 7 added the creation clock set (`rivalCreations`), which a
+v6 client would drop while still merging rival creations by first creator. The
+server rejects older clients and they must update. A new synced table always
+needs a version bump for the same reason. v3 upload and download procedures
+must not be reintroduced as an alternate path.
 
 ## Required Server-Backup Recovery Guarantee
 
@@ -367,13 +369,15 @@ must never expose a partially applied logical sync response.
   client ID would duplicate on merge. Whole-text writes such as API updates
   edit the doc (`richTextItems.ts`) rather than replacing it. See
   [rich-text.md](rich-text.md) for the reasons and traps.
-- Concurrent creation of the same ID uses deterministic first-creator-wins
-  behavior: the earlier creation's row and field clocks win wholesale and the
-  other creation's writes are discarded, also when either side is a tombstone.
-  Overlaying the loser's fields would depend on arrival order. Only the
-  original incarnation can have rival creations; a restore has a single
-  author, so a restored incarnation merges by per-field LWW whatever
-  `createdAt` its edits carry.
+- Two devices can create the same ID independently, such as a recurring task
+  instance, a daily list, or the inbox. Each creation clocks its fields with
+  its creation HLC, and the change record keeps every creation HLC seen for the
+  entity: the earliest as `createdAt`, the rest as `rivalCreations`. A field
+  clock in that set is a creation default; any other clock is a user edit. Per
+  field, an edit beats a default whatever the clocks, the later of two edits
+  wins, and of two defaults the earliest creation wins. The set only grows and
+  an edit clock can never join it, so every device classifies a clock the same
+  way and the merge stays independent of arrival order.
 - A row that predates its change record gets a synthesized creation on its
   first local edit or delete: every column is clocked with one fixed
   epoch-zero HLC shared by all devices. First edits on two devices then belong

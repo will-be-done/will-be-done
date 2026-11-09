@@ -647,7 +647,7 @@ describe("local change tracking", () => {
   });
 });
 
-describe("first-creator-wins merge", () => {
+describe("rival creation merge", () => {
   it("basic: earlier creator's title preserved when later creator merges in", () => {
     resetClock();
     const db = createDB();
@@ -686,7 +686,7 @@ describe("first-creator-wins merge", () => {
 
     const row = getRow(db, entityId);
     expect(row).toBeDefined();
-    expect(row!.title).toBe("client1-title"); // first creator wins
+    expect(row!.title).toBe("client1-title"); // earliest default wins
   });
 
   it("symmetry: incoming earlier creator wins over local later creator", () => {
@@ -726,10 +726,10 @@ describe("first-creator-wins merge", () => {
 
     const row = getRow(db, entityId);
     expect(row).toBeDefined();
-    expect(row!.title).toBe("client1-title"); // first creator wins even when incoming
+    expect(row!.title).toBe("client1-title"); // even when it arrives later
   });
 
-  it("first creator wins against later updates from the other client", () => {
+  it("the later creator's edit beats the earlier creator's default", () => {
     resetClock();
     const db = createDB();
     const entityId = "entity-3";
@@ -793,12 +793,17 @@ describe("first-creator-wins merge", () => {
 
     const row = getRow(db, entityId);
     expect(row).toBeDefined();
-    expect(row!.title).toBe("client1-title"); // first creator still wins
+    expect(row!.title).toBe("client2-updated-title");
+    expect(row!.orderToken).toBe("a");
+    const change = getChange(db, entityId)!;
+    expect(change.createdAt).toBe("0000000010-0001-client1");
+    expect(change.rivalCreations).toEqual(["0000000020-0001-client2"]);
+    expect(change.changes.orderToken).toBe("0000000010-0001-client1");
   });
 
-  it("drops a field only the later creator set", () => {
+  it("keeps a field only the later creator set", () => {
     const db = createDB();
-    const entityId = "fcw-loser-only-field";
+    const entityId = "rival-only-field";
     const firstCreated = "0000000010-0001-client1";
     const row = {
       type: "task",
@@ -827,10 +832,45 @@ describe("first-creator-wins merge", () => {
       }),
     );
 
-    // Keeping a loser-only field would make the result depend on arrival order.
-    expect(getRow(db, entityId)).toEqual(row);
+    expect(getRow(db, entityId)).toEqual({ ...row, content: "notes" });
     expect(getChange(db, entityId)?.createdAt).toBe(firstCreated);
-    expect(getChange(db, entityId)?.changes).not.toHaveProperty("content");
+    expect(getChange(db, entityId)?.changes.content).toBe(
+      "0000000030-0001-client2",
+    );
+  });
+
+  it("keeps both creators' edits in either arrival order", () => {
+    const entityId = "rival-edits";
+    const creation = (title: string, clock: string) =>
+      makeIncomingCreate(entityId, title, clock)[0]!.data[0]!;
+    const phone = creation("phone", "0000000010-0001-phone");
+    phone.row = { ...phone.row!, orderToken: "b" };
+    phone.change.changes.orderToken = "0000000015-0001-phone";
+    const laptop = creation("laptop", "0000000020-0001-laptop");
+    laptop.row = { ...laptop.row!, content: "laptop notes" };
+    laptop.change.changes.content = "0000000090-0001-laptop";
+
+    for (const uploads of [
+      [phone, laptop],
+      [laptop, phone],
+    ]) {
+      const server = createDB();
+      uploads.forEach((upload, index) =>
+        syncDispatch(
+          server,
+          mergeChanges({
+            input: [{ tableName: "testItems", data: [upload] }],
+            nextClock: `0000000100-000${index}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        ),
+      );
+      expect(getRow(server, entityId)).toEqual({
+        ...phone.row,
+        content: "laptop notes",
+      });
+    }
   });
 
   it("delete still wins regardless of creation order", () => {
@@ -1212,7 +1252,7 @@ describe("first-creator-wins merge", () => {
     });
   });
 
-  it("normal update sync is not blocked by FCW guard (same createdAt)", () => {
+  it("merges updates of one creation by field (same createdAt)", () => {
     resetClock();
     const db = createDB();
     const entityId = "entity-6";

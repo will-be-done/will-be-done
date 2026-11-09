@@ -126,12 +126,14 @@ export const observedChangeClocks = (change: {
   updatedAt: string;
   deletedAt: string | null;
   restoredAt?: string;
+  rivalCreations?: string[];
   changes: Record<string, string>;
 }): HlcTimestamp[] => [
   change.createdAt,
   change.updatedAt,
   ...(change.deletedAt === null ? [] : [change.deletedAt]),
   ...(change.restoredAt === undefined ? [] : [change.restoredAt]),
+  ...(change.rivalCreations ?? []),
   ...Object.values(change.changes),
 ];
 

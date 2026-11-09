@@ -167,6 +167,7 @@ const changeSchema = v.object({
   tableName: v.string(),
   deletedAt: v.union(v.string(), v.null()),
   restoredAt: v.optional(v.string()),
+  rivalCreations: v.optional(v.array(v.string())),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
   createdAt: v.string(),
@@ -609,71 +610,13 @@ export const mergeChanges = action({
             : { restoredAt: lastRestoredAt }),
         };
 
-        // First-creator-wins: when both sides created the same entity, the
-        // earlier creation's history wins wholesale and the other's is dropped.
-        // A partial overlay would depend on arrival order. Only the original
-        // incarnation can have rival creations; a restore has one author.
-        const rivalCreations =
-          currentChanges != null &&
-          currentChanges.restoredAt === undefined &&
-          incomingChange.restoredAt === undefined &&
-          currentChanges.createdAt !== incomingChange.createdAt;
-        if (
-          rivalCreations &&
-          currentRow != null &&
-          incomingRow != null &&
-          !isDeletedChange(incomingChange) &&
-          !isDeletedChange(currentChanges)
-        ) {
-          const currentCreatedFirst =
-            compareHlc(currentChanges.createdAt, incomingChange.createdAt) <= 0;
-
-          const winnerRow = currentCreatedFirst
-            ? currentRow
-            : (incomingRow as Row);
-          const fcwMergedChanges = currentCreatedFirst
-            ? currentChanges.changes
-            : incomingChange.changes;
-          const fcwMergedRow = mergeRichTextFields(
-            table.tableName,
-            currentRow,
-            incomingRow as Row,
-            winnerRow,
-          );
-          const currentClock = nextClock;
-          const mergedChange: Change = {
-            id: changeId(table.tableName, incomingChange.entityId),
-            entityId: incomingChange.entityId,
-            tableName: table.tableName,
-            createdAt: currentCreatedFirst
-              ? currentChanges.createdAt
-              : incomingChange.createdAt,
-            updatedAt: currentClock,
-            ...lifecycle,
-            clientId: currentCreatedFirst
-              ? currentChanges.clientId
-              : incomingChange.clientId,
-            changes: fcwMergedChanges,
-          };
-
-          if (
-            isSameMergedState(
-              currentChanges,
-              currentRow,
-              mergedChange,
-              fcwMergedRow,
-              false,
-            )
-          ) {
-            continue;
-          }
-
-          currentRowsMap.set(incomingChange.entityId, fcwMergedRow);
-          currentChangesMap.set(incomingChange.entityId, mergedChange);
-
-          continue; // Skip normal LWW merge
-        }
-
+        // Rival creations of one ID stamp their fields with their creation
+        // clocks. Keeping every creation clock lets each merge tell those
+        // defaults apart from user edits, whatever the arrival order.
+        const creations = new Set([
+          ...creationClocks(currentChanges),
+          ...creationClocks(incomingChange),
+        ]);
         const { mergedChanges, mergedRow: incarnationRow } =
           restoreOrder > 0
             ? {
@@ -687,28 +630,13 @@ export const mergeChanges = action({
                   mergedChanges: currentChanges.changes,
                   mergedRow: currentRow ?? { id: incomingChange.entityId },
                 }
-              : // First-creator-wins with a tombstone on either side: the merge
-                // stays deleted, so only the earlier creation's clocks remain.
-                rivalCreations &&
-                  currentChanges &&
-                  (isDeletedChange(currentChanges) ||
-                    isDeletedChange(incomingChange))
-                ? {
-                    mergedChanges:
-                      compareHlc(
-                        currentChanges.createdAt,
-                        incomingChange.createdAt,
-                      ) <= 0
-                        ? currentChanges.changes
-                        : incomingChange.changes,
-                    mergedRow: { id: incomingChange.entityId },
-                  }
-                : lwwMerge(
-                    currentChanges?.changes ?? {},
-                    incomingChange.changes,
-                    currentRow ?? { id: incomingChange.entityId },
-                    incomingRow ?? { id: incomingChange.entityId },
-                  );
+              : lwwMerge(
+                  creations,
+                  currentChanges?.changes ?? {},
+                  incomingChange.changes,
+                  currentRow ?? { id: incomingChange.entityId },
+                  incomingRow ?? { id: incomingChange.entityId },
+                );
         // Docs merge only within one incarnation; a newer one replaces them.
         const mergedRow =
           restoreOrder < 0
@@ -742,17 +670,15 @@ export const mergeChanges = action({
             : isDeleted || incomingStateWins
               ? incomingChange.clientId
               : currentChanges.clientId;
-        const mergedCreatedAt =
-          currentChanges == null ||
-          compareHlc(incomingChange.createdAt, currentChanges.createdAt) < 0
-            ? incomingChange.createdAt
-            : currentChanges.createdAt;
+        const [mergedCreatedAt = incomingChange.createdAt, ...rivalCreations] =
+          [...creations].sort(compareHlc);
 
         const mergedChange: Change = {
           id: changeId(table.tableName, incomingChange.entityId),
           entityId: incomingChange.entityId,
           tableName: table.tableName,
           createdAt: mergedCreatedAt,
+          ...(rivalCreations.length === 0 ? {} : { rivalCreations }),
           updatedAt: currentClock,
           ...lifecycle,
           clientId: winnerClientId,
@@ -833,10 +759,30 @@ const isSameMergedState = (
   currentChange.createdAt === mergedChange.createdAt &&
   currentChange.deletedAt === mergedChange.deletedAt &&
   currentChange.restoredAt === mergedChange.restoredAt &&
+  isEqual(currentChange.rivalCreations, mergedChange.rivalCreations) &&
   currentChange.clientId === mergedChange.clientId &&
   isEqual(currentChange.changes, mergedChange.changes);
 
+const creationClocks = (change: Change | undefined) =>
+  change === undefined
+    ? []
+    : [change.createdAt, ...(change.rivalCreations ?? [])];
+
+// A user edit beats a creation default whatever the clocks. Edits compare by
+// the latest clock, defaults by the earliest creation. Ties go to B.
+const fieldClockWins = (
+  creations: ReadonlySet<string>,
+  a: string,
+  b: string,
+) => {
+  const aIsDefault = creations.has(a);
+  const bIsDefault = creations.has(b);
+  if (aIsDefault !== bIsDefault) return bIsDefault;
+  return aIsDefault ? compareHlc(a, b) < 0 : compareHlc(a, b) > 0;
+};
+
 const lwwMerge = (
+  creations: ReadonlySet<string>,
   aChange: Record<string, string>,
   bChange: Record<string, string>,
   aRow: Row,
@@ -862,8 +808,7 @@ const lwwMerge = (
 
     if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
       // --- Conflict: The key was changed in both branches ---
-      // Compare the timestamps to find the winner.
-      if (compareHlc(changeTimestampA, changeTimestampB) > 0) {
+      if (fieldClockWins(creations, changeTimestampA, changeTimestampB)) {
         // A is the winner
         winningTimestamp = changeTimestampA;
         winningValue = primitiveARow[key];
@@ -914,6 +859,7 @@ export const Changeset = z.object({
         tableName: z.string(),
         deletedAt: z.string().nullable(),
         restoredAt: z.string().optional(),
+        rivalCreations: z.array(z.string()).optional(),
         clientId: z.string(),
         changes: z.record(z.string(), z.string()),
         createdAt: z.string(),

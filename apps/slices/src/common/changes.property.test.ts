@@ -28,7 +28,7 @@ import {
   type Change,
   type ChangesetArrayType,
 } from "./changes";
-import { maxHlc } from "./hlc";
+import { compareHlc, maxHlc } from "./hlc";
 
 // Replicas edit through the same change-recording actions the sync hooks use,
 // and every state they reach is an upload the server may receive in any order,
@@ -379,6 +379,26 @@ const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
       }
     }
     expect(Object.keys(row).every((key) => key in change!.changes)).toBe(true);
+    if (change!.restoredAt !== undefined) continue;
+
+    // Within the original incarnation, the latest edit wins and otherwise the
+    // earliest creation's default.
+    const creations = new Set(
+      received.flatMap((u) => [
+        u.change.createdAt,
+        ...(u.change.rivalCreations ?? []),
+      ]),
+    );
+    const fields = new Set(
+      received.flatMap((u) => Object.keys(u.change.changes)),
+    );
+    for (const field of fields) {
+      const clocks = received.flatMap((u) => u.change.changes[field] ?? []);
+      const edits = clocks.filter((clock) => !creations.has(clock));
+      const expected =
+        edits.length > 0 ? maxHlc(edits) : clocks.sort(compareHlc)[0];
+      expect(change!.changes[field], field).toBe(expected);
+    }
   }
 };
 
@@ -460,7 +480,7 @@ describe("mergeChanges properties", () => {
     property(assertReplayWritesNothing),
   );
   it(
-    "keeps lifecycle clocks at their maximum and pairs each value with its write",
+    "keeps lifecycle clocks at their maximum and picks each field's winning write",
     property(assertLifecycleAndWrites),
   );
   it("settles replicas exchanging states in any order on one entity", () =>
