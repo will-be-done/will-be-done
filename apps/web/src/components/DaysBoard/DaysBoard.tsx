@@ -1,7 +1,17 @@
-import { useEffect, useCallback } from "react";
-import { useMemo } from "react";
-import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  addDays,
+  differenceInCalendarDays,
+  format,
+  startOfDay,
+  startOfWeek,
+} from "date-fns";
+import { preloadSelectorAsync } from "@will-be-done/hyperdb";
+import {
+  useAsyncDispatch,
+  useDB,
+  useSelectAsync,
+} from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   createManyDailyListsIfNotPresent,
@@ -12,6 +22,7 @@ import {
   dailyEntryByTaskId,
   doneDailyEntryChildrenForDisplay,
   dailyEntryType,
+  getDMY,
   inboxProjectId,
   parseDMY,
   type TaskTemplateOccurrence,
@@ -23,12 +34,12 @@ import { ProjectedTaskCard } from "@/components/Task/ProjectedTaskCard.tsx";
 import { useUpcomingOccurrences } from "@/components/Task/useUpcomingOccurrences.ts";
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
+import { DAY_WIDTH, EDGE_SLACK, useInfiniteDays } from "./useInfiniteDays.ts";
+import { InfiniteScrollbar } from "./InfiniteScrollbar.tsx";
 import { ProjectsSplit } from "../ProjectView/ProjectsSplit.tsx";
 import { useProjectsViewSize } from "../ProjectView/ProjectsViewStore.ts";
-import {
-  TasksColumn,
-  TasksColumnGrid,
-} from "@/components/TasksGrid/TasksGrid.tsx";
+import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
+import { useHorizontalDragAutoScroll } from "@/components/TasksGrid/useHorizontalDragAutoScroll.ts";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
@@ -41,8 +52,77 @@ import { captureWebAnalytics } from "@/lib/analytics";
 import { DayEventsStrip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
 import { useExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
 import type { DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
+import type { DayRange } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 
-const ColumnView = ({
+// Data is queried for whole chunks of days around the rendered ones, so
+// scrolling only changes the queries when it crosses a chunk boundary.
+const DATA_CHUNK_DAYS = 7;
+const OVERSCAN_DAYS = 10;
+
+const DayHeader = ({
+  date,
+  isToday,
+  count,
+}: {
+  date: string;
+  isToday: boolean;
+  count: number;
+}) => (
+  <>
+    <div className="inline-block text-xs text-subheader mr-4">
+      {format(parseDMY(date), "dd MMM")}
+    </div>
+    <div
+      className={cn("uppercase text-content text-3xl font-bold ", {
+        "text-accent": isToday,
+      })}
+    >
+      {format(parseDMY(date), "EEEE")}
+    </div>
+    <span
+      className="flex items-center justify-center w-5 h-5 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none self-center"
+      style={{
+        writingMode: "horizontal-tb",
+        textOrientation: "initial",
+        transform: "rotate(180deg)",
+      }}
+    >
+      {count > 0 ? count : ""}
+    </span>
+  </>
+);
+
+// Stands in for a day until its DailyList exists and its tasks are loaded:
+// cheap to render while scrolling, and as wide as the open column it becomes.
+const DayColumnMock = ({ date }: { date: string }) => {
+  const isToday = useCurrentDMY() === date;
+
+  return (
+    <div
+      aria-hidden
+      className="flex h-full px-1 pt-1"
+      style={{ minWidth: `${DAY_WIDTH}px` }}
+    >
+      <div
+        className="flex justify-end"
+        style={{
+          writingMode: "vertical-rl",
+          textOrientation: "mixed",
+          transform: "rotate(180deg)",
+        }}
+      >
+        <div className="mb-4 flex">
+          <div className="mb-2 size-6" />
+        </div>
+        <div className="flex gap-3 justify-end flex-shrink-0 p-1">
+          <DayHeader date={date} isToday={isToday} count={0} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ColumnView = memo(function ColumnView({
   dailyList,
   occurrences,
   externalEvents,
@@ -52,7 +132,7 @@ const ColumnView = ({
   occurrences: TaskTemplateOccurrence[];
   externalEvents: DayExternalEvent[];
   onTaskAdd: (dailyList: DailyList) => void;
-}) => {
+}) {
   const currentDate = useCurrentDMY();
   const isToday = currentDate === dailyList.date;
 
@@ -73,12 +153,12 @@ const ColumnView = ({
   );
   const setIsHidden = useHiddenDays((state) => state.setIsHidden);
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
-  const isHidden =
-    isManuallyHidden ||
-    (itemsForDisplay.length == 0 &&
-      doneItemsForDisplay.length == 0 &&
-      occurrences.length == 0 &&
-      externalEvents.length == 0);
+  const isHidden = !!isManuallyHidden;
+  const isEmpty =
+    itemsForDisplay.length == 0 &&
+    doneItemsForDisplay.length == 0 &&
+    occurrences.length == 0 &&
+    externalEvents.length == 0;
   const handleHideClick = () => toggleIsHidden(dailyList.id);
 
   const handleAddClick = () => {
@@ -94,35 +174,34 @@ const ColumnView = ({
       isHidden={isHidden}
       onHideClick={handleHideClick}
       header={
-        <>
-          <div className="inline-block text-xs text-subheader mr-4">
-            {format(parseDMY(dailyList.date), "dd MMM")}
-          </div>
-          <div
-            className={cn("uppercase text-content text-3xl font-bold ", {
-              "text-accent": isToday,
-            })}
-          >
-            {format(parseDMY(dailyList.date), "EEEE")}
-          </div>
-          <span
-            className="flex items-center justify-center w-5 h-5 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none self-center"
-            style={{
-              writingMode: "horizontal-tb",
-              textOrientation: "initial",
-              transform: "rotate(180deg)",
-            }}
-          >
-            {itemsForDisplay.length > 0 ? itemsForDisplay.length : ""}
-          </span>
-        </>
+        <DayHeader
+          date={dailyList.date}
+          isToday={isToday}
+          count={itemsForDisplay.length}
+        />
       }
       columnModelId={dailyList.id}
       columnModelType={dailyList.type}
+      panelWidth={DAY_WIDTH}
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
         <DayEventsStrip events={externalEvents} />
+
+        {isEmpty && (
+          <button
+            type="button"
+            onClick={handleAddClick}
+            className="group/empty flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-content-tinted/15 py-8 transition-colors hover:border-content-tinted/30"
+          >
+            <span className="text-sm text-content-tinted/50 transition-colors group-hover/empty:text-content-tinted">
+              Nothing planned
+            </span>
+            <span className="text-xs text-content-tinted/30 transition-colors group-hover/empty:text-content-tinted/60">
+              Drop a task here or click to add one
+            </span>
+          </button>
+        )}
 
         {occurrences.map((occurrence) => (
           <ProjectedTaskCard
@@ -168,38 +247,227 @@ const ColumnView = ({
       </div>
     </TasksColumn>
   );
+});
+
+const noDailyLists: DailyList[] = [];
+const noExternalEvents: DayExternalEvent[] = [];
+
+const noReadyIds: ReadonlySet<string> = new Set();
+
+// DailyLists whose tasks are loaded, so their columns mount complete instead of
+// rendering empty and filling in.
+const useLoadedDailyLists = (dailyLists: DailyList[]) => {
+  const db = useDB();
+  const [loadedIds, setLoadedIds] = useState(noReadyIds);
+
+  useEffect(() => {
+    const pending = dailyLists.filter((list) => !loadedIds.has(list.id));
+    if (pending.length === 0) return;
+
+    let isCancelled = false;
+    void Promise.all(
+      pending.flatMap((list) => [
+        preloadSelectorAsync(db, {
+          selector: dailyEntryChildrenForDisplay,
+          args: { dailyListId: list.id },
+        }),
+        preloadSelectorAsync(db, {
+          selector: doneDailyEntryChildrenForDisplay,
+          args: { dailyListId: list.id },
+        }),
+      ]),
+    ).then(() => {
+      if (isCancelled) return;
+      setLoadedIds((previous) => {
+        const next = new Set(previous);
+        for (const list of pending) next.add(list.id);
+        return next;
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [db, dailyLists, loadedIds]);
+
+  return loadedIds;
 };
 
-const BoardView = ({
-  previousDate,
-  nextDate,
+const DaysTimeline = ({
+  startDate,
+  onVisibleDaysChange,
+  onTaskAdd,
+}: {
+  startDate: Date;
+  onVisibleDaysChange: (days: DayRange) => void;
+  onTaskAdd: (dailyList: DailyList) => void;
+}) => {
+  const dispatch = useAsyncDispatch();
+  const isStashOpen = useStashOpen((s) => s.isOpen);
+  const stashWidth = useStashSize((s) => s.width);
+
+  const handleVisibleDaysChange = useCallback(
+    (first: number, last: number) =>
+      onVisibleDaysChange({
+        from: addDays(startDate, first).getTime(),
+        to: addDays(startDate, last).getTime(),
+      }),
+    [onVisibleDaysChange, startDate],
+  );
+  const {
+    scrollerRef,
+    rowRef,
+    observeDay,
+    rendered,
+    firstVisible,
+    scrollToDay,
+    scrollByDay,
+    scrollBy,
+    page,
+  } = useInfiniteDays({
+    overscan: OVERSCAN_DAYS,
+    onVisibleDaysChange: handleVisibleDaysChange,
+  });
+  useHorizontalDragAutoScroll(scrollerRef);
+
+  const chunkStart = Math.floor(rendered.from / DATA_CHUNK_DAYS);
+  const chunkEnd = Math.ceil((rendered.to + 1) / DATA_CHUNK_DAYS);
+  const windowDates = useMemo(
+    () =>
+      Array.from(
+        { length: (chunkEnd - chunkStart) * DATA_CHUNK_DAYS },
+        (_, i) => addDays(startDate, chunkStart * DATA_CHUNK_DAYS + i),
+      ),
+    [startDate, chunkStart, chunkEnd],
+  );
+  const windowTimes = useMemo(
+    () => windowDates.map((date) => date.getTime()),
+    [windowDates],
+  );
+
+  const { data: dailyLists = noDailyLists } = useAsyncSelector({
+    selector: dailyListsByDates,
+    args: { dates: windowTimes },
+    placeholderData: (previous) => previous ?? noDailyLists,
+  });
+  const dailyListsByDate = useMemo(
+    () => new Map(dailyLists.map((dailyList) => [dailyList.date, dailyList])),
+    [dailyLists],
+  );
+  const readyDailyListIds = useLoadedDailyLists(dailyLists);
+  const occurrencesOf = useUpcomingOccurrences(windowDates);
+  const externalEventsByDate = useExternalEvents(windowDates);
+
+  useEffect(() => {
+    void dispatch(createManyDailyListsIfNotPresent({ dates: windowTimes }));
+  }, [dispatch, windowTimes]);
+
+  const jumpTo = (date: Date) => {
+    const day = differenceInCalendarDays(date, startDate);
+    scrollToDay(day, Math.abs(day - firstVisible) <= DATA_CHUNK_DAYS * 2);
+  };
+
+  const days = Array.from(
+    { length: rendered.to - rendered.from + 1 },
+    (_, i) => rendered.from + i,
+  );
+
+  return (
+    <>
+      <div
+        data-focus-region-direction="row"
+        className="relative max-h-full h-full overflow-x-clip"
+      >
+        <Stash />
+        <div
+          className="h-full"
+          style={{
+            paddingLeft: `${isStashOpen ? getStashOpenWidth(stashWidth) : 32}px`,
+            transition: "padding-left 200ms ease-out",
+          }}
+        >
+          <div className="relative h-full">
+            <div
+              ref={scrollerRef}
+              id="timeline-days"
+              className="h-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              <div
+                ref={rowRef}
+                className="relative flex h-full w-max"
+                style={{ paddingInline: EDGE_SLACK }}
+              >
+                {days.map((day) => {
+                  const date = getDMY(addDays(startDate, day));
+                  const dailyList = dailyListsByDate.get(date);
+                  const isReady =
+                    !!dailyList && readyDailyListIds.has(dailyList.id);
+
+                  return (
+                    <div
+                      key={day}
+                      data-day={day}
+                      ref={observeDay}
+                      className="h-full w-min shrink-0"
+                    >
+                      {isReady ? (
+                        <ColumnView
+                          dailyList={dailyList}
+                          occurrences={occurrencesOf(date)}
+                          externalEvents={
+                            externalEventsByDate.get(date) ?? noExternalEvents
+                          }
+                          onTaskAdd={onTaskAdd}
+                        />
+                      ) : (
+                        <DayColumnMock date={date} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <InfiniteScrollbar scrollBy={scrollBy} page={page} />
+          </div>
+        </div>
+      </div>
+      <NavPanel
+        date={addDays(startDate, firstVisible)}
+        onPrevious={() => scrollByDay(-1)}
+        onNext={() => scrollByDay(1)}
+        onToday={() => jumpTo(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+        onPickDate={jumpTo}
+      />
+    </>
+  );
+};
+
+export const Board = ({
   selectedDate,
-  dailyLists,
-  occurrencesOf,
-  externalEventsByDate,
   selectedProjectId,
 }: {
-  previousDate: Date;
-  nextDate: Date;
   selectedDate: Date;
-  dailyLists: DailyList[];
-  occurrencesOf: (date: string) => TaskTemplateOccurrence[];
-  externalEventsByDate: Map<string, DayExternalEvent[]>;
   selectedProjectId: string;
 }) => {
+  const startDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
   const dispatch = useAsyncDispatch();
   const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
   });
-  const isStashOpen = useStashOpen((s) => s.isOpen);
+  const [visibleDays, setVisibleDays] = useState<DayRange>();
   const setStashOpen = useStashOpen((s) => s.setOpen);
-  const stashWidth = useStashSize((s) => s.width);
   const setItemDetailsOpen = useItemDetailsOpen((s) => s.setOpen);
   const setProjectsViewHidden = useProjectsViewSize(
     (s) => s.setProjectsViewHidden,
   );
+
+  const handleVisibleDaysChange = useCallback((days: DayRange) => {
+    setVisibleDays((previous) =>
+      previous?.from === days.from && previous.to === days.to ? previous : days,
+    );
+  }, []);
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -261,13 +529,6 @@ const BoardView = ({
 
   const spaceId = Route.useParams().spaceId;
 
-  // const navigate = useNavigate();
-  // const handleSignOutClick = () => {
-  //   authUtils.signOut();
-  //
-  //   void navigate({ to: "/login" });
-  // };
-
   const ProjectLink = useCallback(
     // eslint-disable-next-line react-x/no-nested-component-definitions
     ({
@@ -307,28 +568,14 @@ const BoardView = ({
         topClassName="overflow-y-auto pt-10 max-sm:pt-24"
         projectLink={ProjectLink}
         selectedProjectId={selectedProjectId}
-        selectedDate={selectedDate}
+        timelineDays={visibleDays}
       >
-        <TasksColumnGrid
-          columnsCount={7}
-          floatingColumn={<Stash />}
-          paddingLeft={isStashOpen ? getStashOpenWidth(stashWidth) : 32}
-        >
-          {dailyLists.map((dailyList) => (
-            <ColumnView
-              dailyList={dailyList}
-              occurrences={occurrencesOf(dailyList.date)}
-              externalEvents={externalEventsByDate.get(dailyList.date) ?? []}
-              onTaskAdd={handleAddTask}
-              key={dailyList.id}
-            />
-          ))}
-        </TasksColumnGrid>
-        <NavPanel
-          previousDate={previousDate}
-          nextDate={nextDate}
-          selectedDate={selectedDate}
-          selectedProjectId={selectedProjectId}
+        {/* A new date in the URL starts a fresh timeline around it. */}
+        <DaysTimeline
+          key={startDate.getTime()}
+          startDate={startDate}
+          onVisibleDaysChange={handleVisibleDaysChange}
+          onTaskAdd={handleAddTask}
         />
       </ProjectsSplit>
 
@@ -337,53 +584,5 @@ const BoardView = ({
         <ItemDetails />
       </div>
     </div>
-  );
-};
-
-export const Board = ({
-  selectedDate,
-  selectedProjectId,
-}: {
-  selectedDate: Date;
-  selectedProjectId: string;
-}) => {
-  const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
-  const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
-  const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
-
-  const weekDays = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, i) => {
-        return addDays(startingDate, i);
-      }),
-    [startingDate],
-  );
-
-  const { data: dailyLists = [] } = useAsyncSelector({
-    selector: dailyListsByDates,
-    args: { dates: weekDays.map((date) => date.getTime()) },
-  });
-  const occurrencesOf = useUpcomingOccurrences(weekDays);
-  const externalEventsByDate = useExternalEvents(weekDays);
-  const dispatch = useAsyncDispatch();
-
-  useEffect(() => {
-    void dispatch(
-      createManyDailyListsIfNotPresent({
-        dates: weekDays.map((date) => date.getTime()),
-      }),
-    );
-  }, [dispatch, weekDays]);
-
-  return (
-    <BoardView
-      previousDate={previousDate}
-      nextDate={nextDate}
-      selectedDate={selectedDate}
-      dailyLists={dailyLists}
-      occurrencesOf={occurrencesOf}
-      externalEventsByDate={externalEventsByDate}
-      selectedProjectId={selectedProjectId}
-    />
   );
 };

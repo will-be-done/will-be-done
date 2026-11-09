@@ -1,4 +1,3 @@
-import { Link, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { useState } from "react";
@@ -13,18 +12,19 @@ import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const NavPanel = ({
-  previousDate,
-  nextDate,
-  selectedDate,
-  selectedProjectId,
+  date,
+  onPrevious,
+  onNext,
+  onToday,
+  onPickDate,
 }: {
-  previousDate: Date;
-  nextDate: Date;
-  selectedDate: Date;
-  selectedProjectId: string;
+  date: Date;
+  onPrevious: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  onPickDate: (date: Date) => void;
 }) => {
   const spaceId = Route.useParams().spaceId;
-  const navigate = useNavigate();
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   // Equal side columns keep the date centered; once it reaches the tabs, their
@@ -37,19 +37,13 @@ export const NavPanel = ({
       </div>
 
       <div className="pointer-events-auto max-sm:col-start-2 max-sm:mt-2 [app-region:no-drag]">
-        <div className="bg-surface-elevated rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3 w-60 max-sm:h-11 max-sm:w-auto max-sm:rounded-lg max-sm:px-0">
+        <div className="bg-surface-elevated rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3 min-w-60 max-sm:h-11 max-sm:min-w-0 max-sm:rounded-lg max-sm:px-0">
           <div className="flex items-center gap-2 max-sm:gap-0 h-full shrink-0">
-            <Link
-              to="/spaces/$spaceId/timeline/$date"
-              params={{
-                date: format(previousDate, "yyyy-MM-dd"),
-                spaceId,
-              }}
+            <button
+              type="button"
+              onClick={onPrevious}
               className="cursor-pointer w-6 max-sm:w-11 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
               aria-label="Previous day"
-              search={{
-                projectId: selectedProjectId,
-              }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -64,39 +58,30 @@ export const NavPanel = ({
                   d="M3 5.5.5 3 3 .5"
                 />
               </svg>
-            </Link>
+            </button>
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
                 <span className="font-medium cursor-pointer hover:text-primary transition-colors select-none w-24 text-center">
-                  {format(selectedDate, "dd MMM yyyy")}
+                  {format(date, "dd MMM yyyy")}
                 </span>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="center">
                 <Calendar
                   mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => {
-                    if (date) {
-                      void navigate({
-                        to: "/spaces/$spaceId/timeline/$date",
-                        params: { spaceId, date: format(date, "yyyy-MM-dd") },
-                        search: { projectId: selectedProjectId },
-                      });
+                  selected={date}
+                  defaultMonth={date}
+                  onSelect={(picked) => {
+                    if (picked) {
+                      onPickDate(picked);
                       setCalendarOpen(false);
                     }
                   }}
                 />
               </PopoverContent>
             </Popover>
-            <Link
-              to="/spaces/$spaceId/timeline/$date"
-              params={{
-                date: format(nextDate, "yyyy-MM-dd"),
-                spaceId,
-              }}
-              search={{
-                projectId: selectedProjectId,
-              }}
+            <button
+              type="button"
+              onClick={onNext}
               className="cursor-pointer w-6 max-sm:w-11 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
               aria-label="Next day"
             >
@@ -113,7 +98,15 @@ export const NavPanel = ({
                   strokeLinejoin="round"
                 />
               </svg>
-            </Link>
+            </button>
+            <div className="h-4 w-px bg-ring max-sm:mx-1" />
+            <button
+              type="button"
+              onClick={onToday}
+              className="cursor-pointer px-1 h-full text-content-tinted hover:text-primary transition-colors max-sm:px-3"
+            >
+              Today
+            </button>
           </div>
         </div>
       </div>

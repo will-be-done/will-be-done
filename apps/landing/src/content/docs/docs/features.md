@@ -54,15 +54,22 @@ Project and section names are plain text.
 
 ## Weekly timeline and Today
 
-The timeline shows days side by side. Each day contains an ordered task list.
-Scheduling assigns a day. A start time and duration are optional; see
-[Calendar](#calendar).
+The timeline shows days side by side, opening on Monday of the current week.
+Each day contains an ordered task list. Scheduling assigns a day. A start time
+and duration are optional; see [Calendar](#calendar).
+
+Scroll sideways to move through days in either direction without end. The
+arrows next to the date move one day, **Today** returns to the current week,
+and clicking the date picks any day. Click a day's name to fold it away.
 
 A scheduled task still belongs to its project section. Its appearance on the
 timeline refers to the same task, so edits and completion apply in both views.
 
 Drag a task onto a day to schedule it. Drag its scheduled appearance to another
 day to reschedule it. Reorder tasks within a day to change their order there.
+Hold a dragged task near the left or right edge to scroll to days further away.
+In the projects panel, tasks scheduled on a day currently on screen have a
+dashed outline.
 The Today view shows the current day's list.
 
 An unfinished task keeps its scheduled day. It does not automatically move to

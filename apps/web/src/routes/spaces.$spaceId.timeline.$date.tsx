@@ -18,6 +18,7 @@ import {
   projectSectionItemsForDisplayChildren,
   projectsWithTaskStats,
   externalEventOccurrencesInRange,
+  parseDMY,
 } from "@will-be-done/slices/space";
 import { externalEventsRange } from "@/components/ExternalEvents/useExternalEvents.ts";
 
@@ -34,9 +35,13 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
     const selectedDate = startOfDay(
       parse(params.date, "yyyy-MM-dd", new Date()),
     );
-    const dates = Array.from({ length: 7 }, (_, i) =>
-      addDays(selectedDate, i).getTime(),
+    // The days around the first screen of the timeline; entries are preloaded
+    // only for days likely to be on it.
+    const dates = Array.from({ length: 35 }, (_, i) =>
+      addDays(selectedDate, i - 14).getTime(),
     );
+    const firstScreenStart = selectedDate.getTime();
+    const firstScreenEnd = addDays(selectedDate, 14).getTime();
     const promises: Promise<unknown>[] = [];
     const appendPromise = (promise: Promise<unknown>) => {
       promises.push(promise);
@@ -95,6 +100,9 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
     );
 
     for (const dailyList of dailyLists) {
+      const time = parseDMY(dailyList.date).getTime();
+      if (time < firstScreenStart || time >= firstScreenEnd) continue;
+
       appendPromise(
         preloadSelectorAsync(db, {
           selector: dailyEntryChildrenForDisplay,

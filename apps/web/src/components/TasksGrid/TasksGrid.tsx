@@ -22,6 +22,7 @@ import {
 import { AnyModelType } from "@will-be-done/slices/space";
 import { PlusIcon } from "@/components/ui/icons.tsx";
 import { buildFocusKey } from "@/store/focusSlice.ts";
+import { useHorizontalDragAutoScroll } from "./useHorizontalDragAutoScroll.ts";
 
 export const TasksColumnGrid = ({
   columnsCount,
@@ -36,6 +37,9 @@ export const TasksColumnGrid = ({
   paddingLeft?: number;
   isFocusRegion?: boolean;
 }) => {
+  const scrollableRef = useRef<HTMLDivElement>(null);
+  useHorizontalDragAutoScroll(scrollableRef);
+
   return (
     <div
       data-focus-region-direction={isFocusRegion ? "row" : undefined}
@@ -43,6 +47,7 @@ export const TasksColumnGrid = ({
     >
       {floatingColumn}
       <div
+        ref={scrollableRef}
         className="max-h-full h-full overflow-x-auto"
         style={{
           paddingLeft: paddingLeft ? `${paddingLeft}px` : undefined,
