@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getProjectCardStyle } from "@/lib/projectColors";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   useAsyncDispatch,
@@ -263,6 +264,9 @@ export function MindmapNodeCard({
         borderColor: color
           ? `${color}${layout.depth === 1 ? "" : "66"}`
           : undefined,
+        ...getProjectCardStyle(
+          entry.kind === "node" && item ? entry.tree.project : undefined,
+        ),
       }}
     >
       <div className="flex items-start gap-2">

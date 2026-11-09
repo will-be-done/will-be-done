@@ -86,6 +86,9 @@ interface ProjectBackup {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   orderToken: string;
   createdAt: number;
@@ -233,6 +236,9 @@ const backupSchema = v.object({
       id: v.string(),
       title: v.string(),
       icon: v.string(),
+      backgroundImageUrl: v.optional(v.union(v.string(), v.null())),
+      cardBackgroundColor: v.optional(v.union(v.string(), v.null())),
+      accentColor: v.optional(v.union(v.string(), v.null())),
       isInbox: v.boolean(),
       orderToken: v.string(),
       createdAt: v.number(),
@@ -553,6 +559,15 @@ const getNewModels = action({
           : projectBackup.id,
         title: projectBackup.title,
         icon: projectBackup.icon,
+        ...(projectBackup.cardBackgroundColor === undefined
+          ? {}
+          : { cardBackgroundColor: projectBackup.cardBackgroundColor }),
+        ...(projectBackup.accentColor === undefined
+          ? {}
+          : { accentColor: projectBackup.accentColor }),
+        ...(projectBackup.backgroundImageUrl === undefined
+          ? {}
+          : { backgroundImageUrl: projectBackup.backgroundImageUrl }),
         isInbox: projectBackup.isInbox,
         orderToken: projectBackup.orderToken,
         createdAt: projectBackup.createdAt,
@@ -971,6 +986,15 @@ export const getSpaceBackup = selector({
         id: project.id,
         title: project.title,
         icon: project.icon,
+        ...(project.cardBackgroundColor === undefined
+          ? {}
+          : { cardBackgroundColor: project.cardBackgroundColor }),
+        ...(project.accentColor === undefined
+          ? {}
+          : { accentColor: project.accentColor }),
+        ...(project.backgroundImageUrl === undefined
+          ? {}
+          : { backgroundImageUrl: project.backgroundImageUrl }),
         isInbox: project.isInbox,
         orderToken: project.orderToken,
         createdAt: project.createdAt,

@@ -29,6 +29,7 @@ import {
 } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
 import { cardClass } from "./styles";
+import { useProjectCardStyle } from "@/components/ProjectView/useProjectCardStyle";
 import { type DayActions } from "./DayCells";
 import {
   type DayExternalEvent,
@@ -353,6 +354,7 @@ const TimedBlock = ({
   actions: DayActions;
 }) => {
   const isFocused = useFocusStore((s) => s.focusItemKey === event.focusKey);
+  const projectStyle = useProjectCardStyle(event.projectSectionId);
   const start = timeToMinutes(event.time!);
   const length = Math.min(blockMinutes(event), minutesInDay - start);
   const isShort = isShortBlock(length);
@@ -378,6 +380,7 @@ const TimedBlock = ({
         top: percent(start),
         height: blockHeight(start, length),
         ...blockPosition(layout),
+        ...projectStyle,
       }}
     >
       <BlockContent

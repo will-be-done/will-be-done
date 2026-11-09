@@ -5,6 +5,7 @@ import { useFocusStore } from "@/store/focusSlice.ts";
 import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { type CalendarEvent, isDraggable } from "./calendarModel";
 import { cardClass } from "./styles";
+import { useProjectCardStyle } from "@/components/ProjectView/useProjectCardStyle";
 import {
   type DragCommit,
   holdTouchScroll,
@@ -26,6 +27,7 @@ export const CalendarCard = ({
   onCommit: DragCommit;
 }) => {
   const isFocused = useFocusStore((s) => s.focusItemKey === event.focusKey);
+  const projectStyle = useProjectCardStyle(event.projectSectionId);
   const canDrag = isDraggable(event) && (!event.isProjected || inTimeView);
   const meta = [
     event.time && formatTaskTime(event.time),
@@ -43,6 +45,7 @@ export const CalendarCard = ({
         if (canDrag) startCalendarDrag(e, event, "move", onCommit);
       }}
       title={event.title}
+      style={projectStyle}
       className={cn(
         cardClass(event, isFocused, canDrag),
         "w-full min-w-0 shrink-0",

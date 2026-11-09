@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  isProjectBackgroundImageUrl,
   isValidTaskTemplateRule,
   maxTaskDurationMinutes,
   taskTimePattern,
@@ -65,10 +66,32 @@ export const PlacementSchema = z
   ])
   .describe("Position within an ordered collection");
 
+const ProjectBackgroundImageUrlSchema = z
+  .string()
+  .trim()
+  .refine(
+    isProjectBackgroundImageUrl,
+    "Choose a photo or enter a valid HTTP or HTTPS image URL",
+  )
+  .describe(
+    "HTTP or HTTPS image URL, or a base64 JPEG data URL up to 256 KiB; null clears the background",
+  )
+  .nullable()
+  .optional();
+
+const ProjectColorSchema = z
+  .string()
+  .regex(/^#[0-9a-f]{6}$/i)
+  .nullable()
+  .optional();
+
 export const ProjectSchema = z.object({
   id: z.string().describe("Project identifier"),
   title: z.string(),
   icon: z.string(),
+  backgroundImageUrl: ProjectBackgroundImageUrlSchema,
+  cardBackgroundColor: ProjectColorSchema,
+  accentColor: ProjectColorSchema,
   isInbox: z.boolean(),
   createdAt: z
     .number()
@@ -96,6 +119,9 @@ export const CreateProjectBodySchema = z
   .object({
     title: z.string().trim().min(1),
     icon: z.string().optional(),
+    backgroundImageUrl: ProjectBackgroundImageUrlSchema,
+    cardBackgroundColor: ProjectColorSchema,
+    accentColor: ProjectColorSchema,
     placement: PlacementSchema.optional(),
   })
   .strict();
@@ -108,6 +134,9 @@ export const UpdateProjectBodySchema = z
   .object({
     title: z.string().trim().min(1).optional(),
     icon: z.string().optional(),
+    backgroundImageUrl: ProjectBackgroundImageUrlSchema,
+    cardBackgroundColor: ProjectColorSchema,
+    accentColor: ProjectColorSchema,
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {

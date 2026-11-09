@@ -6,6 +6,7 @@ import {
   taskTemplateType,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
+import { useProjectCardStyle } from "@/components/ProjectView/useProjectCardStyle";
 import { formatDuration, formatTaskTime } from "@/lib/taskTime.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 
@@ -20,6 +21,7 @@ export const ProjectedTaskCard = ({
   onAddTask: () => void;
 }) => {
   const { template } = occurrence;
+  const projectStyle = useProjectCardStyle(template.projectSectionId);
   // The template id keeps item details working; the occurrence id keeps keys
   // unique when a template occurs several times in view (even on one day).
   const focusKey = buildFocusKey(template.id, taskTemplateType, occurrence.id);
@@ -34,6 +36,7 @@ export const ProjectedTaskCard = ({
       // Keyboard moves and drops must skip it: it is not a real list item.
       data-ignore-drop
       tabIndex={0}
+      style={projectStyle}
       title={richTextMarkdownToPlainText(template.title, "title")}
       onClick={() => useFocusStore.getState().focusByKey(focusKey, true)}
       onKeyDown={(e) => {

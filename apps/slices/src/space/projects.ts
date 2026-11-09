@@ -60,6 +60,44 @@ import {
   isNote,
 } from "./tables";
 
+// Leave room for the rest of the project changeset in a 1 MiB sync chunk.
+export const maxProjectBackgroundImageDataUrlLength = 256 * 1024;
+
+export function isProjectBackgroundImageDataUrl(value: string): boolean {
+  const prefix = "data:image/jpeg;base64,";
+  const base64 = value.slice(prefix.length);
+  return (
+    value.length <= maxProjectBackgroundImageDataUrlLength &&
+    value.startsWith(prefix) &&
+    base64.length % 4 === 0 &&
+    /^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(base64)
+  );
+}
+
+export function isProjectBackgroundImageUrl(value: string): boolean {
+  if (value.startsWith("data:")) return isProjectBackgroundImageDataUrl(value);
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function validateProjectBackground(project: Partial<Project>) {
+  for (const color of [project.cardBackgroundColor, project.accentColor]) {
+    if (color != null && !/^#[0-9a-f]{6}$/i.test(color)) {
+      throw new Error("Use a six-digit hex color, such as #334455");
+    }
+  }
+  if (
+    project.backgroundImageUrl != null &&
+    !isProjectBackgroundImageUrl(project.backgroundImageUrl)
+  ) {
+    throw new Error("Choose a photo or enter a valid HTTP or HTTPS image URL");
+  }
+}
+
 export const defaultProject: Project = {
   type: projectType,
   id: "default-project-id",
@@ -319,6 +357,7 @@ export const createProject = action({
     project,
     position,
   }): ActionGenerator<Project> {
+    validateProjectBackground(project);
     const orderToken = yield* generateOrderTokenPositioned(
       "all-projects-list",
       {
@@ -401,6 +440,7 @@ export const updateProject = action({
     project: v.partial(projectsTable.v()),
   },
   handler: function* updateProject({ id, project }): ActionGenerator<void> {
+    validateProjectBackground(project);
     const projectInState = yield* projectById({ id });
     if (!projectInState) throw new Error("Project not found");
 

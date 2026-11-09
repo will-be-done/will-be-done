@@ -16,6 +16,10 @@ import { addToStash, stashEntryByTaskId } from "./stashEntries";
 import { createDailyList } from "./dailyLists";
 import {
   createProject as createProjectAction,
+  isProjectBackgroundImageUrl,
+  maxProjectBackgroundImageDataUrlLength,
+  projectById,
+  updateProject,
   notDoneTasksCountExceptDailiesAndStashCount,
   notDoneTasksCountExceptDailiesCount,
   overdueTasksCountExceptDailiesAndStashCount,
@@ -144,6 +148,122 @@ function createTask(
     }),
   ) as Task;
 }
+
+describe("project backgrounds", () => {
+  it("preserves and clears project colors independently of the image", () => {
+    const db = createDB();
+    const { project } = createProject(db);
+    syncDispatch(
+      db,
+      updateProject({
+        id: project.id,
+        project: { cardBackgroundColor: "#112233", accentColor: "#aabbcc" },
+      }),
+    );
+    syncDispatch(
+      db,
+      updateProject({ id: project.id, project: { title: "Renamed" } }),
+    );
+    expect(
+      selectSync(db, { selector: projectById, args: { id: project.id } }),
+    ).toMatchObject({ cardBackgroundColor: "#112233", accentColor: "#aabbcc" });
+    syncDispatch(
+      db,
+      updateProject({
+        id: project.id,
+        project: { cardBackgroundColor: null, accentColor: null },
+      }),
+    );
+    expect(
+      selectSync(db, { selector: projectById, args: { id: project.id } }),
+    ).toMatchObject({ cardBackgroundColor: null, accentColor: null });
+  });
+  it.each(["red", "#fff", "#gg1122", "url(test)"])(
+    "rejects invalid project color %s",
+    (color) => {
+      const db = createDB();
+      const { project } = createProject(db);
+      for (const field of ["cardBackgroundColor", "accentColor"]) {
+        expect(() =>
+          syncDispatch(
+            db,
+            updateProject({ id: project.id, project: { [field]: color } }),
+          ),
+        ).toThrow("hex color");
+      }
+    },
+  );
+  it.each(["https://example.com/image.jpg", "data:image/jpeg;base64,/9j/2Q=="])(
+    "sets, preserves and clears background %s independently for each project",
+    (backgroundImageUrl) => {
+      const db = createDB();
+      const { project } = createProject(db);
+      const { project: other } = createProject(db, { id: "other-project" });
+      const read = (id: string) =>
+        selectSync(db, { selector: projectById, args: { id } });
+
+      expect(read(project.id)?.backgroundImageUrl).toBeUndefined();
+      syncDispatch(
+        db,
+        updateProject({
+          id: project.id,
+          project: { backgroundImageUrl },
+        }),
+      );
+      syncDispatch(
+        db,
+        updateProject({ id: project.id, project: { title: "Renamed" } }),
+      );
+      expect(read(project.id)?.backgroundImageUrl).toBe(backgroundImageUrl);
+      expect(read(other.id)?.backgroundImageUrl).toBeUndefined();
+      syncDispatch(
+        db,
+        updateProject({
+          id: project.id,
+          project: { backgroundImageUrl: null },
+        }),
+      );
+      expect(read(project.id)?.backgroundImageUrl).toBeNull();
+    },
+  );
+
+  it("bounds embedded photos to fit in sync chunks", () => {
+    const prefix = "data:image/jpeg;base64,";
+    const payloadSize =
+      Math.floor((maxProjectBackgroundImageDataUrlLength - prefix.length) / 4) *
+      4;
+    const image = prefix + "/9j/" + "A".repeat(payloadSize - 4);
+    expect(isProjectBackgroundImageUrl(image)).toBe(true);
+    expect(isProjectBackgroundImageUrl(image + "AAAA")).toBe(false);
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "file:///image.jpg",
+    "data:image/png;base64,abc",
+    "data:image/svg+xml;base64,PHN2Zy8+",
+    "data:image/jpeg;base64,not-an-image",
+    "invalid",
+  ])("rejects unsupported image URL %s", (backgroundImageUrl) => {
+    const db = createDB();
+    const { project } = createProject(db);
+    expect(() =>
+      syncDispatch(
+        db,
+        updateProject({ id: project.id, project: { backgroundImageUrl } }),
+      ),
+    ).toThrow("HTTP or HTTPS");
+    expect(() =>
+      syncDispatch(
+        db,
+        createProjectAction({
+          project: { backgroundImageUrl },
+          position: "append",
+        }),
+      ),
+    ).toThrow("HTTP or HTTPS");
+  });
+});
 
 describe("project task stats cache", () => {
   it("updates cached project counts from task changes", () => {

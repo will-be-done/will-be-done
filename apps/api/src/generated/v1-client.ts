@@ -472,6 +472,9 @@ export type ListProjects200ProjectsItem = {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   /**
    * Creation time as Unix milliseconds
@@ -619,6 +622,9 @@ export type CreateProjectBody = {
   /** @minLength 1 */
   title: string;
   icon?: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   /** Position within an ordered collection */
   placement?: CreateProjectBodyPlacement;
 };
@@ -628,6 +634,9 @@ export type CreateProject201Project = {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   /**
    * Creation time as Unix milliseconds
@@ -749,6 +758,9 @@ export type GetProject200Project = {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   /**
    * Creation time as Unix milliseconds
@@ -869,6 +881,9 @@ export type UpdateProjectBody = {
   /** @minLength 1 */
   title?: string;
   icon?: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
 };
 
 export type UpdateProject200Project = {
@@ -876,6 +891,9 @@ export type UpdateProject200Project = {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   /**
    * Creation time as Unix milliseconds
@@ -1169,6 +1187,9 @@ export type MoveProject200Project = {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   /**
    * Creation time as Unix milliseconds

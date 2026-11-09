@@ -18,6 +18,9 @@ export interface PublicProject {
   id: string;
   title: string;
   icon: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   isInbox: boolean;
   createdAt: number;
 }
@@ -26,10 +29,22 @@ function toPublicProject({
   id,
   title,
   icon,
+  backgroundImageUrl,
+  cardBackgroundColor,
+  accentColor,
   isInbox,
   createdAt,
 }: PublicProject): PublicProject {
-  return { id, title, icon, isInbox, createdAt };
+  return {
+    id,
+    title,
+    icon,
+    isInbox,
+    createdAt,
+    ...(backgroundImageUrl === undefined ? {} : { backgroundImageUrl }),
+    ...(cardBackgroundColor === undefined ? {} : { cardBackgroundColor }),
+    ...(accentColor === undefined ? {} : { accentColor }),
+  };
 }
 
 export async function listSpaceProjects({
@@ -68,12 +83,18 @@ export async function createSpaceProject({
   userId,
   title,
   icon = "",
+  backgroundImageUrl,
+  cardBackgroundColor,
+  accentColor,
   placement = { kind: "last" },
 }: {
   spaceId: string;
   userId: string;
   title: string;
   icon?: string;
+  backgroundImageUrl?: string | null;
+  cardBackgroundColor?: string | null;
+  accentColor?: string | null;
   placement?: Placement;
 }): Promise<PublicProject> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -84,7 +105,13 @@ export async function createSpaceProject({
   const project = await asyncDispatch(
     db,
     createProjectAction({
-      project: { title, icon },
+      project: {
+        title,
+        icon,
+        ...(backgroundImageUrl === undefined ? {} : { backgroundImageUrl }),
+        ...(cardBackgroundColor === undefined ? {} : { cardBackgroundColor }),
+        ...(accentColor === undefined ? {} : { accentColor }),
+      },
       position: resolveCreatePosition({ entities: projects, placement }),
     }),
   );
@@ -100,7 +127,13 @@ export async function updateSpaceProject({
   spaceId: string;
   projectId: string;
   userId: string;
-  updates: { title?: string; icon?: string };
+  updates: {
+    title?: string;
+    icon?: string;
+    backgroundImageUrl?: string | null;
+    cardBackgroundColor?: string | null;
+    accentColor?: string | null;
+  };
 }): Promise<PublicProject> {
   const db = await getSpaceDatabase(spaceId, userId);
   const current = await selectAsync(db, {
@@ -116,6 +149,15 @@ export async function updateSpaceProject({
       project: {
         ...(updates.title === undefined ? {} : { title: updates.title }),
         ...(updates.icon === undefined ? {} : { icon: updates.icon }),
+        ...(updates.cardBackgroundColor === undefined
+          ? {}
+          : { cardBackgroundColor: updates.cardBackgroundColor }),
+        ...(updates.accentColor === undefined
+          ? {}
+          : { accentColor: updates.accentColor }),
+        ...(updates.backgroundImageUrl === undefined
+          ? {}
+          : { backgroundImageUrl: updates.backgroundImageUrl }),
       },
     }),
   );
