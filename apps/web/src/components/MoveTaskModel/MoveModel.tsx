@@ -17,6 +17,7 @@ import {
   noteType,
   taskType,
 } from "@will-be-done/slices/space";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export const MoveModal = ({
   setIsOpen,
@@ -133,8 +134,8 @@ export const MoveModal = ({
               autoFocus
             />
           </div>
-          <Description className="flex-1 overflow-y-auto" as="div">
-            <div className="grid gap-1 text-content">
+          <ScrollArea rootClassName="min-h-0 flex-1">
+            <Description className="grid gap-1 text-content" as="div">
               {projects.map((pr, index) => (
                 <button
                   key={pr.id}
@@ -149,8 +150,8 @@ export const MoveModal = ({
                   {pr.title}
                 </button>
               ))}
-            </div>
-          </Description>
+            </Description>
+          </ScrollArea>
         </DialogPanel>
       </div>
     </Dialog>

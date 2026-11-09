@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { useFocusStore } from "@/store/focusSlice";
 import { TimeInput } from "@/components/Task/TaskTimeInputs";
 import { ProjectIcon } from "@/components/ui/emoji";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const chipClass =
   "flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 text-xs text-content-tinted transition-colors hover:bg-white/[0.05] hover:text-content focus:outline-none focus-visible:border-accent/60";
@@ -380,30 +381,32 @@ function SelectChip({
               className="h-9 w-full bg-transparent text-sm text-content outline-none placeholder:text-content-tinted/60"
             />
           </div>
-          <Command.List className="max-h-64 overflow-y-auto p-1.5">
-            <Command.Empty className="px-2 py-1.5 text-xs text-content-tinted">
-              Nothing found
-            </Command.Empty>
-            {options.map((option) => (
-              <Command.Item
-                key={option.value}
-                value={option.value}
-                keywords={[option.label]}
-                onSelect={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-calendar-day transition-colors data-[selected=true]:bg-panel-tinted data-[selected=true]:text-content"
-              >
-                <span className="min-w-0 flex-1 truncate">
-                  {option.prefix} {option.label}
-                </span>
-                {option.value === value && (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-accent" />
-                )}
-              </Command.Item>
-            ))}
-          </Command.List>
+          <ScrollArea className="max-h-64">
+            <Command.List className="p-1.5">
+              <Command.Empty className="px-2 py-1.5 text-xs text-content-tinted">
+                Nothing found
+              </Command.Empty>
+              {options.map((option) => (
+                <Command.Item
+                  key={option.value}
+                  value={option.value}
+                  keywords={[option.label]}
+                  onSelect={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-calendar-day transition-colors data-[selected=true]:bg-panel-tinted data-[selected=true]:text-content"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {option.prefix} {option.label}
+                  </span>
+                  {option.value === value && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-accent" />
+                  )}
+                </Command.Item>
+              ))}
+            </Command.List>
+          </ScrollArea>
         </Command>
       </PopoverContent>
     </Popover>

@@ -209,6 +209,11 @@ test("scrolls with its own scrollbar, which has no ends", async ({ page }) => {
   await openTimeline(page);
   const thumb = page.getByRole("scrollbar", { name: "Scroll days" });
   const rest = (await thumb.boundingBox())!;
+
+  // Like the app's other scrollbars, it shows on hover.
+  await expect(thumb.locator("..")).toHaveCSS("opacity", "0");
+  await timeline(page).hover();
+  await expect(thumb.locator("..")).toHaveCSS("opacity", "1");
   const center = { x: rest.x + rest.width / 2, y: rest.y + rest.height / 2 };
 
   // The native scrollbar is hidden.

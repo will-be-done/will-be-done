@@ -22,6 +22,7 @@ import { isDemoMode } from "@/lib/demoMode";
 import { useTRPC } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { Route } from "@/routes/spaces.$spaceId";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const SECTIONS = [
   {
@@ -162,8 +163,8 @@ export function SettingsLayout() {
           {backLink("mt-auto hidden px-3 py-2 sm:flex", "Back")}
         </aside>
 
-        <main className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-6 pb-16 sm:px-8 sm:pt-10 desktop-macos:pt-12">
+        <ScrollArea rootClassName="min-h-0 min-w-0 flex-1">
+          <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-6 pb-16 sm:px-8 sm:pt-10 desktop-macos:pt-12">
             <div className="flex items-baseline gap-2 text-[17px]">
               <span className="text-content-tinted/50" aria-hidden="true">
                 Settings
@@ -174,8 +175,8 @@ export function SettingsLayout() {
               <h1 className="font-medium text-content">{current?.label}</h1>
             </div>
             <Outlet />
-          </div>
-        </main>
+          </main>
+        </ScrollArea>
       </div>
     </GlobalLayout>
   );

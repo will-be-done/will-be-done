@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addDays,
   differenceInCalendarDays,
@@ -330,6 +330,7 @@ const DaysTimeline = ({
     onVisibleDaysChange: handleVisibleDaysChange,
   });
   useHorizontalDragAutoScroll(scrollerRef);
+  const areaRef = useRef<HTMLDivElement>(null);
 
   const chunkStart = Math.floor(rendered.from / DATA_CHUNK_DAYS);
   const chunkEnd = Math.ceil((rendered.to + 1) / DATA_CHUNK_DAYS);
@@ -387,7 +388,7 @@ const DaysTimeline = ({
             transition: "padding-left 200ms ease-out",
           }}
         >
-          <div className="relative h-full">
+          <div ref={areaRef} className="relative h-full">
             <div
               ref={scrollerRef}
               id="timeline-days"
@@ -431,7 +432,12 @@ const DaysTimeline = ({
                 })}
               </div>
             </div>
-            <InfiniteScrollbar scrollBy={scrollBy} page={page} />
+            <InfiniteScrollbar
+              areaRef={areaRef}
+              scrollerRef={scrollerRef}
+              scrollBy={scrollBy}
+              page={page}
+            />
           </div>
         </div>
       </div>
@@ -569,7 +575,7 @@ export const Board = ({
   return (
     <div className="flex h-full w-full">
       <ProjectsSplit
-        topClassName="overflow-y-auto pt-10 max-sm:pt-24"
+        topClassName="overflow-hidden pt-10 max-sm:pt-24"
         projectLink={ProjectLink}
         selectedProjectId={selectedProjectId}
         timelineDays={visibleDays}

@@ -22,6 +22,7 @@ import {
 import { AnyModelType } from "@will-be-done/slices/space";
 import { PlusIcon } from "@/components/ui/icons.tsx";
 import { buildFocusKey } from "@/store/focusSlice.ts";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHorizontalDragAutoScroll } from "./useHorizontalDragAutoScroll.ts";
 
 export const TasksColumnGrid = ({
@@ -46,16 +47,18 @@ export const TasksColumnGrid = ({
       className="relative max-h-full h-full overflow-x-clip"
     >
       {floatingColumn}
-      <div
+      {/* Columns scroll themselves; the board only scrolls sideways. */}
+      <ScrollArea
         ref={scrollableRef}
-        className="max-h-full h-full overflow-x-auto"
+        rootClassName="h-full"
+        className="overflow-y-hidden"
         style={{
           paddingLeft: paddingLeft ? `${paddingLeft}px` : undefined,
           transition: "padding-left 200ms ease-out",
         }}
       >
         <div
-          className="grid max-h-full h-full"
+          className="grid max-h-full h-full min-w-max"
           style={{
             gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
             gridTemplateRows: `1fr`,
@@ -63,7 +66,7 @@ export const TasksColumnGrid = ({
         >
           {children}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -226,15 +229,15 @@ export const TasksColumn = ({
           {header}
         </button>
       </div>
-      <div
-        className={cn("w-full min-h-0 flex-1 overflow-y-auto", {
+      <ScrollArea
+        rootClassName={cn("w-full min-w-0 min-h-0 flex-1", {
           hidden: isHidden,
         })}
         ref={scrollableRef}
         tabIndex={-1}
       >
         <div className={cn("flex flex-col gap-4 w-full px-1")}>{children}</div>
-      </div>
+      </ScrollArea>
       {onAddClick && (
         <div
           data-focus-placeholder

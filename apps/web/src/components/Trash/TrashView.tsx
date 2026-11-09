@@ -13,6 +13,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { StickyNote } from "lucide-react";
 import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -88,7 +89,7 @@ export const TrashView = () => {
   };
 
   return (
-    <div className="h-full overflow-y-auto" id="main-scrollable-area">
+    <ScrollArea rootClassName="h-full" id="main-scrollable-area">
       <div className="mx-auto max-w-lg px-4 pt-11 pb-8 sm:pt-5">
         <div className="mb-6 flex items-end gap-3">
           <div className="flex-1">
@@ -122,6 +123,6 @@ export const TrashView = () => {
           </ul>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 };

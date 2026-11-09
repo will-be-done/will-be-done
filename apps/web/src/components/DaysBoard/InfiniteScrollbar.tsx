@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { cn } from "@/lib/utils.ts";
 
-// The timeline has no ends, so a native scrollbar, which maps its thumb to an
-// absolute position, fights the days added under it. This thumb rests in the
-// middle instead: dragging it scrolls, holding it past the end of the track
-// keeps scrolling, and releasing it springs it back.
+// The timeline has no ends, so a scrollbar that maps its thumb to an absolute
+// position fights the days added under it. This thumb rests in the middle
+// instead: dragging it scrolls, holding it past the end of the track keeps
+// scrolling, and releasing it springs it back. It looks and shows like
+// ScrollArea's bars: on hover or while scrolling.
 
 const THUMB_FRACTION = 0.25;
 // Holding past the end scrolls this many pixels per frame for each pixel of
@@ -12,6 +13,7 @@ const THUMB_FRACTION = 0.25;
 const HOLD_SPEED = 0.5;
 const MIN_HOLD_SPEED = 6;
 const MAX_HOLD_SPEED = 80;
+const SCROLL_TIMEOUT = 500;
 
 type Drag = {
   pointerId: number;
@@ -22,15 +24,58 @@ type Drag = {
 };
 
 export const InfiniteScrollbar = ({
+  areaRef,
+  scrollerRef,
   scrollBy,
   page,
 }: {
+  // Hovering anywhere in here shows the bar.
+  areaRef: RefObject<HTMLElement | null>;
+  scrollerRef: RefObject<HTMLElement | null>;
   scrollBy: (pixels: number) => void;
   page: (direction: -1 | 1) => void;
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const [offset, setOffset] = useState<number | null>(null);
+
+  useEffect(() => {
+    const area = areaRef.current;
+    const scroller = scrollerRef.current;
+    const track = trackRef.current;
+    if (!area || !scroller || !track) return;
+
+    let timeout: number | undefined;
+    const onScroll = () => {
+      track.setAttribute("data-scrolling", "");
+      window.clearTimeout(timeout);
+      timeout = window.setTimeout(
+        () => track.removeAttribute("data-scrolling"),
+        SCROLL_TIMEOUT,
+      );
+    };
+    // A drag fires no pointer events, and a bar left taking the pointer would
+    // hide the days under it from drop targeting.
+    const setHovering = (hovering: boolean) =>
+      track.toggleAttribute("data-hovering", hovering);
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") setHovering(true);
+    };
+    const onPointerLeave = () => setHovering(false);
+    const onDragStart = () => setHovering(false);
+
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    area.addEventListener("pointermove", onPointerMove);
+    area.addEventListener("pointerleave", onPointerLeave);
+    window.addEventListener("dragstart", onDragStart, true);
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      area.removeEventListener("pointermove", onPointerMove);
+      area.removeEventListener("pointerleave", onPointerLeave);
+      window.removeEventListener("dragstart", onDragStart, true);
+      window.clearTimeout(timeout);
+    };
+  }, [areaRef, scrollerRef]);
 
   const hold = () => {
     const drag = dragRef.current;
@@ -100,34 +145,36 @@ export const InfiniteScrollbar = ({
   return (
     <div
       ref={trackRef}
+      data-dragging={offset !== null || undefined}
       onPointerDown={handleTrackPointerDown}
       // Clear of the projects panel's divider handles below it; touch swipes.
-      className="group/scrollbar absolute inset-x-2 bottom-3.5 z-10 flex h-3 cursor-pointer items-center pointer-coarse:hidden"
+      className={cn(
+        "pointer-events-none absolute inset-x-0 bottom-3.5 z-10 h-2.5 touch-none select-none opacity-0 transition-opacity delay-300 duration-150 pointer-coarse:hidden",
+        "data-hovering:pointer-events-auto data-hovering:opacity-100 data-hovering:delay-0 data-scrolling:opacity-100 data-scrolling:delay-0 data-dragging:pointer-events-auto data-dragging:opacity-100",
+      )}
     >
-      <div className="relative h-1.5 w-full rounded-full bg-content-tinted/5 transition-colors group-hover/scrollbar:bg-content-tinted/10">
-        <div
-          role="scrollbar"
-          aria-orientation="horizontal"
-          aria-controls="timeline-days"
-          aria-label="Scroll days"
-          aria-valuenow={50}
-          onPointerDown={handleThumbPointerDown}
-          onPointerMove={handleThumbPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          className={cn(
-            "absolute inset-y-0 rounded-full",
-            offset === null
-              ? "cursor-grab bg-content-tinted/25 transition-[transform,background-color] duration-300 ease-out hover:bg-content-tinted/40"
-              : "cursor-grabbing bg-content-tinted/50",
-          )}
-          style={{
-            left: `${((1 - THUMB_FRACTION) / 2) * 100}%`,
-            width: `${THUMB_FRACTION * 100}%`,
-            transform: `translateX(${offset ?? 0}px)`,
-          }}
-        />
-      </div>
+      <div
+        role="scrollbar"
+        aria-orientation="horizontal"
+        aria-controls="timeline-days"
+        aria-label="Scroll days"
+        aria-valuenow={50}
+        onPointerDown={handleThumbPointerDown}
+        onPointerMove={handleThumbPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        className={cn(
+          "absolute inset-y-0 rounded-full border-2 border-transparent bg-clip-padding",
+          offset === null
+            ? "bg-content/25 transition-[transform,background-color] duration-300 ease-out hover:bg-content/40"
+            : "bg-content/40",
+        )}
+        style={{
+          left: `${((1 - THUMB_FRACTION) / 2) * 100}%`,
+          width: `${THUMB_FRACTION * 100}%`,
+          transform: `translateX(${offset ?? 0}px)`,
+        }}
+      />
     </div>
   );
 };

@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
 import { formatEventWhen } from "./externalEventsModel";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g;
 
@@ -120,29 +121,31 @@ const Details = ({ occurrence }: { occurrence: ExternalEventOccurrence }) => {
         )}
         {people.length > 0 && (
           <Row label="Guests">
-            <ul className="flex max-h-32 flex-col gap-0.5 overflow-y-auto">
-              {people.map((person) => (
-                <li key={person.email} className="flex gap-1.5">
-                  <span className="min-w-0 truncate" title={person.email}>
-                    {person.name ?? person.email}
-                    {person.isOwner && " (you)"}
-                  </span>
-                  <span className="shrink-0 text-content-tinted/70">
-                    {person === details?.organizer
-                      ? "Organizer"
-                      : person.response && responseLabels[person.response]}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <ScrollArea className="max-h-32">
+              <ul className="flex flex-col gap-0.5">
+                {people.map((person) => (
+                  <li key={person.email} className="flex gap-1.5">
+                    <span className="min-w-0 truncate" title={person.email}>
+                      {person.name ?? person.email}
+                      {person.isOwner && " (you)"}
+                    </span>
+                    <span className="shrink-0 text-content-tinted/70">
+                      {person === details?.organizer
+                        ? "Organizer"
+                        : person.response && responseLabels[person.response]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
           </Row>
         )}
       </div>
 
       {details?.description && (
-        <div className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words border-t border-white/10 pt-3 text-content-tinted">
+        <ScrollArea className="max-h-48 whitespace-pre-wrap break-words border-t border-white/10 pt-3 text-content-tinted">
           {linkify(details.description)}
-        </div>
+        </ScrollArea>
       )}
     </div>
   );
