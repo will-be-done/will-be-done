@@ -119,7 +119,13 @@ const writeEntity = action({
 type Upload = ChangesetArrayType[number]["data"][number];
 
 type Op =
-  | { kind: "create"; replica: number; entity: number; title: string }
+  | {
+      kind: "create";
+      replica: number;
+      entity: number;
+      title: string;
+      content?: string;
+    }
   | {
       kind: "edit";
       replica: number;
@@ -146,7 +152,8 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
     replica: replicaArb,
     entity: entityArb,
     title: valueArb,
-  }),
+    content: fc.option(valueArb, { nil: undefined }),
+  }, { requiredKeys: ["kind", "replica", "entity", "title"] }),
   fc.record({
     kind: fc.constant("edit" as const),
     replica: replicaArb,
@@ -210,7 +217,7 @@ const seedLegacyRow = action({
   },
 });
 
-const simulate = (history: Op[]): Upload[] => {
+const runHistory = (history: Op[]) => {
   const replicas = Array.from({ length: REPLICAS }, () => {
     const db = createDB();
     syncDispatch(db, seedLegacyRow({}));
@@ -230,7 +237,12 @@ const simulate = (history: Op[]): Upload[] => {
 
     if (op.kind === "create") {
       if (row) continue;
-      write({ id, title: op.title, orderToken: "a" });
+      write({
+        id,
+        title: op.title,
+        orderToken: "a",
+        ...(op.content === undefined ? {} : { content: op.content }),
+      });
     } else if (op.kind === "edit") {
       if (!row || row[op.field] === op.value) continue;
       write({ ...row, [op.field]: op.value });
@@ -263,8 +275,10 @@ const simulate = (history: Op[]): Upload[] => {
     const state = read(db, id);
     if (state.change) uploads.push(toUpload(state));
   }
-  return uploads;
+  return { uploads, replicas };
 };
+
+const simulate = (history: Op[]): Upload[] => runHistory(history).uploads;
 
 const toUpload = ({
   row,
@@ -284,8 +298,8 @@ const permute = <T>(items: T[], order: number[]): T[] =>
 // The receipt clock and the winning client are bookkeeping: clients replace
 // clientId with their own when applying a download, so only the server's
 // arrival order picks it.
-const semanticState = (db: DB) =>
-  entityIds.map((id) => {
+const semanticState = (db: DB, ids = entityIds) =>
+  ids.map((id) => {
     const { row, change } = read(db, id);
     if (!change) return { row };
     const { updatedAt: _receipt, clientId: _winner, ...semantic } = change;
@@ -368,6 +382,54 @@ const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
   }
 };
 
+// Replicas exchange their current states in the generated order, then in full
+// rounds until one changes nothing. A sync loop is a round that never comes.
+const assertGossipSettles = (history: Op[], order: number[]) => {
+  const { uploads, replicas } = runHistory(history);
+  let tick = 2_000_000;
+  const exchange = (from: number, to: number) => {
+    if (from === to) return;
+    const data = entityIds
+      .map((id) => read(replicas[from]!, id))
+      .filter((state) => state.change)
+      .map(toUpload);
+    if (data.length === 0) return;
+    syncDispatch(
+      replicas[to]!,
+      mergeChanges({
+        input: [{ tableName: itemsTable.tableName, data }],
+        nextClock: clockAt(++tick, `replica-${to}`),
+        clientId: `replica-${to}`,
+        registeredSyncableTableNameMap: tables,
+      }),
+    );
+  };
+  for (let i = 0; i + 1 < order.length; i += 2) {
+    exchange(order[i]! % REPLICAS, order[i + 1]! % REPLICAS);
+  }
+
+  // Any write restamps updatedAt, so an unchanged snapshot means no writes.
+  const snapshot = () =>
+    JSON.stringify(replicas.map((db) => entityIds.map((id) => read(db, id))));
+  for (let round = 0; ; round += 1) {
+    expect(round, "gossip never settled").toBeLessThanOrEqual(REPLICAS);
+    const before = snapshot();
+    for (let from = 0; from < REPLICAS; from += 1) {
+      for (let to = 0; to < REPLICAS; to += 1) exchange(from, to);
+    }
+    if (snapshot() === before) break;
+  }
+
+  const [first, ...rest] = replicas.map((db) => semanticState(db));
+  for (const state of rest) expect(state).toEqual(first);
+  const uploaded = entityIds.filter((id) =>
+    uploads.some((u) => u.change.entityId === id),
+  );
+  expect(semanticState(replicas[0]!, uploaded)).toEqual(
+    semanticState(mergedOneByOne(uploads), uploaded),
+  );
+};
+
 const checks = [
   assertConverges,
   assertBatchMatchesOneByOne,
@@ -401,6 +463,11 @@ describe("mergeChanges properties", () => {
     "keeps lifecycle clocks at their maximum and pairs each value with its write",
     property(assertLifecycleAndWrites),
   );
+  it("settles replicas exchanging states in any order on one entity", () =>
+    fc.assert(
+      fc.property(historyArb, orderArb, assertGossipSettles),
+      propertyParameters,
+    ));
 
   // Shrunk counterexamples, kept because random runs can take thousands of
   // cases to reach them again.
@@ -439,5 +506,6 @@ describe("mergeChanges properties", () => {
   ])("holds for $name", ({ history, order }) => {
     const uploads = simulate(history);
     for (const check of checks) check(uploads, order);
+    assertGossipSettles(history, order);
   });
 });
