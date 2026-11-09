@@ -572,6 +572,9 @@ export const createApplyServerChangesIfNoClientChanges = (
             ...(change.restoredAt === undefined
               ? {}
               : { restoredAt: change.restoredAt }),
+            ...(change.rivalCreations === undefined
+              ? {}
+              : { rivalCreations: change.rivalCreations }),
             clientId,
             changes: change.changes,
           } satisfies Change;

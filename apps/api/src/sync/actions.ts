@@ -453,6 +453,10 @@ const semanticallyEqualUpload = (
     staged.change.createdAt === canonical.change.createdAt &&
     staged.change.deletedAt === canonical.change.deletedAt &&
     staged.change.restoredAt === canonical.change.restoredAt &&
+    isDeepStrictEqual(
+      staged.change.rivalCreations,
+      canonical.change.rivalCreations,
+    ) &&
     staged.change.clientId === canonical.change.clientId &&
     isDeepStrictEqual(staged.change.changes, canonical.change.changes) &&
     isDeepStrictEqual(staged.row, canonical.row)

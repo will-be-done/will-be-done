@@ -14,7 +14,7 @@ import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
 import { changesTable, type Change } from "./tables";
-import { compareHlc } from "./hlc";
+import { compareHlc, formatHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
 import {
   loadRichTextDoc,
@@ -26,9 +26,8 @@ import {
 
 export { changesTable, type Change } from "./tables";
 
-export type PrimitiveRow = Record<string, string | number | boolean | null> & {
-  id: string;
-};
+export type PrimitiveValue = string | number | boolean | null;
+export type PrimitiveRow = Record<string, PrimitiveValue> & { id: string };
 
 const SELECT_OR_CHUNK_SIZE = 400;
 
@@ -167,6 +166,7 @@ const changeSchema = v.object({
   tableName: v.string(),
   deletedAt: v.union(v.string(), v.null()),
   restoredAt: v.optional(v.string()),
+  rivalCreations: v.optional(v.array(v.string())),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
   createdAt: v.string(),
@@ -399,6 +399,32 @@ export const insertChangeFromInsert = action({
   },
 });
 
+// A row can predate its change log. Every device synthesizes the same creation
+// for it, so first edits on two devices merge by field instead of competing as
+// rival creations, and the server receives a clock for every column.
+export const UNKNOWN_CREATION_CLOCK = formatHlc({
+  physical: 0,
+  logical: 0,
+  actorId: "unknown-creation",
+});
+const unknownCreation = (
+  tableName: string,
+  row: PrimitiveRow,
+  clientId: string,
+  updatedAt: string,
+): Change => ({
+  id: changeId(tableName, row.id),
+  entityId: row.id,
+  tableName,
+  createdAt: UNKNOWN_CREATION_CLOCK,
+  updatedAt,
+  deletedAt: null,
+  clientId,
+  changes: Object.fromEntries(
+    Object.keys(row).map((key) => [key, UNKNOWN_CREATION_CLOCK]),
+  ),
+});
+
 export const insertChangeFromUpdate = action({
   name: "insertChangeFromUpdate",
   args: {
@@ -424,27 +450,13 @@ export const insertChangeFromUpdate = action({
       (yield* getChangeByEntityAndTableName({
         entityId: oldRow.id,
         tableName: tableDef.tableName,
-      })) ||
-      ({
-        id: changeId(tableDef.tableName, oldRow.id),
-        entityId: oldRow.id,
-        tableName: tableDef.tableName,
-        createdAt: updatedAt,
-        updatedAt: updatedAt,
-        deletedAt: null,
-        clientId: clientId,
-        changes: {},
-      } satisfies Change);
+      })) ?? unknownCreation(tableDef.tableName, oldRow, clientId, updatedAt);
     const changedRows: Record<string, string> = { ...change.changes };
 
     for (const col of uniq([...Object.keys(oldRow), ...Object.keys(newRow)])) {
       if (!isEqual(oldRow[col], newRow[col])) {
         changedRows[col] = updatedAt;
       }
-    }
-
-    if (Object.keys(changedRows).length === 0) {
-      return undefined as Change | undefined;
     }
 
     const newChange: Change = {
@@ -475,19 +487,11 @@ export const insertChangeFromDelete = action({
   }) {
     const deletedAt = nextClock;
 
-    const change = (yield* getChangeByEntityAndTableName({
-      entityId: row.id,
-      tableName: tableDef.tableName,
-    })) || {
-      id: changeId(tableDef.tableName, row.id),
-      entityId: row.id,
-      tableName: tableDef.tableName,
-      createdAt: deletedAt,
-      updatedAt: deletedAt,
-      deletedAt: null,
-      clientId: clientId,
-      changes: {},
-    };
+    const change =
+      (yield* getChangeByEntityAndTableName({
+        entityId: row.id,
+        tableName: tableDef.tableName,
+      })) ?? unknownCreation(tableDef.tableName, row, clientId, deletedAt);
 
     const deletedChange: Change = {
       ...change,
@@ -567,6 +571,11 @@ export const mergeChanges = action({
         change: incomingChange,
         row: incomingRow,
       } of changeset.data) {
+        // A live change without its row has field clocks but no values. It is
+        // ignored, not rejected: rejecting would fail the sender's retries forever.
+        if (incomingRow === undefined && !isDeletedChange(incomingChange)) {
+          continue;
+        }
         touchedEntityIds.add(incomingChange.entityId);
         const currentChanges = currentChangesMap.get(incomingChange.entityId);
         const currentRow = currentRowsMap.get(incomingChange.entityId);
@@ -596,91 +605,45 @@ export const mergeChanges = action({
             : { restoredAt: lastRestoredAt }),
         };
 
-        // First-creator-wins: when both sides created the same entity,
-        // the earlier creator's values always take precedence
+        // A row without any record may be another tab's write whose record is
+        // still on its way, so only an existing partial record is completed.
+        const currentFieldClocks = currentChanges
+          ? withUnknownClocks(currentChanges.changes, currentRow)
+          : {};
+        const incomingFieldClocks = withUnknownClocks(
+          incomingChange.changes,
+          incomingRow,
+        );
+        // Rival creations of one ID stamp their fields with their creation
+        // clocks. Keeping every creation clock lets each merge tell those
+        // defaults apart from user edits, whatever the arrival order.
+        const creations = new Set([
+          ...creationClocks(currentChanges),
+          ...creationClocks(incomingChange),
+        ]);
         if (
-          currentChanges != null &&
-          currentRow != null &&
-          incomingRow != null &&
-          restoreOrder === 0 &&
-          !isDeletedChange(incomingChange) &&
-          !isDeletedChange(currentChanges) &&
-          currentChanges.createdAt !== incomingChange.createdAt
+          Object.values(currentFieldClocks).includes(UNKNOWN_CREATION_CLOCK) ||
+          Object.values(incomingFieldClocks).includes(UNKNOWN_CREATION_CLOCK)
         ) {
-          const currentCreatedFirst =
-            compareHlc(currentChanges.createdAt, incomingChange.createdAt) <= 0;
-
-          // Winner's fields overwrite loser's (spread winner second)
-          const winnerRow = currentCreatedFirst
-            ? currentRow
-            : (incomingRow as Row);
-          const loserRow = currentCreatedFirst
-            ? (incomingRow as Row)
-            : currentRow;
-          const winnerChanges = currentCreatedFirst
-            ? currentChanges.changes
-            : incomingChange.changes;
-          const loserChanges = currentCreatedFirst
-            ? incomingChange.changes
-            : currentChanges.changes;
-
-          const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
-          const fcwMergedRow = mergeRichTextFields(
-            table.tableName,
-            currentRow,
-            incomingRow as Row,
-            { ...loserRow, ...winnerRow } as Row,
-          );
-          const currentClock = nextClock;
-          const mergedChange: Change = {
-            id: changeId(table.tableName, incomingChange.entityId),
-            entityId: incomingChange.entityId,
-            tableName: table.tableName,
-            createdAt: currentCreatedFirst
-              ? currentChanges.createdAt
-              : incomingChange.createdAt,
-            updatedAt: currentClock,
-            ...lifecycle,
-            clientId: currentCreatedFirst
-              ? currentChanges.clientId
-              : incomingChange.clientId,
-            changes: fcwMergedChanges,
-          };
-
-          if (
-            isSameMergedState(
-              currentChanges,
-              currentRow,
-              mergedChange,
-              fcwMergedRow,
-              false,
-            )
-          ) {
-            continue;
-          }
-
-          currentRowsMap.set(incomingChange.entityId, fcwMergedRow);
-          currentChangesMap.set(incomingChange.entityId, mergedChange);
-
-          continue; // Skip normal LWW merge
+          creations.add(UNKNOWN_CREATION_CLOCK);
         }
-
         const { mergedChanges, mergedRow: incarnationRow } =
           restoreOrder > 0
             ? {
-                mergedChanges: incomingChange.changes,
+                mergedChanges: incomingFieldClocks,
                 mergedRow: (incomingRow as Row | undefined) ?? {
                   id: incomingChange.entityId,
                 },
               }
             : restoreOrder < 0 && currentChanges
               ? {
-                  mergedChanges: currentChanges.changes,
+                  mergedChanges: currentFieldClocks,
                   mergedRow: currentRow ?? { id: incomingChange.entityId },
                 }
               : lwwMerge(
-                  currentChanges?.changes ?? {},
-                  incomingChange.changes,
+                  creations,
+                  currentFieldClocks,
+                  incomingFieldClocks,
                   currentRow ?? { id: incomingChange.entityId },
                   incomingRow ?? { id: incomingChange.entityId },
                 );
@@ -717,17 +680,15 @@ export const mergeChanges = action({
             : isDeleted || incomingStateWins
               ? incomingChange.clientId
               : currentChanges.clientId;
-        const mergedCreatedAt =
-          currentChanges == null ||
-          compareHlc(incomingChange.createdAt, currentChanges.createdAt) < 0
-            ? incomingChange.createdAt
-            : currentChanges.createdAt;
+        const [mergedCreatedAt = incomingChange.createdAt, ...rivalCreations] =
+          [...creations].sort(compareHlc);
 
         const mergedChange: Change = {
           id: changeId(table.tableName, incomingChange.entityId),
           entityId: incomingChange.entityId,
           tableName: table.tableName,
           createdAt: mergedCreatedAt,
+          ...(rivalCreations.length === 0 ? {} : { rivalCreations }),
           updatedAt: currentClock,
           ...lifecycle,
           clientId: winnerClientId,
@@ -808,10 +769,55 @@ const isSameMergedState = (
   currentChange.createdAt === mergedChange.createdAt &&
   currentChange.deletedAt === mergedChange.deletedAt &&
   currentChange.restoredAt === mergedChange.restoredAt &&
+  isEqual(currentChange.rivalCreations, mergedChange.rivalCreations) &&
   currentChange.clientId === mergedChange.clientId &&
   isEqual(currentChange.changes, mergedChange.changes);
 
+// Records written before unknown creations clocked only the edited columns.
+// The rest belong to the unknown creation, as unknownCreation would record them.
+const withUnknownClocks = (
+  fieldClocks: Record<string, string>,
+  row: Row | undefined,
+) => {
+  const unclocked = Object.keys(row ?? {}).filter(
+    (key) => !(key in fieldClocks),
+  );
+  return unclocked.length === 0
+    ? fieldClocks
+    : {
+        ...fieldClocks,
+        ...Object.fromEntries(
+          unclocked.map((key) => [key, UNKNOWN_CREATION_CLOCK]),
+        ),
+      };
+};
+
+const creationClocks = (change: Change | undefined) =>
+  change === undefined
+    ? []
+    : [change.createdAt, ...(change.rivalCreations ?? [])];
+
+// A user edit beats a creation default whatever the clocks. Edits compare by
+// the latest clock, defaults by the earliest creation. Only the shared
+// unknown-creation clock can tie across devices, so the tie-break is the value.
+const fieldWins = (
+  creations: ReadonlySet<string>,
+  a: { clock: string; value: PrimitiveValue | undefined },
+  b: { clock: string; value: PrimitiveValue | undefined },
+) => {
+  const aIsDefault = creations.has(a.clock);
+  const bIsDefault = creations.has(b.clock);
+  if (aIsDefault !== bIsDefault) return bIsDefault;
+  const order = compareHlc(a.clock, b.clock);
+  if (order !== 0) return aIsDefault ? order < 0 : order > 0;
+  return valueKey(a.value) > valueKey(b.value);
+};
+
+const valueKey = (value: PrimitiveValue | undefined) =>
+  value === undefined ? "" : JSON.stringify(value);
+
 const lwwMerge = (
+  creations: ReadonlySet<string>,
   aChange: Record<string, string>,
   bChange: Record<string, string>,
   aRow: Row,
@@ -833,34 +839,41 @@ const lwwMerge = (
     const changeTimestampB = bChange[key];
 
     let winningTimestamp: string;
-    let winningValue: string | number | boolean | null;
+    let winningValue: string | number | boolean | null | undefined;
 
     if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
       // --- Conflict: The key was changed in both branches ---
-      // Compare the timestamps to find the winner.
-      if (compareHlc(changeTimestampA, changeTimestampB) > 0) {
+      if (
+        fieldWins(
+          creations,
+          { clock: changeTimestampA, value: primitiveARow[key] },
+          { clock: changeTimestampB, value: primitiveBRow[key] },
+        )
+      ) {
         // A is the winner
         winningTimestamp = changeTimestampA;
-        winningValue = primitiveARow[key]!;
+        winningValue = primitiveARow[key];
       } else {
         // B is the winner (or they are equal, B wins the tie)
         winningTimestamp = changeTimestampB;
-        winningValue = primitiveBRow[key]!;
+        winningValue = primitiveBRow[key];
       }
     } else if (changeTimestampA !== undefined) {
       // --- Key was only changed in A ---
       winningTimestamp = changeTimestampA;
-      winningValue = primitiveARow[key]!;
+      winningValue = primitiveARow[key];
     } else {
       // --- Key was only changed in B ---
       // We can assert changeTimestampB is not undefined here.
       winningTimestamp = changeTimestampB!;
-      winningValue = primitiveBRow[key]!;
+      winningValue = primitiveBRow[key];
     }
 
     // Update the merged results with the winning data
     mergedChanges[key] = winningTimestamp;
-    mergedRow[key] = winningValue;
+    // A cleared optional field is an omitted key, never an undefined value.
+    if (winningValue === undefined) delete mergedRow[key];
+    else mergedRow[key] = winningValue;
   }
 
   return { mergedChanges, mergedRow: mergedRow as Row };
@@ -887,6 +900,7 @@ export const Changeset = z.object({
         tableName: z.string(),
         deletedAt: z.string().nullable(),
         restoredAt: z.string().optional(),
+        rivalCreations: z.array(z.string()).optional(),
         clientId: z.string(),
         changes: z.record(z.string(), z.string()),
         createdAt: z.string(),

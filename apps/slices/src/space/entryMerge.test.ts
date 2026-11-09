@@ -207,15 +207,20 @@ describe("entry conflict merge", () => {
       },
     ];
 
-    syncDispatch(
-      db,
-      mergeSpaceChanges({
-        input: input(clientAClock),
-        nextClock: "0000000030-0001-server",
-        clientId: "server",
-        registeredSyncableTableNameMap: registeredSpaceSyncableTableNameMap,
-      }),
-    );
+    for (const [clock, nextClock] of [
+      [clientAClock, "0000000030-0001-server"],
+      [clientBClock, "0000000031-0001-server"],
+    ] as const) {
+      syncDispatch(
+        db,
+        mergeSpaceChanges({
+          input: input(clock),
+          nextClock,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredSpaceSyncableTableNameMap,
+        }),
+      );
+    }
     const writes = observeWrites(db);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       syncDispatch(
@@ -249,7 +254,11 @@ describe("entry conflict merge", () => {
       }),
     ).toEqual({
       rows: [row],
-      change: expect.objectContaining({ deletedAt: null }),
+      change: expect.objectContaining({
+        createdAt: clientAClock,
+        rivalCreations: [clientBClock],
+        deletedAt: null,
+      }),
     });
     expect(writes.result()).toEqual({
       committedOperations: 0,

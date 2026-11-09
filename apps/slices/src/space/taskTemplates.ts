@@ -708,13 +708,13 @@ function* generateTasksForTemplateIds({
 
   for (const templateId of templateIds) {
     const template = yield* taskTemplateById({ id: templateId });
+    if (!template) continue;
     const newTasks = yield* newTasksToGenForTaskTemplate({
       templateId,
       toDate,
     });
     // Sub-daily rules carry their own time in each occurrence.
-    const time =
-      template && isDailyOrCoarser(template.repeatRule) ? template.time : null;
+    const time = isDailyOrCoarser(template.repeatRule) ? template.time : null;
 
     for (const task of newTasks) {
       if (task.templateId === null) {
@@ -740,13 +740,15 @@ function* generateTasksForTemplateIds({
       generatedCount += 1;
     }
 
-    // lastGeneratedAt is a generation checkpoint, not the last occurrence.
-    // Advancing it even when no task is due prevents rescanning the template on
-    // every access between occurrences.
-    yield* updateTemplate({
-      id: templateId,
-      template: { lastGeneratedAt: toDate },
-    });
+    // lastGeneratedAt is a generation checkpoint, not the last occurrence. It
+    // syncs to every device, so it moves only when tasks are generated;
+    // MAX_GENERATION_WINDOW_MS bounds the scan of an idle template.
+    if (newTasks.length > 0) {
+      yield* updateTemplate({
+        id: templateId,
+        template: { lastGeneratedAt: toDate },
+      });
+    }
   }
 
   return generatedCount;
@@ -767,29 +769,6 @@ export const generateTasksForTemplate = action({
   handler: function* generateTasksForTemplate({ templateId, toDate }) {
     return yield* generateTasksForTemplateIds({
       templateIds: [templateId],
-      toDate,
-    });
-  },
-});
-
-export const generateSpaceTasksIfDue = action({
-  name: "generateSpaceTasksIfDue",
-  args: {
-    toDate: v.number(),
-    intervalMs: v.number(),
-    force: v.boolean(),
-  },
-  handler: function* generateSpaceTasksIfDue({ toDate, intervalMs, force }) {
-    if (intervalMs < 0) throw new Error("intervalMs cannot be negative");
-
-    const templates = force
-      ? yield* selectFrom(taskTemplatesTable, "byLastGeneratedAt")
-      : yield* selectFrom(taskTemplatesTable, "byLastGeneratedAt").where((q) =>
-          q.lte("lastGeneratedAt", toDate - intervalMs),
-        );
-
-    return yield* generateTasksForTemplateIds({
-      templateIds: templates.map((template) => template.id),
       toDate,
     });
   },

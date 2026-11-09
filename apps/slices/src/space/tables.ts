@@ -80,8 +80,7 @@ export const taskTemplatesTable = defineTable("task_templates", {
   durationMinutes: v.optional(v.union(v.number(), v.null())),
 })
   .index("byIds", ["id"])
-  .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"])
-  .index("byLastGeneratedAt", ["lastGeneratedAt"]);
+  .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"]);
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 registerRichTextFields(taskTemplatesTable.tableName, itemRichTextFields);
 export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;

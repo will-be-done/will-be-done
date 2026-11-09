@@ -5,12 +5,14 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 6, carried over the v4 transport routes. Version 5
+The current sync version is 7, carried over the v4 transport routes. Version 5
 added restore clocks; a v4 client would treat a restored entity as still deleted.
 Version 6 added the server-owned external calendar tables, which a v5 client
-cannot apply. The server rejects older clients and they must update. A new
-synced table always needs a version bump for the same reason. v3 upload and download
-procedures must not be reintroduced as an alternate path.
+cannot apply. Version 7 added the creation clock set (`rivalCreations`), which a
+v6 client would drop while still merging rival creations by first creator. The
+server rejects older clients and they must update. A new synced table always
+needs a version bump for the same reason. v3 upload and download procedures
+must not be reintroduced as an alternate path.
 
 ## Required Server-Backup Recovery Guarantee
 
@@ -367,8 +369,30 @@ must never expose a partially applied logical sync response.
   client ID would duplicate on merge. Whole-text writes such as API updates
   edit the doc (`richTextItems.ts`) rather than replacing it. See
   [rich-text.md](rich-text.md) for the reasons and traps.
-- Concurrent creation of the same ID uses deterministic first-creator-wins
-  behavior before field merging.
+- Two devices can create the same ID independently, such as a recurring task
+  instance, a daily list, or the inbox. Each creation clocks its fields with
+  its creation HLC, and the change record keeps every creation HLC seen for the
+  entity: the earliest as `createdAt`, the rest as `rivalCreations`. A field
+  clock in that set is a creation default; any other clock is a user edit. Per
+  field, an edit beats a default whatever the clocks, the later of two edits
+  wins, and of two defaults the earliest creation wins. The set only grows and
+  an edit clock can never join it, so every device classifies a clock the same
+  way and the merge stays independent of arrival order.
+- A row that predates its change record gets a synthesized creation on its
+  first local edit or delete: every column is clocked with one fixed
+  epoch-zero HLC shared by all devices. First edits on two devices then belong
+  to the same creation and merge per field, and the server receives a clock
+  for every column instead of only the edited ones. Records synthesized before
+  this rule carry the first edit's clock as `createdAt`, so those first edits
+  rank as creation defaults and lose to the epoch-zero default when a device
+  that never received the record edits the row. No migration rewrites them;
+  the exposure is limited to rows that predate the change log. A record that
+  clocks only some of its row's columns merges as if the rest carried the
+  epoch-zero clock, so the merged record covers every column.
+- A live change that arrives without its row is ignored rather than rejected.
+  It has field clocks but no values, and rejecting it would fail the sender's
+  upload on every retry. When the server has the entity, the uploader receives
+  its canonical state back as a correction.
 - An entity is deleted when its deletion HLC is newer than its restore HLC.
   Both clocks merge by maximum, so a later delete beats an earlier restore and
   a later restore beats an earlier delete in any arrival order.
@@ -562,4 +586,7 @@ suppression, canonical conflict correction, duplicate chunk/commit retries,
 atomic parent-and-projection application, server backup rollback, client backup
 rollback, HLC wall-clock rollback, fast and slow client-clock calibration,
 future-skew rejection, tombstones and restores in every arrival order, and
-staged-download recovery.
+staged-download recovery. The merge properties (order independence, batch
+equivalence, replay idempotency, and value/clock pairing) are checked against
+generated multi-replica histories in
+[`changes.property.test.ts`](../apps/slices/src/common/changes.property.test.ts).

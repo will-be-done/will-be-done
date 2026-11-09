@@ -13,7 +13,7 @@ import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
 import { sendError } from "./errors";
 import { asyncDispatch } from "@will-be-done/hyperdb";
-import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
+import { generateTasksFromTemplates } from "@will-be-done/slices/space";
 import { getEnvConfig } from "../env";
 import {
   capturePublicApiProductEvent,
@@ -37,6 +37,10 @@ function getOperationId(request: {
     ? operationId
     : `${request.method} ${request.routeOptions.url ?? "unknown"}`;
 }
+
+// Per process, not synced: a recurrence check is only an optimization, and a
+// synced checkpoint would make every check a write that every device downloads.
+const lastRecurrenceCheckAt = new WeakMap<object, number>();
 
 export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
   server,
@@ -75,15 +79,20 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
       return sendError(request, reply, error, "Failed to prepare space data");
     }
 
+    const now = Date.now();
+    const lastCheckAt = lastRecurrenceCheckAt.get(db);
+    if (
+      lastCheckAt !== undefined &&
+      now - lastCheckAt < getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS
+    ) {
+      return;
+    }
+    lastRecurrenceCheckAt.set(db, now);
+
+    // Reads every template of the space; a space holds tens of templates and
+    // each one checks at most two weeks of occurrences.
     try {
-      await asyncDispatch(
-        db,
-        generateSpaceTasksIfDue({
-          toDate: Date.now(),
-          intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
-          force: false,
-        }),
-      );
+      await asyncDispatch(db, generateTasksFromTemplates({ toDate: now }));
     } catch (error) {
       request.log.error(error, "Failed to generate recurring tasks");
     }
