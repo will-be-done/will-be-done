@@ -89,6 +89,8 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
     }
     lastRecurrenceCheckAt.set(db, now);
 
+    // Reads every template of the space; a space holds tens of templates and
+    // each one checks at most two weeks of occurrences.
     try {
       await asyncDispatch(db, generateTasksFromTemplates({ toDate: now }));
     } catch (error) {

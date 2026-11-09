@@ -25,6 +25,7 @@ import {
   insertChangeFromUpdate,
   isDeletedChange,
   mergeChanges,
+  UNKNOWN_CREATION_CLOCK,
   type Change,
   type ChangesetArrayType,
 } from "./changes";
@@ -46,9 +47,11 @@ const tables = { [itemsTable.tableName]: itemsTable };
 const REPLICAS = 3;
 const ENTITIES = 3;
 const entityIds = Array.from({ length: ENTITIES }, (_, i) => `entity-${i}`);
-// Present on every replica with no change record, like rows that predate the
-// change log.
-const legacyRow: Item = { id: entityIds.at(-1)!, title: "a", orderToken: "a" };
+// Present on every replica without a change record, like rows that predate the
+// change log. Copies may differ, and one replica may carry the record the
+// pre-unknown-creation code wrote for its first edit.
+const legacyId = entityIds.at(-1)!;
+type Seed = { legacyTitles: string[]; legacyEditor: number | null };
 
 // Pinned so CI is deterministic. Explore with PROPERTY_SEED=<n> PROPERTY_RUNS=<n>.
 const propertyParameters = {
@@ -183,6 +186,17 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   }),
 );
 const historyArb = fc.array(opArb, { minLength: 1, maxLength: 30 });
+const seedArb: fc.Arbitrary<Seed> = fc.record({
+  legacyTitles: fc.array(valueArb, {
+    minLength: REPLICAS,
+    maxLength: REPLICAS,
+  }),
+  legacyEditor: fc.option(replicaArb, { nil: null }),
+});
+const defaultSeed: Seed = {
+  legacyTitles: Array.from({ length: REPLICAS }, () => "a"),
+  legacyEditor: null,
+};
 // Sort keys for a permutation of the uploads; missing keys keep history order.
 const orderArb = fc.array(fc.nat(), { maxLength: 30 });
 
@@ -214,19 +228,45 @@ const merge = (db: DB | SubscribableDB, uploads: Upload[]) => {
 
 const seedLegacyRow = action({
   name: "propertySeedLegacyRow",
-  args: {},
-  handler: function* () {
-    yield* insert(itemsTable, [legacyRow]);
+  args: { title: v.string(), editedBy: v.union(v.string(), v.null()) },
+  handler: function* ({ title, editedBy }) {
+    yield* insert(itemsTable, [{ id: legacyId, title, orderToken: "a" }]);
+    if (editedBy === null) return;
+    // The record shape before unknown creations: the first edit's clock is
+    // the creation and only the edited column is clocked.
+    const clock = clockAt(0, editedBy);
+    yield* insert(changesTable, [
+      {
+        id: changeId(itemsTable.tableName, legacyId),
+        entityId: legacyId,
+        tableName: itemsTable.tableName,
+        createdAt: clock,
+        updatedAt: clock,
+        deletedAt: null,
+        clientId: editedBy,
+        changes: { title: clock },
+      } satisfies Change,
+    ]);
   },
 });
 
-const runHistory = (history: Op[]) => {
-  const replicas = Array.from({ length: REPLICAS }, () => {
+const runHistory = (history: Op[], seed: Seed) => {
+  const replicas = Array.from({ length: REPLICAS }, (_, replica) => {
     const db = createDB();
-    syncDispatch(db, seedLegacyRow({}));
+    syncDispatch(
+      db,
+      seedLegacyRow({
+        title: seed.legacyTitles[replica]!,
+        editedBy: seed.legacyEditor === replica ? `replica-${replica}` : null,
+      }),
+    );
     return db;
   });
-  const uploads: Upload[] = [];
+  // A seeded record is a state the server already received.
+  const uploads: Upload[] = replicas
+    .map((db) => read(db, legacyId))
+    .filter((state) => state.change)
+    .map(toUpload);
   let tick = 0;
 
   for (const op of history) {
@@ -281,7 +321,8 @@ const runHistory = (history: Op[]) => {
   return { uploads, replicas };
 };
 
-const simulate = (history: Op[]): Upload[] => runHistory(history).uploads;
+const simulate = (history: Op[], seed: Seed): Upload[] =>
+  runHistory(history, seed).uploads;
 
 const toUpload = ({
   row,
@@ -345,6 +386,17 @@ const assertReplayWritesNothing = (uploads: Upload[], order: number[]) => {
   expect(entityIds.map((id) => read(db, id))).toEqual(before);
 };
 
+const valueKey = (value: unknown) =>
+  value === undefined ? "" : JSON.stringify(value);
+
+// An upload's unclocked row columns belong to the unknown creation.
+const fieldClocks = (upload: Upload): Record<string, string> => ({
+  ...Object.fromEntries(
+    Object.keys(upload.row ?? {}).map((key) => [key, UNKNOWN_CREATION_CLOCK]),
+  ),
+  ...upload.change.changes,
+});
+
 const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
   const db = mergedOneByOne(permute(uploads, order));
 
@@ -368,15 +420,25 @@ const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
     // including the absence of a cleared optional field.
     for (const [field, clock] of Object.entries(change!.changes)) {
       const writers = received.filter(
-        (u) => u.row && u.change.changes[field] === clock,
+        (u) => u.row && fieldClocks(u)[field] === clock,
       );
       expect(writers.length, `${field} @ ${clock}`).toBeGreaterThan(0);
-      for (const writer of writers) {
-        expect(
-          (row as Record<string, unknown>)[field],
-          `${field} @ ${clock}`,
-        ).toBe((writer.row as Record<string, unknown>)[field]);
+      const values = writers.map(
+        (writer) => (writer.row as Record<string, unknown>)[field],
+      );
+      // Only the unknown creation is shared by several writers; its tie-break
+      // is the greatest value.
+      const expectedValue =
+        clock === UNKNOWN_CREATION_CLOCK
+          ? values.sort((a, b) => (valueKey(a) < valueKey(b) ? 1 : -1))[0]
+          : values[0];
+      for (const value of values) {
+        if (clock !== UNKNOWN_CREATION_CLOCK) expect(value).toBe(expectedValue);
       }
+      expect(
+        (row as Record<string, unknown>)[field],
+        `${field} @ ${clock}`,
+      ).toBe(expectedValue);
     }
     expect(Object.keys(row).every((key) => key in change!.changes)).toBe(true);
     if (change!.restoredAt !== undefined) continue;
@@ -390,10 +452,13 @@ const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
       ]),
     );
     const fields = new Set(
-      received.flatMap((u) => Object.keys(u.change.changes)),
+      received.flatMap((u) => Object.keys(fieldClocks(u))),
     );
     for (const field of fields) {
-      const clocks = received.flatMap((u) => u.change.changes[field] ?? []);
+      const clocks = received.flatMap((u) => fieldClocks(u)[field] ?? []);
+      if (clocks.includes(UNKNOWN_CREATION_CLOCK)) {
+        creations.add(UNKNOWN_CREATION_CLOCK);
+      }
       const edits = clocks.filter((clock) => !creations.has(clock));
       const expected =
         edits.length > 0 ? maxHlc(edits) : clocks.sort(compareHlc)[0];
@@ -404,8 +469,8 @@ const assertLifecycleAndWrites = (uploads: Upload[], order: number[]) => {
 
 // Replicas exchange their current states in the generated order, then in full
 // rounds until one changes nothing. A sync loop is a round that never comes.
-const assertGossipSettles = (history: Op[], order: number[]) => {
-  const { uploads, replicas } = runHistory(history);
+const assertGossipSettles = (history: Op[], order: number[], seed: Seed) => {
+  const { uploads, replicas } = runHistory(history, seed);
   let tick = 2_000_000;
   const exchange = (from: number, to: number) => {
     if (from === to) return;
@@ -440,14 +505,29 @@ const assertGossipSettles = (history: Op[], order: number[]) => {
     if (snapshot() === before) break;
   }
 
-  const [first, ...rest] = replicas.map((db) => semanticState(db));
-  for (const state of rest) expect(state).toEqual(first);
+  // Legacy rows nobody wrote never travel, so they may differ by seed.
   const uploaded = entityIds.filter((id) =>
     uploads.some((u) => u.change.entityId === id),
   );
-  expect(semanticState(replicas[0]!, uploaded)).toEqual(
-    semanticState(mergedOneByOne(uploads), uploaded),
-  );
+  const [first, ...rest] = replicas.map((db) => semanticState(db, uploaded));
+  for (const state of rest) expect(state).toEqual(first);
+  // Replicas and the server can each hold information the other lacks: a
+  // legacy value that only travelled by gossip, or a seeded record the server
+  // received but every replica has since deleted. One exchange in each
+  // direction must bring all of them to the same state.
+  const states = (db: DB) =>
+    uploaded
+      .map((id) => read(db, id))
+      .filter((s) => s.change)
+      .map(toUpload);
+  const server = mergedOneByOne(uploads);
+  for (const db of replicas) merge(server, states(db));
+  for (const db of replicas) {
+    merge(db, states(server));
+    expect(semanticState(db, uploaded)).toEqual(
+      semanticState(server, uploaded),
+    );
+  }
 };
 
 const checks = [
@@ -461,8 +541,8 @@ describe("mergeChanges properties", () => {
   const property =
     (check: (uploads: Upload[], order: number[]) => void) => () =>
       fc.assert(
-        fc.property(historyArb, orderArb, (history, order) =>
-          check(simulate(history), order),
+        fc.property(historyArb, orderArb, seedArb, (history, order, seed) =>
+          check(simulate(history, seed), order),
         ),
         propertyParameters,
       );
@@ -485,13 +565,13 @@ describe("mergeChanges properties", () => {
   );
   it("settles replicas exchanging states in any order on one entity", () =>
     fc.assert(
-      fc.property(historyArb, orderArb, assertGossipSettles),
+      fc.property(historyArb, orderArb, seedArb, assertGossipSettles),
       propertyParameters,
     ));
 
   // Shrunk counterexamples, kept because random runs can take thousands of
   // cases to reach them again.
-  it.each<{ name: string; history: Op[]; order: number[] }>([
+  it.each<{ name: string; history: Op[]; order: number[]; seed?: Seed }>([
     {
       name: "a losing creation replayed after the tombstone",
       history: [
@@ -523,9 +603,9 @@ describe("mergeChanges properties", () => {
       ],
       order: [5],
     },
-  ])("holds for $name", ({ history, order }) => {
-    const uploads = simulate(history);
+  ])("holds for $name", ({ history, order, seed = defaultSeed }) => {
+    const uploads = simulate(history, seed);
     for (const check of checks) check(uploads, order);
-    assertGossipSettles(history, order);
+    assertGossipSettles(history, order, seed);
   });
 });

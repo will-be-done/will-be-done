@@ -708,7 +708,7 @@ function* generateTasksForTemplateIds({
 
   for (const templateId of templateIds) {
     const template = yield* taskTemplateById({ id: templateId });
-    if (!template) throw new Error("Template not found");
+    if (!template) continue;
     const newTasks = yield* newTasksToGenForTaskTemplate({
       templateId,
       toDate,

@@ -645,6 +645,83 @@ describe("local change tracking", () => {
       });
     }
   });
+
+  it("merges differing legacy rows the same way in either order", () => {
+    const legacy = (title: string) => ({
+      type: "task",
+      id: "legacy-divergent",
+      title,
+      orderToken: "a",
+      createdAt: 100,
+    });
+    const firstEdit = (
+      row: ReturnType<typeof legacy>,
+      edit: Partial<ReturnType<typeof legacy>> & { content?: string },
+      clientId: string,
+      clock: string,
+    ) => {
+      const db = createDB();
+      syncDispatch(
+        db,
+        action({
+          name: "legacyDivergentEdit",
+          args: {},
+          handler: function* () {
+            yield* insert(testTable, [row]);
+            yield* upsert(testTable, [{ ...row, ...edit }]);
+            yield* insertChangeFromUpdate({
+              tableDef: testTable,
+              oldRow: row,
+              newRow: { ...row, ...edit },
+              clientId,
+              nextClock: clock,
+            });
+          },
+        })({}),
+      );
+      return {
+        row: getRow(db, row.id) as never,
+        change: getChange(db, row.id)!,
+      };
+    };
+    const phone = firstEdit(
+      legacy("phone"),
+      { orderToken: "b" },
+      "phone",
+      "0000000010-0001-phone",
+    );
+    const laptop = firstEdit(
+      legacy("laptop"),
+      { content: "notes" },
+      "laptop",
+      "0000000020-0001-laptop",
+    );
+
+    const results = [
+      [phone, laptop],
+      [laptop, phone],
+    ].map((uploads) => {
+      const server = createDB();
+      uploads.forEach((upload, index) =>
+        syncDispatch(
+          server,
+          mergeChanges({
+            input: [{ tableName: "testItems", data: [upload] }],
+            nextClock: `0000000030-000${index}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        ),
+      );
+      return getRow(server, "legacy-divergent");
+    });
+    expect(results[1]).toEqual(results[0]);
+    expect(results[0]).toEqual({
+      ...legacy("phone"),
+      orderToken: "b",
+      content: "notes",
+    });
+  });
 });
 
 describe("rival creation merge", () => {

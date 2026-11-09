@@ -6,8 +6,9 @@ import {
 } from "./syncProtocol";
 
 describe("sync protocol version", () => {
-  it("accepts only version 6", () => {
-    expect(isSupportedSyncVersion(6)).toBe(true);
+  it("accepts only version 7", () => {
+    expect(isSupportedSyncVersion(7)).toBe(true);
+    expect(isSupportedSyncVersion(6)).toBe(false);
     expect(isSupportedSyncVersion(5)).toBe(false);
     expect(isSupportedSyncVersion(4)).toBe(false);
     expect(isSupportedSyncVersion(undefined)).toBe(false);
@@ -22,8 +23,8 @@ describe("sync protocol version", () => {
     expect(error.data).toEqual({
       code: SYNC_VERSION_UNSUPPORTED,
       received: null,
-      minimum: 6,
-      maximum: 6,
+      minimum: 7,
+      maximum: 7,
     });
   });
 });

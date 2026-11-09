@@ -26,9 +26,8 @@ import {
 
 export { changesTable, type Change } from "./tables";
 
-export type PrimitiveRow = Record<string, string | number | boolean | null> & {
-  id: string;
-};
+export type PrimitiveValue = string | number | boolean | null;
+export type PrimitiveRow = Record<string, PrimitiveValue> & { id: string };
 
 const SELECT_OR_CHUNK_SIZE = 400;
 
@@ -403,7 +402,7 @@ export const insertChangeFromInsert = action({
 // A row can predate its change log. Every device synthesizes the same creation
 // for it, so first edits on two devices merge by field instead of competing as
 // rival creations, and the server receives a clock for every column.
-const UNKNOWN_CREATION_CLOCK = formatHlc({
+export const UNKNOWN_CREATION_CLOCK = formatHlc({
   physical: 0,
   logical: 0,
   actorId: "unknown-creation",
@@ -458,10 +457,6 @@ export const insertChangeFromUpdate = action({
       if (!isEqual(oldRow[col], newRow[col])) {
         changedRows[col] = updatedAt;
       }
-    }
-
-    if (Object.keys(changedRows).length === 0) {
-      return undefined as Change | undefined;
     }
 
     const newChange: Change = {
@@ -610,6 +605,15 @@ export const mergeChanges = action({
             : { restoredAt: lastRestoredAt }),
         };
 
+        // A row without any record may be another tab's write whose record is
+        // still on its way, so only an existing partial record is completed.
+        const currentFieldClocks = currentChanges
+          ? withUnknownClocks(currentChanges.changes, currentRow)
+          : {};
+        const incomingFieldClocks = withUnknownClocks(
+          incomingChange.changes,
+          incomingRow,
+        );
         // Rival creations of one ID stamp their fields with their creation
         // clocks. Keeping every creation clock lets each merge tell those
         // defaults apart from user edits, whatever the arrival order.
@@ -617,23 +621,29 @@ export const mergeChanges = action({
           ...creationClocks(currentChanges),
           ...creationClocks(incomingChange),
         ]);
+        if (
+          Object.values(currentFieldClocks).includes(UNKNOWN_CREATION_CLOCK) ||
+          Object.values(incomingFieldClocks).includes(UNKNOWN_CREATION_CLOCK)
+        ) {
+          creations.add(UNKNOWN_CREATION_CLOCK);
+        }
         const { mergedChanges, mergedRow: incarnationRow } =
           restoreOrder > 0
             ? {
-                mergedChanges: incomingChange.changes,
+                mergedChanges: incomingFieldClocks,
                 mergedRow: (incomingRow as Row | undefined) ?? {
                   id: incomingChange.entityId,
                 },
               }
             : restoreOrder < 0 && currentChanges
               ? {
-                  mergedChanges: currentChanges.changes,
+                  mergedChanges: currentFieldClocks,
                   mergedRow: currentRow ?? { id: incomingChange.entityId },
                 }
               : lwwMerge(
                   creations,
-                  currentChanges?.changes ?? {},
-                  incomingChange.changes,
+                  currentFieldClocks,
+                  incomingFieldClocks,
                   currentRow ?? { id: incomingChange.entityId },
                   incomingRow ?? { id: incomingChange.entityId },
                 );
@@ -763,23 +773,48 @@ const isSameMergedState = (
   currentChange.clientId === mergedChange.clientId &&
   isEqual(currentChange.changes, mergedChange.changes);
 
+// Records written before unknown creations clocked only the edited columns.
+// The rest belong to the unknown creation, as unknownCreation would record them.
+const withUnknownClocks = (
+  fieldClocks: Record<string, string>,
+  row: Row | undefined,
+) => {
+  const unclocked = Object.keys(row ?? {}).filter(
+    (key) => !(key in fieldClocks),
+  );
+  return unclocked.length === 0
+    ? fieldClocks
+    : {
+        ...fieldClocks,
+        ...Object.fromEntries(
+          unclocked.map((key) => [key, UNKNOWN_CREATION_CLOCK]),
+        ),
+      };
+};
+
 const creationClocks = (change: Change | undefined) =>
   change === undefined
     ? []
     : [change.createdAt, ...(change.rivalCreations ?? [])];
 
 // A user edit beats a creation default whatever the clocks. Edits compare by
-// the latest clock, defaults by the earliest creation. Ties go to B.
-const fieldClockWins = (
+// the latest clock, defaults by the earliest creation. Only the shared
+// unknown-creation clock can tie across devices, so the tie-break is the value.
+const fieldWins = (
   creations: ReadonlySet<string>,
-  a: string,
-  b: string,
+  a: { clock: string; value: PrimitiveValue | undefined },
+  b: { clock: string; value: PrimitiveValue | undefined },
 ) => {
-  const aIsDefault = creations.has(a);
-  const bIsDefault = creations.has(b);
+  const aIsDefault = creations.has(a.clock);
+  const bIsDefault = creations.has(b.clock);
   if (aIsDefault !== bIsDefault) return bIsDefault;
-  return aIsDefault ? compareHlc(a, b) < 0 : compareHlc(a, b) > 0;
+  const order = compareHlc(a.clock, b.clock);
+  if (order !== 0) return aIsDefault ? order < 0 : order > 0;
+  return valueKey(a.value) > valueKey(b.value);
 };
+
+const valueKey = (value: PrimitiveValue | undefined) =>
+  value === undefined ? "" : JSON.stringify(value);
 
 const lwwMerge = (
   creations: ReadonlySet<string>,
@@ -808,7 +843,13 @@ const lwwMerge = (
 
     if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
       // --- Conflict: The key was changed in both branches ---
-      if (fieldClockWins(creations, changeTimestampA, changeTimestampB)) {
+      if (
+        fieldWins(
+          creations,
+          { clock: changeTimestampA, value: primitiveARow[key] },
+          { clock: changeTimestampB, value: primitiveBRow[key] },
+        )
+      ) {
         // A is the winner
         winningTimestamp = changeTimestampA;
         winningValue = primitiveARow[key];

@@ -382,7 +382,13 @@ must never expose a partially applied logical sync response.
   first local edit or delete: every column is clocked with one fixed
   epoch-zero HLC shared by all devices. First edits on two devices then belong
   to the same creation and merge per field, and the server receives a clock
-  for every column instead of only the edited ones.
+  for every column instead of only the edited ones. Records synthesized before
+  this rule carry the first edit's clock as `createdAt`, so those first edits
+  rank as creation defaults and lose to the epoch-zero default when a device
+  that never received the record edits the row. No migration rewrites them;
+  the exposure is limited to rows that predate the change log. A record that
+  clocks only some of its row's columns merges as if the rest carried the
+  epoch-zero clock, so the merged record covers every column.
 - A live change that arrives without its row is ignored rather than rejected.
   It has field clocks but no values, and rejecting it would fail the sender's
   upload on every retry. When the server has the entity, the uploader receives
