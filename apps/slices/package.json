@@ -46,6 +46,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260304.1",
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
+    "fast-check": "^4.10.2",
     "globals": "^16.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",

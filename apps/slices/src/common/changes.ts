@@ -596,40 +596,36 @@ export const mergeChanges = action({
             : { restoredAt: lastRestoredAt }),
         };
 
-        // First-creator-wins: when both sides created the same entity,
-        // the earlier creator's values always take precedence
-        if (
+        // First-creator-wins: when both sides created the same entity, the
+        // earlier creation's history wins wholesale and the other's is dropped.
+        // A partial overlay would depend on arrival order. Only the original
+        // incarnation can have rival creations; a restore has one author.
+        const rivalCreations =
           currentChanges != null &&
+          currentChanges.restoredAt === undefined &&
+          incomingChange.restoredAt === undefined &&
+          currentChanges.createdAt !== incomingChange.createdAt;
+        if (
+          rivalCreations &&
           currentRow != null &&
           incomingRow != null &&
-          restoreOrder === 0 &&
           !isDeletedChange(incomingChange) &&
-          !isDeletedChange(currentChanges) &&
-          currentChanges.createdAt !== incomingChange.createdAt
+          !isDeletedChange(currentChanges)
         ) {
           const currentCreatedFirst =
             compareHlc(currentChanges.createdAt, incomingChange.createdAt) <= 0;
 
-          // Winner's fields overwrite loser's (spread winner second)
           const winnerRow = currentCreatedFirst
             ? currentRow
             : (incomingRow as Row);
-          const loserRow = currentCreatedFirst
-            ? (incomingRow as Row)
-            : currentRow;
-          const winnerChanges = currentCreatedFirst
+          const fcwMergedChanges = currentCreatedFirst
             ? currentChanges.changes
             : incomingChange.changes;
-          const loserChanges = currentCreatedFirst
-            ? incomingChange.changes
-            : currentChanges.changes;
-
-          const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
           const fcwMergedRow = mergeRichTextFields(
             table.tableName,
             currentRow,
             incomingRow as Row,
-            { ...loserRow, ...winnerRow } as Row,
+            winnerRow,
           );
           const currentClock = nextClock;
           const mergedChange: Change = {
@@ -678,7 +674,23 @@ export const mergeChanges = action({
                   mergedChanges: currentChanges.changes,
                   mergedRow: currentRow ?? { id: incomingChange.entityId },
                 }
-              : lwwMerge(
+              : // First-creator-wins with a tombstone on either side: the merge
+                // stays deleted, so only the earlier creation's clocks remain.
+                rivalCreations &&
+                  currentChanges &&
+                  (isDeletedChange(currentChanges) ||
+                    isDeletedChange(incomingChange))
+                ? {
+                    mergedChanges:
+                      compareHlc(
+                        currentChanges.createdAt,
+                        incomingChange.createdAt,
+                      ) <= 0
+                        ? currentChanges.changes
+                        : incomingChange.changes,
+                    mergedRow: { id: incomingChange.entityId },
+                  }
+                : lwwMerge(
                   currentChanges?.changes ?? {},
                   incomingChange.changes,
                   currentRow ?? { id: incomingChange.entityId },
@@ -833,7 +845,7 @@ const lwwMerge = (
     const changeTimestampB = bChange[key];
 
     let winningTimestamp: string;
-    let winningValue: string | number | boolean | null;
+    let winningValue: string | number | boolean | null | undefined;
 
     if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
       // --- Conflict: The key was changed in both branches ---
@@ -841,26 +853,28 @@ const lwwMerge = (
       if (compareHlc(changeTimestampA, changeTimestampB) > 0) {
         // A is the winner
         winningTimestamp = changeTimestampA;
-        winningValue = primitiveARow[key]!;
+        winningValue = primitiveARow[key];
       } else {
         // B is the winner (or they are equal, B wins the tie)
         winningTimestamp = changeTimestampB;
-        winningValue = primitiveBRow[key]!;
+        winningValue = primitiveBRow[key];
       }
     } else if (changeTimestampA !== undefined) {
       // --- Key was only changed in A ---
       winningTimestamp = changeTimestampA;
-      winningValue = primitiveARow[key]!;
+      winningValue = primitiveARow[key];
     } else {
       // --- Key was only changed in B ---
       // We can assert changeTimestampB is not undefined here.
       winningTimestamp = changeTimestampB!;
-      winningValue = primitiveBRow[key]!;
+      winningValue = primitiveBRow[key];
     }
 
     // Update the merged results with the winning data
     mergedChanges[key] = winningTimestamp;
-    mergedRow[key] = winningValue;
+    // A cleared optional field is an omitted key, never an undefined value.
+    if (winningValue === undefined) delete mergedRow[key];
+    else mergedRow[key] = winningValue;
   }
 
   return { mergedChanges, mergedRow: mergedRow as Row };

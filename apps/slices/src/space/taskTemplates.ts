@@ -118,6 +118,9 @@ function fromUTC(date: Date): Date {
 
 const defaultRule = "FREQ=DAILY;INTERVAL=1";
 const MAX_GENERATION_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+// lastGeneratedAt syncs to every device, so advancing it with nothing generated
+// only to shorten later scans must stay rare.
+const IDLE_CHECKPOINT_REFRESH_MS = 60 * 60 * 1000;
 
 type RecurrenceRange = {
   from: Date;
@@ -708,13 +711,13 @@ function* generateTasksForTemplateIds({
 
   for (const templateId of templateIds) {
     const template = yield* taskTemplateById({ id: templateId });
+    if (!template) throw new Error("Template not found");
     const newTasks = yield* newTasksToGenForTaskTemplate({
       templateId,
       toDate,
     });
     // Sub-daily rules carry their own time in each occurrence.
-    const time =
-      template && isDailyOrCoarser(template.repeatRule) ? template.time : null;
+    const time = isDailyOrCoarser(template.repeatRule) ? template.time : null;
 
     for (const task of newTasks) {
       if (task.templateId === null) {
@@ -741,12 +744,15 @@ function* generateTasksForTemplateIds({
     }
 
     // lastGeneratedAt is a generation checkpoint, not the last occurrence.
-    // Advancing it even when no task is due prevents rescanning the template on
-    // every access between occurrences.
-    yield* updateTemplate({
-      id: templateId,
-      template: { lastGeneratedAt: toDate },
-    });
+    if (
+      newTasks.length > 0 ||
+      toDate - template.lastGeneratedAt >= IDLE_CHECKPOINT_REFRESH_MS
+    ) {
+      yield* updateTemplate({
+        id: templateId,
+        template: { lastGeneratedAt: toDate },
+      });
+    }
   }
 
   return generatedCount;

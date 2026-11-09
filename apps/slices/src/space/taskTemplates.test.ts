@@ -37,6 +37,7 @@ import {
 
 const action = createAction();
 const selector = createSelector();
+const hourMs = 60 * 60 * 1000;
 
 function runSelector<T>(
   db: DB,
@@ -541,7 +542,7 @@ describe("taskTemplates timezone consistency", () => {
     expect(dailyLists[0].date).toBe("2026-03-04");
   });
 
-  it("checks recurrence only when its persisted generation interval is due", () => {
+  it("advances an idle checkpoint only once it is an hour old", () => {
     const db = createDB(0);
     const createdAt = new Date("2026-01-01T00:00:00Z").getTime();
     const checkpoint = new Date("2026-01-02T00:00:00Z").getTime();
@@ -585,7 +586,54 @@ describe("taskTemplates timezone consistency", () => {
         selector: taskTemplateById,
         args: { id: "template-generation-interval" },
       })?.lastGeneratedAt,
-    ).toBe(checkpoint + 1_000);
+    ).toBe(checkpoint);
+
+    syncDispatch(
+      db,
+      generateSpaceTasksIfDue({
+        toDate: checkpoint + hourMs,
+        intervalMs: 1_000,
+        force: false,
+      }),
+    );
+    expect(
+      selectSync(db, {
+        selector: taskTemplateById,
+        args: { id: "template-generation-interval" },
+      })?.lastGeneratedAt,
+    ).toBe(checkpoint + hourMs);
+    vi.restoreAllMocks();
+  });
+
+  it("advances the checkpoint whenever it generates a task", () => {
+    const db = createDB(0);
+    const createdAt = new Date("2026-01-01T00:00:00Z").getTime();
+    const checkpoint = new Date("2026-01-02T23:50:00Z").getTime();
+    const toDate = checkpoint + 20 * 60 * 1000;
+    insertTemplate(db, {
+      type: "template",
+      id: "template-generated",
+      title: "Daily template",
+      orderToken: "a0",
+      repeatRule: "FREQ=DAILY;INTERVAL=1",
+      repeatRuleDtStart: createdAt,
+      createdAt,
+      lastGeneratedAt: checkpoint,
+      projectSectionId: "section-1",
+    });
+
+    const generated = syncDispatch(
+      db,
+      generateTasksForTemplate({ templateId: "template-generated", toDate }),
+    );
+
+    expect(generated).toBeGreaterThan(0);
+    expect(
+      selectSync(db, {
+        selector: taskTemplateById,
+        args: { id: "template-generated" },
+      })?.lastGeneratedAt,
+    ).toBe(toDate);
     vi.restoreAllMocks();
   });
 
@@ -611,7 +659,7 @@ describe("taskTemplates timezone consistency", () => {
       db,
       generateTasksForTemplate({
         templateId: "template-target",
-        toDate: checkpoint + 1_000,
+        toDate: checkpoint + hourMs,
       }),
     );
 
@@ -620,7 +668,7 @@ describe("taskTemplates timezone consistency", () => {
         selector: taskTemplateById,
         args: { id: "template-target" },
       })?.lastGeneratedAt,
-    ).toBe(checkpoint + 1_000);
+    ).toBe(checkpoint + hourMs);
     expect(
       selectSync(db, {
         selector: taskTemplateById,

@@ -368,7 +368,12 @@ must never expose a partially applied logical sync response.
   edit the doc (`richTextItems.ts`) rather than replacing it. See
   [rich-text.md](rich-text.md) for the reasons and traps.
 - Concurrent creation of the same ID uses deterministic first-creator-wins
-  behavior before field merging.
+  behavior: the earlier creation's row and field clocks win wholesale and the
+  other creation's writes are discarded, also when either side is a tombstone.
+  Overlaying the loser's fields would depend on arrival order. Only the
+  original incarnation can have rival creations; a restore has a single
+  author, so a restored incarnation merges by per-field LWW whatever
+  `createdAt` its edits carry.
 - An entity is deleted when its deletion HLC is newer than its restore HLC.
   Both clocks merge by maximum, so a later delete beats an earlier restore and
   a later restore beats an earlier delete in any arrival order.
@@ -562,4 +567,7 @@ suppression, canonical conflict correction, duplicate chunk/commit retries,
 atomic parent-and-projection application, server backup rollback, client backup
 rollback, HLC wall-clock rollback, fast and slow client-clock calibration,
 future-skew rejection, tombstones and restores in every arrival order, and
-staged-download recovery.
+staged-download recovery. The merge properties (order independence, batch
+equivalence, replay idempotency, and value/clock pairing) are checked against
+generated multi-replica histories in
+[`changes.property.test.ts`](../apps/slices/src/common/changes.property.test.ts).

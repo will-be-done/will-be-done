@@ -61,6 +61,7 @@ const testTable = defineTable("testItems", {
   type: v.string(),
   id: v.string(),
   title: v.string(),
+  content: v.optional(v.string()),
   orderToken: v.string(),
   createdAt: v.number(),
 });
@@ -1854,6 +1855,8 @@ describe("idempotent merge retries", () => {
               changes: {
                 ...currentChange.changes,
                 title: currentTitleClock,
+                // Cleared optional field: clocked, but absent from the row.
+                content: currentTitleClock,
               },
             },
           ]);
