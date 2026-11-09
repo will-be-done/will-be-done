@@ -12,9 +12,11 @@ import {
   createTodayTask,
   dailyTaskItem,
   openSpace,
+  nextScroll,
   openTaskActions,
   projectSidebarLink,
   projectTaskItem,
+  scrollViewport,
   signupUser,
   stashTaskItem,
   taskItem,
@@ -347,6 +349,7 @@ test.describe("auto-scroll while dragging", () => {
     source: Locator,
     scroller: Locator,
   ) {
+    const scrolled = await nextScroll(scroller);
     const dataTransfer = await startDrag(page, source);
     const box = await scroller.boundingBox();
     if (!box) throw new Error("Scroll container has no bounding box");
@@ -364,9 +367,7 @@ test.describe("auto-scroll while dragging", () => {
       },
       [box.x + box.width - 4, box.y + box.height - 10, dataTransfer] as const,
     );
-    await expect
-      .poll(() => scroller.evaluate((el) => el.scrollTop))
-      .toBeGreaterThan(0);
+    expect((await scrolled()).top).toBeGreaterThan(0);
     await source.dispatchEvent("dragend", { dataTransfer });
     await dataTransfer.dispose();
   }
@@ -392,10 +393,11 @@ test.describe("auto-scroll while dragging", () => {
     await dragToBottomRightEdge(
       page,
       source,
-      page
-        .locator('[data-focus-column][data-column-model-type="dailyList"]')
-        .filter({ has: source })
-        .locator(".overflow-auto"),
+      scrollViewport(
+        page
+          .locator('[data-focus-column][data-column-model-type="dailyList"]')
+          .filter({ has: source }),
+      ),
     );
   });
 
@@ -418,10 +420,13 @@ test.describe("auto-scroll while dragging", () => {
     await dragToBottomRightEdge(
       page,
       source!,
-      page
-        .locator('[data-focus-column][data-column-model-type="projectSection"]')
-        .first()
-        .locator(".overflow-auto"),
+      scrollViewport(
+        page
+          .locator(
+            '[data-focus-column][data-column-model-type="projectSection"]',
+          )
+          .first(),
+      ),
     );
   });
 });

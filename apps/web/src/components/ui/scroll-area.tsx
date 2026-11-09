@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const SCROLL_TIMEOUT = 500;
 const MIN_THUMB_SIZE = 16;
+const WHEEL_LINE_HEIGHT = 16;
 
 type Axis = "x" | "y";
 
@@ -42,11 +43,19 @@ export function ScrollArea({
     const thumbs = { x: thumbXRef.current, y: thumbYRef.current };
     if (!root || !viewport) return;
 
+    const style = getComputedStyle(viewport);
+    const scrollable = (overflow: string) =>
+      overflow === "auto" || overflow === "scroll";
+
     // State lives on the bars themselves: a `group-*` variant would also
     // match the root of an enclosing ScrollArea.
     const update = () => {
-      const overflowX = viewport.scrollWidth > viewport.clientWidth;
-      const overflowY = viewport.scrollHeight > viewport.clientHeight;
+      const overflowX =
+        scrollable(style.overflowX) &&
+        viewport.scrollWidth > viewport.clientWidth;
+      const overflowY =
+        scrollable(style.overflowY) &&
+        viewport.scrollHeight > viewport.clientHeight;
       bars.x?.toggleAttribute("data-overflow", overflowX);
       bars.y?.toggleAttribute("data-overflow", overflowY);
       bars.x?.toggleAttribute("data-corner", overflowX && overflowY);
@@ -82,7 +91,37 @@ export function ScrollArea({
     };
     viewport.addEventListener("scroll", onScroll, { passive: true });
 
-    // Content can grow without the viewport resizing, so watch its children too.
+    // The bars sit outside the viewport, so the wheel would scroll an ancestor
+    // instead. Let it through once the viewport can't move.
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      const [lineX, lineY] =
+        event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? [viewport.clientWidth, viewport.clientHeight]
+          : event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? [WHEEL_LINE_HEIGHT, WHEEL_LINE_HEIGHT]
+            : [1, 1];
+      const left = clamp(
+        viewport.scrollLeft + event.deltaX * lineX,
+        0,
+        viewport.scrollWidth - viewport.clientWidth,
+      );
+      const top = clamp(
+        viewport.scrollTop + event.deltaY * lineY,
+        0,
+        viewport.scrollHeight - viewport.clientHeight,
+      );
+      if (left === viewport.scrollLeft && top === viewport.scrollTop) return;
+      event.preventDefault();
+      viewport.scrollLeft = left;
+      viewport.scrollTop = top;
+    };
+    for (const bar of [bars.x, bars.y]) {
+      bar?.addEventListener("wheel", onWheel, { passive: false });
+    }
+
+    // Content can grow without the viewport resizing, so watch its children
+    // too. A child must grow with its content for this to see the change.
     const resizeObserver = new ResizeObserver(update);
     const observeChildren = () => {
       resizeObserver.disconnect();
@@ -115,6 +154,9 @@ export function ScrollArea({
 
     return () => {
       viewport.removeEventListener("scroll", onScroll);
+      for (const bar of [bars.x, bars.y]) {
+        bar?.removeEventListener("wheel", onWheel);
+      }
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       root.removeEventListener("pointermove", onPointerMove);
@@ -126,9 +168,14 @@ export function ScrollArea({
   }, []);
 
   return (
-    <div ref={rootRef} className={cn("relative", rootClassName)}>
+    <div
+      ref={rootRef}
+      data-slot="scroll-area"
+      className={cn("relative", rootClassName)}
+    >
       <div
         ref={setViewport}
+        data-slot="scroll-area-viewport"
         className={cn(
           "size-full overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           className,
@@ -223,33 +270,11 @@ function Scrollbar({
     else viewport.scrollLeft = value;
   };
 
-  useEffect(() => {
-    const bar = barRef.current;
-    const viewport = viewportRef.current;
-    if (!bar || !viewport) return;
-
-    // The bar sits outside the viewport, so the wheel would scroll an ancestor instead.
-    const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey) return;
-      const delta = isY ? event.deltaY : event.deltaX;
-      const position = isY ? viewport.scrollTop : viewport.scrollLeft;
-      const max = isY
-        ? viewport.scrollHeight - viewport.clientHeight
-        : viewport.scrollWidth - viewport.clientWidth;
-      if ((delta < 0 && position <= 0) || (delta > 0 && position >= max)) {
-        return;
-      }
-      event.preventDefault();
-      if (isY) viewport.scrollTop += delta;
-      else viewport.scrollLeft += delta;
-    };
-    bar.addEventListener("wheel", onWheel, { passive: false });
-    return () => bar.removeEventListener("wheel", onWheel);
-  }, [barRef, viewportRef, isY]);
-
   return (
     <div
       ref={barRef}
+      data-slot="scroll-area-scrollbar"
+      data-orientation={isY ? "vertical" : "horizontal"}
       aria-hidden
       className={cn(
         "pointer-events-none absolute z-10 hidden touch-none select-none opacity-0 transition-opacity delay-300 duration-150 data-overflow:block",
@@ -296,6 +321,7 @@ function Scrollbar({
     >
       <div
         ref={thumbRef}
+        data-slot="scroll-area-thumb"
         className={cn(
           "rounded-full border-2 border-transparent bg-content/25 bg-clip-padding transition-colors hover:bg-content/40",
           isY ? "w-full" : "h-full",

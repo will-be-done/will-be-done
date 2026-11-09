@@ -250,7 +250,7 @@ const SingleDayColumn = ({
         <span>Add task</span>
       </button>
 
-      <div className="flex flex-col gap-4 w-full overflow-y-auto p-1">
+      <div className="flex flex-col gap-4 w-full p-1">
         <DayEventsStrip events={externalEvents} />
 
         {occurrences.map((occurrence) => (

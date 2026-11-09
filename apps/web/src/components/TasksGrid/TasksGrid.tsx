@@ -43,15 +43,17 @@ export const TasksColumnGrid = ({
       className="relative max-h-full h-full overflow-x-clip"
     >
       {floatingColumn}
+      {/* Columns scroll themselves; the board only scrolls sideways. */}
       <ScrollArea
         rootClassName="h-full"
+        className="overflow-y-hidden"
         style={{
           paddingLeft: paddingLeft ? `${paddingLeft}px` : undefined,
           transition: "padding-left 200ms ease-out",
         }}
       >
         <div
-          className="grid max-h-full h-full"
+          className="grid max-h-full h-full min-w-max"
           style={{
             gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
             gridTemplateRows: `1fr`,

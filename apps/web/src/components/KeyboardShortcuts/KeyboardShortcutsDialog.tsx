@@ -429,7 +429,7 @@ export function KeyboardShortcutsDialog() {
           className="fixed inset-0 bg-black/75 backdrop-blur-sm"
         />
 
-        <div className="fixed inset-0 overflow-y-auto p-3 sm:p-6">
+        <ScrollArea rootClassName="fixed inset-0" className="p-3 sm:p-6">
           <div className="flex min-h-full items-center justify-center">
             <DialogPanel className="relative flex max-h-[min(90vh,780px)] w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border border-dialog-border bg-dialog-bg shadow-[0_32px_90px_rgba(0,0,0,0.8)]">
               <header className="flex shrink-0 items-start justify-between gap-4 border-b border-dialog-border px-5 py-4 sm:px-6 sm:py-5">
@@ -476,7 +476,7 @@ export function KeyboardShortcutsDialog() {
               </footer>
             </DialogPanel>
           </div>
-        </div>
+        </ScrollArea>
       </Dialog>
     </>
   );

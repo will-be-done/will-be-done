@@ -304,7 +304,7 @@ const BoardView = ({
   return (
     <div className="flex h-full w-full">
       <ProjectsSplit
-        topClassName="overflow-y-auto pt-10 max-sm:pt-24"
+        topClassName="overflow-hidden pt-10 max-sm:pt-24"
         projectLink={ProjectLink}
         selectedProjectId={selectedProjectId}
         selectedDate={selectedDate}

@@ -345,3 +345,22 @@ export function waitForSyncedText(page: Page, text: string) {
     page.on("response", onResponse);
   });
 }
+
+export function scrollViewport(container: Locator): Locator {
+  return container.locator('[data-slot="scroll-area-viewport"]');
+}
+
+// Resolves with the viewport's scroll position at its next `scroll` event.
+// Call before the action that should scroll it.
+export async function nextScroll(viewport: Locator) {
+  const pending = await viewport.evaluateHandle((el) => ({
+    position: new Promise<{ top: number; left: number }>((resolve) =>
+      el.addEventListener(
+        "scroll",
+        () => resolve({ top: el.scrollTop, left: el.scrollLeft }),
+        { once: true },
+      ),
+    ),
+  }));
+  return () => pending.evaluate(({ position }) => position);
+}
