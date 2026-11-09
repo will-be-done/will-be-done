@@ -12,9 +12,11 @@ import {
   createTodayTask,
   dailyTaskItem,
   openSpace,
+  nextScroll,
   openTaskActions,
   projectSidebarLink,
   projectTaskItem,
+  scrollViewport,
   signupUser,
   stashTaskItem,
   taskItem,
@@ -335,4 +337,96 @@ test("does not show a done source as droppable on a todo row or daily column", a
   ).toContainText(targetTitle);
   await expect(done).toHaveAttribute("data-ignore-drop", "true");
   await dataTransfer.dispose();
+});
+
+test.describe("auto-scroll while dragging", () => {
+  test.use({ viewport: { width: 1280, height: 520 } });
+
+  // The bottom-right corner is where the overlay scrollbar sits, so the drag
+  // must reach the list through it.
+  async function dragToBottomRightEdge(
+    page: Page,
+    source: Locator,
+    scroller: Locator,
+  ) {
+    const scrolled = await nextScroll(scroller);
+    const dataTransfer = await startDrag(page, source);
+    const box = await scroller.boundingBox();
+    if (!box) throw new Error("Scroll container has no bounding box");
+    await page.evaluate(
+      ([x, y, dataTransfer]) => {
+        document.elementFromPoint(x, y)!.dispatchEvent(
+          new DragEvent("dragover", {
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+            dataTransfer,
+          }),
+        );
+      },
+      [box.x + box.width - 4, box.y + box.height - 10, dataTransfer] as const,
+    );
+    expect((await scrolled()).top).toBeGreaterThan(0);
+    await source.dispatchEvent("dragend", { dataTransfer });
+    await dataTransfer.dispose();
+  }
+
+  test("scrolls the Today list and its timeline column", async ({ page }) => {
+    await signupUser(page);
+    const spaceName = uniqueE2EName("Day Scroll Space");
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+    const titles = Array.from({ length: 10 }, (_, i) =>
+      uniqueE2EName(`Day scroll task ${i}`),
+    );
+    for (const title of titles) await createTodayTask(page, title);
+    const source = dailyTaskItem(page, titles[0]);
+
+    await dragToBottomRightEdge(
+      page,
+      source,
+      page.locator("[data-scroll-restoration-id]"),
+    );
+
+    await page.getByRole("link", { name: "timeline", exact: true }).click();
+    await dragToBottomRightEdge(
+      page,
+      source,
+      scrollViewport(
+        page
+          .locator('[data-focus-column][data-column-model-type="dailyList"]')
+          .filter({ has: source }),
+      ),
+    );
+  });
+
+  test("scrolls a project section", async ({ page }) => {
+    await signupUser(page);
+    const spaceName = uniqueE2EName("Section Scroll Space");
+    const projectTitle = uniqueE2EName("Section Scroll Project");
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+    await createProject(page, projectTitle);
+    await projectSidebarLink(page, projectTitle).click();
+    let source: Locator | undefined;
+    for (let i = 0; i < 10; i++) {
+      source = await createProjectTask(
+        page,
+        uniqueE2EName(`Section scroll task ${i}`),
+      );
+    }
+
+    await dragToBottomRightEdge(
+      page,
+      source!,
+      scrollViewport(
+        page
+          .locator(
+            '[data-focus-column][data-column-model-type="projectSection"]',
+          )
+          .first(),
+      ),
+    );
+  });
 });

@@ -27,6 +27,7 @@ import {
 } from "@/lib/dnd/models";
 import { cn } from "@/lib/utils.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   buildFocusKey,
   focusTaskTitleTextareaByKey,
@@ -316,15 +317,17 @@ export const Stash = () => {
           inert={!isOpen}
           data-testid="stash-panel"
           className={cn(
-            "h-full overflow-y-auto transition-transform duration-300 ease-out",
+            "h-full transition-transform duration-300 ease-out",
             isOpen ? "translate-x-0" : "-translate-x-6 pointer-events-none",
           )}
           style={{ width: `${width}px` }}
         >
-          <StashColumnView
-            onTaskAdd={handleAddTask}
-            itemsForDisplay={itemsForDisplay}
-          />
+          <ScrollArea rootClassName="h-full">
+            <StashColumnView
+              onTaskAdd={handleAddTask}
+              itemsForDisplay={itemsForDisplay}
+            />
+          </ScrollArea>
         </div>
       </div>
 

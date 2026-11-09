@@ -41,7 +41,6 @@ import {
   isActiveDropTarget,
 } from "@/lib/dnd/models";
 import invariant from "tiny-invariant";
-import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   dropTargetForElements,
   type ElementDropTargetEventBasePayload,
@@ -52,6 +51,7 @@ import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.
 import { captureWebAnalytics } from "@/lib/analytics";
 import { DayEventsStrip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
 import { useDayExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const ChevronLeft = () => (
   <svg
@@ -120,41 +120,33 @@ const SingleDayColumn = ({
   const externalEvents = useDayExternalEvents(dailyList.date);
 
   const columnRef = useRef<HTMLDivElement>(null);
-  const scrollableRef = useRef<HTMLDivElement>(null);
   const [isOver, setIsOver] = useState(false);
 
   useEffect(() => {
     if (!dailyList) return;
     invariant(columnRef.current);
-    invariant(scrollableRef.current);
     const updateDropIndicator = (args: ElementDropTargetEventBasePayload) =>
       setIsOver(isActiveDropTarget(args));
 
-    return combine(
-      dropTargetForElements({
-        element: columnRef.current,
-        getData: (): DndModelData => ({
+    return dropTargetForElements({
+      element: columnRef.current,
+      getData: (): DndModelData => ({
+        modelId: dailyList.id,
+        modelType: dailyList.type,
+      }),
+      canDrop: ({ source }) =>
+        canDropModelData(source.data, {
           modelId: dailyList.id,
           modelType: dailyList.type,
         }),
-        canDrop: ({ source }) =>
-          canDropModelData(source.data, {
-            modelId: dailyList.id,
-            modelType: dailyList.type,
-          }),
-        getIsSticky: () => true,
-        onDragEnter: updateDropIndicator,
-        onDrag: updateDropIndicator,
-        onDropTargetChange: updateDropIndicator,
-        onDragLeave: () => setIsOver(false),
-        onDragStart: updateDropIndicator,
-        onDrop: () => setIsOver(false),
-      }),
-      autoScrollForElements({
-        element: scrollableRef.current,
-        canScroll: ({ source }) => isModelDNDData(source.data),
-      }),
-    );
+      getIsSticky: () => true,
+      onDragEnter: updateDropIndicator,
+      onDrag: updateDropIndicator,
+      onDropTargetChange: updateDropIndicator,
+      onDragLeave: () => setIsOver(false),
+      onDragStart: updateDropIndicator,
+      onDrop: () => setIsOver(false),
+    });
   }, [dailyList]);
 
   return (
@@ -258,10 +250,7 @@ const SingleDayColumn = ({
         <span>Add task</span>
       </button>
 
-      <div
-        ref={scrollableRef}
-        className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
-      >
+      <div className="flex flex-col gap-4 w-full p-1">
         <DayEventsStrip events={externalEvents} />
 
         {occurrences.map((occurrence) => (
@@ -337,6 +326,15 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
   });
   const stashOffset = useStashDesktopOffset();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    invariant(scrollRef.current);
+    return autoScrollForElements({
+      element: scrollRef.current,
+      canScroll: ({ source }) => isModelDNDData(source.data),
+    });
+  }, []);
+
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
       prepareTextInputFocus();
@@ -380,9 +378,10 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
   return (
     <div className="relative h-full min-w-0 overflow-hidden">
       <Stash />
-      <div
+      <ScrollArea
+        ref={scrollRef}
         data-scroll-restoration-id={scrollRestorationId}
-        className="h-full min-w-0 overflow-y-auto"
+        rootClassName="h-full min-w-0"
         style={{
           paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
           transition: "padding-left 200ms ease-out",
@@ -399,7 +398,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
             />
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };

@@ -10,6 +10,7 @@ import { type DragCommit, useIsDropTarget } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
 import { type DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
 import { ExternalEventChip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export type DayActions = {
   onCommit: DragCommit;
@@ -56,20 +57,21 @@ const DayCell = ({
 }) => {
   const isDropTarget = useIsDropTarget(date, undefined);
   return (
-    <div
+    <ScrollArea
       data-calendar-date={date}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCreate(date, null);
       }}
+      rootClassName="min-h-0 min-w-0"
       className={cn(
-        "flex min-h-0 min-w-0 flex-col gap-1 border-b border-r border-white/5 p-1.5",
+        "flex flex-col gap-1 border-b border-r border-white/5 p-1.5",
         isToday && "bg-accent/[0.04]",
         isDropTarget && "bg-accent/10",
         className,
       )}
     >
       {children}
-    </div>
+    </ScrollArea>
   );
 };
 
@@ -149,7 +151,7 @@ export const PlanCell = ({
       date={date}
       isToday={date === today}
       onCreate={actions.onCreate}
-      className="gap-1.5 overflow-y-auto"
+      className="gap-1.5"
     >
       <div className="pointer-events-none flex">
         <DayNumber label={format(day, "MMM d")} isToday={date === today} />

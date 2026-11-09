@@ -44,7 +44,7 @@ test("drives the focused calendar card from the keyboard", async ({ page }) => {
 
   const column = gridColumn(page, today);
   await column.evaluate((el) => {
-    el.closest(".overflow-y-auto")!.scrollTop = 9 * 48;
+    el.closest('[data-slot="scroll-area-viewport"]')!.scrollTop = 9 * 48;
   });
   await column.click({ position: { x: 10, y: 10 * hourHeight + 5 } });
   const dialog = page.getByRole("dialog", { name: "Quick add" });
@@ -164,7 +164,7 @@ test("plans a timed task on the calendar by dragging and resizing", async ({
   // Click the 10:00 slot of today to create a task there.
   const column = gridColumn(page, today);
   await column.evaluate((el) => {
-    el.closest(".overflow-y-auto")!.scrollTop = 9 * 48;
+    el.closest('[data-slot="scroll-area-viewport"]')!.scrollTop = 9 * 48;
   });
   await column.click({ position: { x: 10, y: 10 * hourHeight + 5 } });
   const dialog = page.getByRole("dialog", { name: "Quick add" });
@@ -216,7 +216,7 @@ test("schedules a task dragged from the projects view onto a time slot", async (
   const source = await createProjectTask(page, title);
   const column = gridColumn(page, today);
   await column.evaluate((el) => {
-    el.closest(".overflow-y-auto")!.scrollTop = 13 * 48;
+    el.closest('[data-slot="scroll-area-viewport"]')!.scrollTop = 13 * 48;
   });
   // The 14:00 line in viewport coordinates.
   const box = (await column.boundingBox())!;
@@ -271,7 +271,7 @@ test("retimes a repeating task by dragging its upcoming occurrence", async ({
   );
   const column = gridColumn(page, tomorrow);
   await column.evaluate((el) => {
-    el.closest(".overflow-y-auto")!.scrollTop = 8 * 48;
+    el.closest('[data-slot="scroll-area-viewport"]')!.scrollTop = 8 * 48;
   });
 
   // Drag the occurrence from the all-day row to 9:00.
