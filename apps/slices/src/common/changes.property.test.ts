@@ -44,8 +44,17 @@ type Item = ExtractSchema<typeof itemsTable>;
 const tables = { [itemsTable.tableName]: itemsTable };
 
 const REPLICAS = 3;
-const ENTITIES = 2;
+const ENTITIES = 3;
 const entityIds = Array.from({ length: ENTITIES }, (_, i) => `entity-${i}`);
+// Present on every replica with no change record, like rows that predate the
+// change log.
+const legacyRow: Item = { id: entityIds.at(-1)!, title: "a", orderToken: "a" };
+
+// Pinned so CI is deterministic. Explore with PROPERTY_SEED=<n> PROPERTY_RUNS=<n>.
+const propertyParameters = {
+  seed: Number(process.env.PROPERTY_SEED ?? 1),
+  numRuns: Number(process.env.PROPERTY_RUNS ?? 200),
+};
 
 const action = createAction();
 const selector = createSelector();
@@ -193,8 +202,20 @@ const merge = (db: DB | SubscribableDB, uploads: Upload[]) => {
   );
 };
 
+const seedLegacyRow = action({
+  name: "propertySeedLegacyRow",
+  args: {},
+  handler: function* () {
+    yield* insert(itemsTable, [legacyRow]);
+  },
+});
+
 const simulate = (history: Op[]): Upload[] => {
-  const replicas = Array.from({ length: REPLICAS }, createDB);
+  const replicas = Array.from({ length: REPLICAS }, () => {
+    const db = createDB();
+    syncDispatch(db, seedLegacyRow({}));
+    return db;
+  });
   const uploads: Upload[] = [];
   let tick = 0;
 
@@ -361,7 +382,7 @@ describe("mergeChanges properties", () => {
         fc.property(historyArb, orderArb, (history, order) =>
           check(simulate(history), order),
         ),
-        { numRuns: 200 },
+        propertyParameters,
       );
 
   it(

@@ -374,6 +374,15 @@ must never expose a partially applied logical sync response.
   original incarnation can have rival creations; a restore has a single
   author, so a restored incarnation merges by per-field LWW whatever
   `createdAt` its edits carry.
+- A row that predates its change record gets a synthesized creation on its
+  first local edit or delete: every column is clocked with one fixed
+  epoch-zero HLC shared by all devices. First edits on two devices then belong
+  to the same creation and merge per field, and the server receives a clock
+  for every column instead of only the edited ones.
+- A live change that arrives without its row is ignored rather than rejected.
+  It has field clocks but no values, and rejecting it would fail the sender's
+  upload on every retry. When the server has the entity, the uploader receives
+  its canonical state back as a correction.
 - An entity is deleted when its deletion HLC is newer than its restore HLC.
   Both clocks merge by maximum, so a later delete beats an earlier restore and
   a later restore beats an earlier delete in any arrival order.

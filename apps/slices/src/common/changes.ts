@@ -14,7 +14,7 @@ import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
 import { changesTable, type Change } from "./tables";
-import { compareHlc } from "./hlc";
+import { compareHlc, formatHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
 import {
   loadRichTextDoc,
@@ -399,6 +399,32 @@ export const insertChangeFromInsert = action({
   },
 });
 
+// A row can predate its change log. Every device synthesizes the same creation
+// for it, so first edits on two devices merge by field instead of competing as
+// rival creations, and the server receives a clock for every column.
+const UNKNOWN_CREATION_CLOCK = formatHlc({
+  physical: 0,
+  logical: 0,
+  actorId: "unknown-creation",
+});
+const unknownCreation = (
+  tableName: string,
+  row: PrimitiveRow,
+  clientId: string,
+  updatedAt: string,
+): Change => ({
+  id: changeId(tableName, row.id),
+  entityId: row.id,
+  tableName,
+  createdAt: UNKNOWN_CREATION_CLOCK,
+  updatedAt,
+  deletedAt: null,
+  clientId,
+  changes: Object.fromEntries(
+    Object.keys(row).map((key) => [key, UNKNOWN_CREATION_CLOCK]),
+  ),
+});
+
 export const insertChangeFromUpdate = action({
   name: "insertChangeFromUpdate",
   args: {
@@ -424,17 +450,7 @@ export const insertChangeFromUpdate = action({
       (yield* getChangeByEntityAndTableName({
         entityId: oldRow.id,
         tableName: tableDef.tableName,
-      })) ||
-      ({
-        id: changeId(tableDef.tableName, oldRow.id),
-        entityId: oldRow.id,
-        tableName: tableDef.tableName,
-        createdAt: updatedAt,
-        updatedAt: updatedAt,
-        deletedAt: null,
-        clientId: clientId,
-        changes: {},
-      } satisfies Change);
+      })) ?? unknownCreation(tableDef.tableName, oldRow, clientId, updatedAt);
     const changedRows: Record<string, string> = { ...change.changes };
 
     for (const col of uniq([...Object.keys(oldRow), ...Object.keys(newRow)])) {
@@ -475,19 +491,11 @@ export const insertChangeFromDelete = action({
   }) {
     const deletedAt = nextClock;
 
-    const change = (yield* getChangeByEntityAndTableName({
-      entityId: row.id,
-      tableName: tableDef.tableName,
-    })) || {
-      id: changeId(tableDef.tableName, row.id),
-      entityId: row.id,
-      tableName: tableDef.tableName,
-      createdAt: deletedAt,
-      updatedAt: deletedAt,
-      deletedAt: null,
-      clientId: clientId,
-      changes: {},
-    };
+    const change =
+      (yield* getChangeByEntityAndTableName({
+        entityId: row.id,
+        tableName: tableDef.tableName,
+      })) ?? unknownCreation(tableDef.tableName, row, clientId, deletedAt);
 
     const deletedChange: Change = {
       ...change,
@@ -567,6 +575,11 @@ export const mergeChanges = action({
         change: incomingChange,
         row: incomingRow,
       } of changeset.data) {
+        // A live change without its row has field clocks but no values. It is
+        // ignored, not rejected: rejecting would fail the sender's retries forever.
+        if (incomingRow === undefined && !isDeletedChange(incomingChange)) {
+          continue;
+        }
         touchedEntityIds.add(incomingChange.entityId);
         const currentChanges = currentChangesMap.get(incomingChange.entityId);
         const currentRow = currentRowsMap.get(incomingChange.entityId);

@@ -15,7 +15,7 @@ import {
   taskTemplateNewTasksInRange,
   newTasksToGenForTaskTemplate,
   createTaskTemplateFromTask,
-  generateSpaceTasksIfDue,
+  generateTasksFromTemplates,
   generateTasksForTemplate,
   taskTemplateById,
 } from "./taskTemplates";
@@ -37,7 +37,6 @@ import {
 
 const action = createAction();
 const selector = createSelector();
-const hourMs = 60 * 60 * 1000;
 
 function runSelector<T>(
   db: DB,
@@ -542,13 +541,13 @@ describe("taskTemplates timezone consistency", () => {
     expect(dailyLists[0].date).toBe("2026-03-04");
   });
 
-  it("advances an idle checkpoint only once it is an hour old", () => {
+  it("keeps the checkpoint while nothing is due", () => {
     const db = createDB(0);
     const createdAt = new Date("2026-01-01T00:00:00Z").getTime();
     const checkpoint = new Date("2026-01-02T00:00:00Z").getTime();
     insertTemplate(db, {
       type: "template",
-      id: "template-generation-interval",
+      id: "template-idle",
       title: "Yearly template",
       orderToken: "a",
       repeatRule: "FREQ=YEARLY;INTERVAL=1",
@@ -558,50 +557,20 @@ describe("taskTemplates timezone consistency", () => {
       projectSectionId: "section-1",
     });
 
-    syncDispatch(
+    const generated = syncDispatch(
       db,
-      generateSpaceTasksIfDue({
-        toDate: checkpoint + 999,
-        intervalMs: 1_000,
-        force: false,
-      }),
+      generateTasksFromTemplates({ toDate: checkpoint + 7 * 24 * 60 * 60 * 1000 }),
     );
+
+    // lastGeneratedAt syncs to every device; moving it with nothing generated
+    // makes every open client upload every template.
+    expect(generated).toBe(0);
     expect(
       selectSync(db, {
         selector: taskTemplateById,
-        args: { id: "template-generation-interval" },
+        args: { id: "template-idle" },
       })?.lastGeneratedAt,
     ).toBe(checkpoint);
-
-    syncDispatch(
-      db,
-      generateSpaceTasksIfDue({
-        toDate: checkpoint + 1_000,
-        intervalMs: 1_000,
-        force: false,
-      }),
-    );
-    expect(
-      selectSync(db, {
-        selector: taskTemplateById,
-        args: { id: "template-generation-interval" },
-      })?.lastGeneratedAt,
-    ).toBe(checkpoint);
-
-    syncDispatch(
-      db,
-      generateSpaceTasksIfDue({
-        toDate: checkpoint + hourMs,
-        intervalMs: 1_000,
-        force: false,
-      }),
-    );
-    expect(
-      selectSync(db, {
-        selector: taskTemplateById,
-        args: { id: "template-generation-interval" },
-      })?.lastGeneratedAt,
-    ).toBe(checkpoint + hourMs);
     vi.restoreAllMocks();
   });
 
@@ -640,27 +609,25 @@ describe("taskTemplates timezone consistency", () => {
   it("generates only the requested template", () => {
     const db = createDB(0);
     const createdAt = new Date("2026-01-01T00:00:00Z").getTime();
-    const checkpoint = new Date("2026-01-02T00:00:00Z").getTime();
-    const template = (id: string): TaskTemplate => ({
+    const checkpoint = new Date("2026-01-02T23:50:00Z").getTime();
+    const toDate = checkpoint + 20 * 60 * 1000;
+    const template = (id: string, orderToken: string): TaskTemplate => ({
       type: "template",
       id,
       title: id,
-      orderToken: id,
-      repeatRule: "FREQ=YEARLY;INTERVAL=1",
+      orderToken,
+      repeatRule: "FREQ=DAILY;INTERVAL=1",
       repeatRuleDtStart: createdAt,
       createdAt,
       lastGeneratedAt: checkpoint,
       projectSectionId: "section-1",
     });
-    insertTemplate(db, template("template-target"));
-    insertTemplate(db, template("template-untouched"));
+    insertTemplate(db, template("template-target", "a0"));
+    insertTemplate(db, template("template-untouched", "a1"));
 
     syncDispatch(
       db,
-      generateTasksForTemplate({
-        templateId: "template-target",
-        toDate: checkpoint + hourMs,
-      }),
+      generateTasksForTemplate({ templateId: "template-target", toDate }),
     );
 
     expect(
@@ -668,7 +635,7 @@ describe("taskTemplates timezone consistency", () => {
         selector: taskTemplateById,
         args: { id: "template-target" },
       })?.lastGeneratedAt,
-    ).toBe(checkpoint + hourMs);
+    ).toBe(toDate);
     expect(
       selectSync(db, {
         selector: taskTemplateById,
