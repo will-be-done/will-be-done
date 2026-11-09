@@ -101,7 +101,8 @@ export const InfiniteScrollbar = ({
     <div
       ref={trackRef}
       onPointerDown={handleTrackPointerDown}
-      className="group/scrollbar absolute inset-x-2 bottom-0.5 z-10 flex h-3 cursor-pointer items-center max-sm:hidden"
+      // Clear of the projects panel's divider handles below it; touch swipes.
+      className="group/scrollbar absolute inset-x-2 bottom-3.5 z-10 flex h-3 cursor-pointer items-center pointer-coarse:hidden"
     >
       <div className="relative h-1.5 w-full rounded-full bg-content-tinted/5 transition-colors group-hover/scrollbar:bg-content-tinted/10">
         <div

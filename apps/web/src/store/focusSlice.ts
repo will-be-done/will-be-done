@@ -144,13 +144,22 @@ export const focusElementByKey = (key: FocusKey) => {
   const el = elements[0];
 
   if (el) {
-    el.focus();
-    el.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "center",
-    });
+    el.focus({ preventScroll: true });
+    scrollFocusedIntoView(el);
   }
+};
+
+export const scrollFocusedIntoView = (el: HTMLElement) => {
+  el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  // Side by side, a column scrolls in whole, so its header shows with the
+  // item. This later scroll takes over the horizontal one above.
+  el.closest(
+    '[data-focus-region-direction="row"] [data-focus-column]',
+  )?.scrollIntoView({
+    behavior: "smooth",
+    block: "nearest",
+    inline: "nearest",
+  });
 };
 
 interface FocusState {

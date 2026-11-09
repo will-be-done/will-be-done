@@ -2,19 +2,22 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 // Days are integer offsets from the timeline's start date. A window of them is
 // rendered in normal flow, so the browser lays the columns out and nothing is
-// estimated. One rendered day, the anchor, is held still on screen whenever
-// days are added, removed, or resized to its left: a scroll moves the anchor,
-// a layout change moves the scroll.
+// estimated. Blank space on the left holds a day-wide slot for every day from
+// `base` up to the window, so days added or dropped there swap with their slot
+// and nothing after them moves: writing the scroll would cut short the
+// browser's own smooth scrolls and momentum. When a day to the left of the
+// anchor day differs from its slot (hidden by hand), the scroll moves to hold
+// the anchor still.
 
-export type RenderedDays = { from: number; to: number };
+export type RenderedDays = { from: number; to: number; base: number };
 
 // Re-window when fewer rendered days than this remain past a screen edge.
 const MIN_OVERSCAN = 5;
 // Days are this wide unless hidden by hand.
 export const DAY_WIDTH = 400;
-// Blank space on both sides of the rendered days, so a fast scroll does not
-// stop dead at the edge before more days render.
-export const EDGE_SLACK = 2000;
+// Blank day slots on each side of the window, so a fast scroll lands among
+// slots that tell which days it reached, rather than at an end.
+const BLANK_DAYS = 1000;
 // How far a smooth scroll runs before it jumps instead.
 const MAX_SMOOTH_DAYS = 60;
 
@@ -46,6 +49,7 @@ class InfiniteDays {
     this.rendered = {
       from: -overscan,
       to: Math.ceil(window.innerWidth / DAY_WIDTH) + overscan,
+      base: -overscan - BLANK_DAYS,
     };
     this.observer = new ResizeObserver(this.update);
   }
@@ -59,6 +63,7 @@ class InfiniteDays {
     this.row = row;
     this.observer.observe(scroller);
     scroller.addEventListener("scroll", this.update, { passive: true });
+    scroller.addEventListener("focusin", this.update);
     scroller.addEventListener("wheel", this.stopAnimation, { passive: true });
     scroller.addEventListener("touchstart", this.stopAnimation, {
       passive: true,
@@ -66,6 +71,7 @@ class InfiniteDays {
 
     return () => {
       scroller.removeEventListener("scroll", this.update);
+      scroller.removeEventListener("focusin", this.update);
       scroller.removeEventListener("wheel", this.stopAnimation);
       scroller.removeEventListener("touchstart", this.stopAnimation);
       this.observer.disconnect();
@@ -167,14 +173,22 @@ class InfiniteDays {
     anchor.x = element.offsetLeft;
   }
 
-  private setRendered(rendered: RenderedDays) {
+  // Keeps `base` in place unless the blank slots run out or grow too wide to
+  // lay out; moving it moves the scroll once.
+  private setRendered(from: number, to: number) {
+    const blank = from - this.rendered.base;
+    const base =
+      blank < this.overscan || blank > BLANK_DAYS * 2
+        ? from - BLANK_DAYS
+        : this.rendered.base;
     if (
-      rendered.from === this.rendered.from &&
-      rendered.to === this.rendered.to
+      from === this.rendered.from &&
+      to === this.rendered.to &&
+      base === this.rendered.base
     ) {
       return;
     }
-    this.callbacks.onRenderedChange(rendered);
+    this.callbacks.onRenderedChange({ from, to, base });
   }
 
   private jump(day: number) {
@@ -183,10 +197,7 @@ class InfiniteDays {
     const visible = Math.ceil(
       (this.scroller?.clientWidth ?? window.innerWidth) / DAY_WIDTH,
     );
-    this.setRendered({
-      from: day - this.overscan,
-      to: day + visible + this.overscan,
-    });
+    this.setRendered(day - this.overscan, day + visible + this.overscan);
   }
 
   private update = () => {
@@ -238,20 +249,21 @@ class InfiniteDays {
       this.callbacks.onFirstVisibleChange(firstDay);
     }
 
-    const needsMore =
-      from > firstDay - MIN_OVERSCAN || to < lastDay + MIN_OVERSCAN;
+    // Keys move focus ahead of the scroll that follows it.
+    const focused = this.focusedDay(firstDay, lastDay);
+    const low = Math.min(firstDay, focused ?? firstDay);
+    const high = Math.max(lastDay, focused ?? lastDay);
+
+    const needsMore = from > low - MIN_OVERSCAN || to < high + MIN_OVERSCAN;
     // Trimming would drop the day a smooth scroll is heading to.
     const hasExtra =
       !this.animation &&
-      (from < firstDay - this.overscan * 2 || to > lastDay + this.overscan * 2);
+      (from < low - this.overscan * 2 || to > high + this.overscan * 2);
     if (needsMore || hasExtra) {
-      this.setRendered({
-        from: Math.min(
-          firstDay - this.overscan,
-          this.animation ? from : Infinity,
-        ),
-        to: Math.max(lastDay + this.overscan, this.animation ? to : -Infinity),
-      });
+      this.setRendered(
+        Math.min(low - this.overscan, this.animation ? from : Infinity),
+        Math.max(high + this.overscan, this.animation ? to : -Infinity),
+      );
     }
 
     clearTimeout(this.settleTimer);
@@ -261,6 +273,19 @@ class InfiniteDays {
     );
   };
 
+  // The focused day, unless scrolled far from it.
+  private focusedDay(firstVisible: number, lastVisible: number) {
+    const focused = document.activeElement;
+    const day =
+      focused && this.row?.contains(focused)
+        ? Number(focused.closest<HTMLElement>("[data-day]")?.dataset.day)
+        : NaN;
+    return day >= firstVisible - this.overscan &&
+      day <= lastVisible + this.overscan
+      ? day
+      : null;
+  }
+
   private animate = () => {
     const scroller = this.scroller;
     const animation = this.animation;
@@ -269,19 +294,21 @@ class InfiniteDays {
     const element = this.dayElement(animation.day);
     if (!element) {
       const { from, to } = this.rendered;
-      this.setRendered({
-        from: Math.min(from, animation.day - this.overscan),
-        to: Math.max(to, animation.day + this.overscan),
-      });
+      this.setRendered(
+        Math.min(from, animation.day - this.overscan),
+        Math.max(to, animation.day + this.overscan),
+      );
       animation.frame = requestAnimationFrame(this.animate);
       return;
     }
 
     const distance = element.offsetLeft - scroller.scrollLeft;
     const before = scroller.scrollLeft;
-    scroller.scrollLeft += Math.abs(distance) < 2 ? distance : distance / 4;
+    // A step under a pixel can round to none, which reads as clamped.
+    const isLastStep = Math.abs(distance) < 4;
+    scroller.scrollLeft += isLastStep ? distance : distance / 4;
     // Done, or the scroll is clamped and can get no closer.
-    if (Math.abs(distance) < 2 || scroller.scrollLeft === before) {
+    if (isLastStep || scroller.scrollLeft === before) {
       this.animation = null;
       return;
     }
@@ -355,6 +382,10 @@ export function useInfiniteDays({
     rowRef,
     observeDay: engine.observeDay,
     rendered,
+    rowStyle: {
+      paddingLeft: (rendered.from - rendered.base) * DAY_WIDTH,
+      paddingRight: BLANK_DAYS * DAY_WIDTH,
+    },
     firstVisible,
     scrollToDay,
     scrollByDay,

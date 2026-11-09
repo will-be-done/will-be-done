@@ -34,7 +34,7 @@ import { ProjectedTaskCard } from "@/components/Task/ProjectedTaskCard.tsx";
 import { useUpcomingOccurrences } from "@/components/Task/useUpcomingOccurrences.ts";
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
-import { DAY_WIDTH, EDGE_SLACK, useInfiniteDays } from "./useInfiniteDays.ts";
+import { DAY_WIDTH, useInfiniteDays } from "./useInfiniteDays.ts";
 import { InfiniteScrollbar } from "./InfiniteScrollbar.tsx";
 import { ProjectsSplit } from "../ProjectView/ProjectsSplit.tsx";
 import { useProjectsViewSize } from "../ProjectView/ProjectsViewStore.ts";
@@ -319,6 +319,7 @@ const DaysTimeline = ({
     rowRef,
     observeDay,
     rendered,
+    rowStyle,
     firstVisible,
     scrollToDay,
     scrollByDay,
@@ -395,7 +396,7 @@ const DaysTimeline = ({
               <div
                 ref={rowRef}
                 className="relative flex h-full w-max"
-                style={{ paddingInline: EDGE_SLACK }}
+                style={rowStyle}
               >
                 {days.map((day) => {
                   const date = getDMY(addDays(startDate, day));
@@ -408,6 +409,9 @@ const DaysTimeline = ({
                       key={day}
                       data-day={day}
                       ref={observeDay}
+                      // Days scrolled off to the left sit behind the open
+                      // stash, so h from the first visible day reaches it.
+                      inert={isStashOpen && day < firstVisible}
                       className="h-full w-min shrink-0"
                     >
                       {isReady ? (
