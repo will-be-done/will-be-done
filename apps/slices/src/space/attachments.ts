@@ -39,6 +39,24 @@ import {
 export const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
+// What an inline reference and server storage can name.
+const ATTACHMENT_ID = /^[A-Za-z0-9_-]+$/;
+
+// Why a client could not have written this row, if it could not.
+export const attachmentRowProblem = ({
+  id,
+  size,
+  sha256,
+}: Pick<Attachment, "id" | "size" | "sha256">) => {
+  if (!ATTACHMENT_ID.test(id))
+    return "Attachment ID may only use A-Z, 0-9, _ and -";
+  if (!Number.isInteger(size) || size < 0 || size > MAX_ATTACHMENT_SIZE) {
+    return "Attachment exceeds the 50 MB limit";
+  }
+  if (!SHA256_HEX.test(sha256))
+    return "Attachment checksum must be a hex SHA-256";
+  return undefined;
+};
 
 export const attachmentById = selector({
   name: "attachmentById",
@@ -338,22 +356,15 @@ export const createAttachment = action({
     ),
   },
   handler: function* createAttachment({ attachment, parent }) {
-    if (
-      !Number.isInteger(attachment.size) ||
-      attachment.size < 0 ||
-      attachment.size > MAX_ATTACHMENT_SIZE
-    ) {
-      throw new Error("Attachment exceeds the 50 MB limit");
-    }
-    if (!SHA256_HEX.test(attachment.sha256)) {
-      throw new Error("Attachment checksum must be a hex SHA-256");
-    }
+    const id = attachment.id || uuidv7();
+    const problem = attachmentRowProblem({ ...attachment, id });
+    if (problem) throw new Error(problem);
     if (parent && !(yield* parentExists(parent.parentType, parent.parentId))) {
       throw new Error("Attachment parent not found");
     }
     const row: Attachment = {
       type: attachmentType,
-      id: attachment.id || uuidv7(),
+      id,
       name: attachment.name.trim() || "file",
       mimeType: attachment.mimeType || "application/octet-stream",
       size: attachment.size,

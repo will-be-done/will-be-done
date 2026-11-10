@@ -43,3 +43,54 @@ describe("zip archive", () => {
     );
   });
 });
+
+describe("damaged zip archives", () => {
+  const archiveWith = (patch: (entry: DataView) => void) => {
+    const writer = makeZipWriter();
+    writer.add("attachments/a", binary);
+    return writer
+      .finish()
+      .arrayBuffer()
+      .then((buffer) => {
+        const bytes = new Uint8Array(buffer);
+        const entry = bytes.findIndex(
+          (byte, index) =>
+            byte === 0x50 &&
+            bytes[index + 1] === 0x4b &&
+            bytes[index + 2] === 0x01 &&
+            bytes[index + 3] === 0x02,
+        );
+        patch(new DataView(buffer, entry));
+        return readZip(new Blob([buffer]));
+      });
+  };
+
+  it.each([
+    ["data past the end", (entry: DataView) => entry.setUint32(20, 1e6, true)],
+    [
+      "a header past the end",
+      (entry: DataView) => entry.setUint32(42, 1e6, true),
+    ],
+    [
+      "a header that is not one",
+      (entry: DataView) => entry.setUint32(42, 1, true),
+    ],
+  ])("rejects an entry with %s", async (_name, patch) => {
+    const zip = await archiveWith(patch);
+    await expect(zip.get("attachments/a")).rejects.toThrow("damaged");
+  });
+
+  it("rejects unknown compression", async () => {
+    const zip = await archiveWith((entry) => entry.setUint16(10, 12, true));
+    await expect(zip.get("attachments/a")).rejects.toThrow("compression");
+  });
+
+  it("rejects a directory past the end", async () => {
+    const writer = makeZipWriter();
+    writer.add("attachments/a", binary);
+    const bytes = new Uint8Array(await writer.finish().arrayBuffer());
+    // Drops file data, so the directory offset points past the end.
+    const truncated = new Blob([bytes.subarray(0, 100), bytes.subarray(-22)]);
+    await expect(readZip(truncated)).rejects.toThrow("damaged");
+  });
+});

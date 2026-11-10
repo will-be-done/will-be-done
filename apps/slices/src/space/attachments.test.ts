@@ -178,6 +178,11 @@ describe("attachments", () => {
     ).toThrow("50 MB");
   });
 
+  test("rejects IDs that inline references cannot name", () => {
+    const db = createDB();
+    expect(() => addFile(db, "a.b")).toThrow("ID");
+  });
+
   test("an inline reference lists the file under the item", () => {
     const db = createDB();
     addFile(db, "f1");
@@ -448,5 +453,26 @@ describe("attachments", () => {
     ).toEqual(["f1", "f2"]);
     expect(listOf(restored, "t1")).toEqual(["f1"]);
     expect(listOf(restored, "t2")).toEqual(["f2"]);
+  });
+
+  test("backups skip file rows a client could not have written", () => {
+    const db = createDB();
+    addFile(db, "f1", "t1");
+    const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+    const [valid] = backup.attachments!;
+    backup.attachments!.push(
+      { ...valid!, id: "a.b" },
+      { ...valid!, id: "bad-sha", sha256: "not hex" },
+      { ...valid!, id: "too-big", size: 50 * 1024 * 1024 + 1 },
+      { ...valid!, id: "fraction", size: 1.5 },
+    );
+    const [link] = backup.itemAttachments!;
+    backup.itemAttachments!.push({ ...link!, id: "l2", attachmentId: "a.b" });
+
+    const restored = createDB();
+    syncDispatch(restored, loadSpaceBackup({ backup }));
+
+    expect(read(restored).attachments.map((a) => a.id)).toEqual(["f1"]);
+    expect(read(restored).links.map((l) => l.attachmentId)).toEqual(["f1"]);
   });
 });

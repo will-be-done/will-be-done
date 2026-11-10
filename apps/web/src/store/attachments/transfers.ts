@@ -144,7 +144,8 @@ export type AttachmentTransfers = {
     attachment: Attachment,
   ) => Effect.Effect<Blob | undefined, TransferError>;
   // For restores: the bytes upload again, since the server may not have them.
-  // Skips bytes that do not match the row or would replace a local copy.
+  // Keeps a local copy over the given bytes, and skips bytes that do not
+  // match the row.
   readonly importBlob: (
     attachment: Pick<Attachment, "id" | "size" | "sha256">,
     blob: Blob,
@@ -211,6 +212,7 @@ export const makeAttachmentTransfers = ({
     let storageFull = false;
     let error: string | null = null;
     let cleanedOrphans = false;
+    let nextWakeAt: number | undefined;
 
     const url = (id: string) =>
       `/api/v1/spaces/${encodeURIComponent(spaceId)}/attachments/${encodeURIComponent(id)}/content`;
@@ -367,8 +369,29 @@ export const makeAttachmentTransfers = ({
         }
         // Uploads waiting for their row retry on the next sync instead.
         if (!awaitingSync.has(id)) {
-          retryAt.set(id, (yield* Clock.currentTimeMillis) + MISSING_RETRY_MS);
+          const at = (yield* Clock.currentTimeMillis) + MISSING_RETRY_MS;
+          retryAt.set(id, at);
+          yield* wakeAt(at);
         }
+      });
+
+    // A retry is due without waiting for a sync, which may never come.
+    const wakeAt = (at: number) =>
+      Effect.gen(function* () {
+        if (nextWakeAt !== undefined && nextWakeAt <= at) return;
+        nextWakeAt = at;
+        const delay = Math.max(0, at - (yield* Clock.currentTimeMillis));
+        runJob(
+          Effect.sleep(delay).pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                if (nextWakeAt !== at) return;
+                nextWakeAt = undefined;
+                Queue.offerUnsafe(wakes, undefined);
+              }),
+            ),
+          ),
+        );
       });
 
     const pump = (): void => {
@@ -415,10 +438,16 @@ export const makeAttachmentTransfers = ({
       });
       const { stored, pending } = yield* store.keys;
       const now = yield* Clock.currentTimeMillis;
+      let nextRetry = Infinity;
       for (const attachment of rows) {
         const { id } = attachment;
         if (failed.has(id) || queue.has(id) || running.has(id)) continue;
-        if (awaitingSync.has(id) || (retryAt.get(id) ?? 0) > now) continue;
+        if (awaitingSync.has(id)) continue;
+        const due = retryAt.get(id) ?? 0;
+        if (due > now) {
+          nextRetry = Math.min(nextRetry, due);
+          continue;
+        }
         if (!stored.has(id)) {
           if (!storageFull) enqueue("download", attachment);
         } else if (pending.has(id)) {
@@ -443,6 +472,7 @@ export const makeAttachmentTransfers = ({
           }
         }
       }
+      if (nextRetry !== Infinity) yield* wakeAt(nextRetry);
       pump();
     }).pipe(
       Effect.catchCause((cause) =>
@@ -567,7 +597,16 @@ export const makeAttachmentTransfers = ({
       importBlob: ({ id, size, sha256 }, blob) =>
         provide(
           Effect.gen(function* () {
-            if (blob.size !== size || (yield* store.get(id))) return false;
+            const local = yield* store.get(id);
+            if (local) {
+              // The restored server may have lost the bytes.
+              if (syncEnabled) {
+                yield* store.put(id, local, { uploaded: false });
+                requestDownload(id);
+              }
+              return true;
+            }
+            if (blob.size !== size) return false;
             const bytes = yield* Effect.tryPromise({
               try: () => blob.arrayBuffer(),
               catch: (cause) => new AttachmentFileReadError({ cause }),

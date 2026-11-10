@@ -5,6 +5,7 @@ const ENTRY_SIGNATURE = 0x02014b50;
 const END_SIZE = 22;
 const MAX_COMMENT_SIZE = 0xffff;
 const ENTRY_SIZE = 46;
+const LOCAL_HEADER_SIGNATURE = 0x04034b50;
 const LOCAL_HEADER_SIZE = 30;
 const MAX_ARCHIVE_SIZE = 0xffffffff;
 const STORED = 0;
@@ -64,6 +65,9 @@ export const readZip = async (file: Blob) => {
   if (count === 0xffff || directoryStart === 0xffffffff) {
     throw new Error("Zip64 archives are not supported");
   }
+  if (directoryStart + directorySize > file.size) {
+    throw new Error("The zip directory is damaged");
+  }
 
   const bytes = new Uint8Array(
     await file
@@ -104,6 +108,9 @@ export const readZip = async (file: Blob) => {
     get: async (name: string, type?: string) => {
       const entry = entries.get(name);
       if (!entry) return undefined;
+      if (entry.headerStart + LOCAL_HEADER_SIZE > file.size) {
+        throw new Error(`The zip entry ${name} is damaged`);
+      }
       const header = new DataView(
         await file
           .slice(entry.headerStart, entry.headerStart + LOCAL_HEADER_SIZE)
@@ -114,6 +121,12 @@ export const readZip = async (file: Blob) => {
         LOCAL_HEADER_SIZE +
         header.getUint16(26, true) +
         header.getUint16(28, true);
+      if (
+        header.getUint32(0, true) !== LOCAL_HEADER_SIGNATURE ||
+        start + entry.size > file.size
+      ) {
+        throw new Error(`The zip entry ${name} is damaged`);
+      }
       const content = file.slice(start, start + entry.size, type);
       if (entry.method === STORED) return content;
       if (entry.method !== DEFLATED) {

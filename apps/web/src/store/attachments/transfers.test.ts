@@ -228,9 +228,9 @@ describe("attachment transfers", () => {
     expect(store.blobs.has("remote")).toBe(false);
   });
 
-  it("imports only intact files it does not have", async () => {
+  it("imports intact files and never replaces local ones", async () => {
     const store = new FakeStore();
-    Effect.runSync(store.put("kept", new Blob(["kept"]), { uploaded: false }));
+    Effect.runSync(store.put("local", new Blob(["local"]), { uploaded: true }));
     const { transfers } = start(
       store,
       async () => new Response(null, { status: 404 }),
@@ -251,12 +251,14 @@ describe("attachment transfers", () => {
         ),
       );
 
-    expect(await restore("kept", "kept", "evil")).toBe(false);
+    // The restored server may have lost it, so it uploads again.
+    expect(await restore("local", "local", "evil!")).toBe(true);
     expect(await restore("damaged", "good", "bad!")).toBe(false);
     expect(await restore("truncated", "good", "goo")).toBe(false);
     expect(await restore("good", "good", "good")).toBe(true);
 
-    expect(await store.blobs.get("kept")?.text()).toBe("kept");
+    expect(await store.blobs.get("local")?.text()).toBe("local");
+    expect(store.pending.has("local")).toBe(true);
     expect(store.blobs.has("damaged")).toBe(false);
     expect(store.blobs.has("truncated")).toBe(false);
     expect(await store.blobs.get("good")?.text()).toBe("good");

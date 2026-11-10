@@ -16651,27 +16651,27 @@ export type downloadAttachmentContentResponse200 = {
 };
 
 export type downloadAttachmentContentResponse400 = {
-  data: Blob;
+  data: DownloadAttachmentContent400;
   status: 400;
 };
 
 export type downloadAttachmentContentResponse401 = {
-  data: Blob;
+  data: DownloadAttachmentContent401;
   status: 401;
 };
 
 export type downloadAttachmentContentResponse403 = {
-  data: Blob;
+  data: DownloadAttachmentContent403;
   status: 403;
 };
 
 export type downloadAttachmentContentResponse404 = {
-  data: Blob;
+  data: DownloadAttachmentContent404;
   status: 404;
 };
 
 export type downloadAttachmentContentResponse500 = {
-  data: Blob;
+  data: DownloadAttachmentContent500;
   status: 500;
 };
 

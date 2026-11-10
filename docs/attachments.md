@@ -92,12 +92,15 @@ list before opening a blob URL, which would otherwise run on the app's origin.
 ## Backups
 
 A space export is a zip of `backup.json` and `attachments/<id>`. Restoring it
-re-uploads the bytes, since the target server may not have them. A file is
-imported only when its size and SHA-256 match its row and the device has no
-copy yet, so a damaged archive cannot replace good bytes. The archive
+re-uploads the bytes, since the target server may not have them. A local copy is
+kept over the archive's bytes but uploads again, since the restored server may
+have lost it. Other files are imported only when their size and SHA-256 match
+their rows, so a damaged archive cannot replace or add wrong bytes. The archive
 is written one file at a time and read through its central directory
 (`zipArchive.ts`), so neither direction holds the whole space in memory. It has
 no Zip64 support, which caps an export at 4 GB. Scheduled
 server backups mirror local attachment storage to the backup bucket, append-only
-so older database backups still find their files. With S3 attachment storage,
+so older database backups still find their files. A file that vanished
+since it was listed is skipped; any other failed copy fails the run, so a
+backup never counts as complete without its files. With S3 attachment storage,
 the bucket's own durability is the backup.

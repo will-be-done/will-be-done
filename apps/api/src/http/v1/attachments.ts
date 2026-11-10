@@ -238,9 +238,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
         tags: ["Attachments"],
         security: [{ bearerAuth: [] }],
         params: AttachmentParamsSchema,
-        produces: ["application/octet-stream"],
         response: {
-          200: BinaryResponseSchema.describe("File content"),
+          200: {
+            description: "File content",
+            content: {
+              "application/octet-stream": { schema: BinaryResponseSchema },
+            },
+          },
           ...errorResponses,
         },
       },

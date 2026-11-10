@@ -108,8 +108,16 @@ export const restoreBackupFile = (file: File) =>
       backup.attachments ?? [],
       (attachment) =>
         Effect.gen(function* () {
+          // A damaged entry loses only its file, like a missing one.
           const content = yield* readFile(() =>
             zip.get(`${FILES_DIR}${attachment.id}`, attachment.mimeType),
+          ).pipe(
+            Effect.catchTag("InvalidBackupError", (error) =>
+              Effect.as(
+                Effect.logWarning(`Skipped ${attachment.name}`, error.cause),
+                undefined,
+              ),
+            ),
           );
           if (!content) return;
           if (yield* transfers.importBlob(attachment, content)) {

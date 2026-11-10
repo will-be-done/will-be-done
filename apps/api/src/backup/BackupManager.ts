@@ -364,8 +364,6 @@ export class BackupManager {
       for (const file of await Effect.runPromise(storage.list(spaceId))) {
         const key = `${ATTACHMENT_BACKUP_PREFIX}${spaceId}/${file.id}`;
         if (mirrored.has(key)) continue;
-        // The next run retries a file that failed; cleanup may also have
-        // deleted it since it was listed.
         try {
           await this.s3Client.uploadFile(
             path.join(root, spaceId, file.id),
@@ -373,14 +371,18 @@ export class BackupManager {
           );
           copied++;
         } catch (error) {
+          // Cleanup deleted it since it was listed.
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
           failed++;
           console.error(`[Backup] Failed to copy attachment ${key}:`, error);
         }
       }
     }
-    console.log(
-      `[Backup] Copied ${copied} new attachment files${failed > 0 ? `, ${failed} failed` : ""}`,
-    );
+    console.log(`[Backup] Copied ${copied} new attachment files`);
+    // Database backups would reference files the bucket does not have.
+    if (failed > 0) {
+      throw new Error(`Failed to copy ${failed} attachment files`);
+    }
   }
 
   private getAllDatabaseFiles(): string[] {

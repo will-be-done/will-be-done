@@ -62,6 +62,7 @@ import {
   type TrashSnapshot,
 } from "./tables";
 import { uuidv7 } from "uuidv7";
+import { attachmentRowProblem } from "./attachments";
 
 // TODO: use type from  vackupValidator
 interface ProjectSectionBackup {
@@ -915,9 +916,15 @@ const getNewModels = action({
       mindmapNodes.push({ type: mindmapNodeType, ...node });
     }
 
-    const attachments: Attachment[] = (backup.attachments || []).map(
-      (attachment) => ({ type: attachmentType, ...attachment }),
-    );
+    const attachments: Attachment[] = [];
+    for (const attachment of backup.attachments || []) {
+      const problem = attachmentRowProblem(attachment);
+      if (problem) {
+        console.warn(`Attachment ${attachment.id} omitted: ${problem}`);
+        continue;
+      }
+      attachments.push({ type: attachmentType, ...attachment });
+    }
     const attachmentIds = new Set(attachments.map(({ id }) => id));
     // Items in the trash keep their links too.
     const parentIds = new Set([

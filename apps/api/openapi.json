@@ -16841,18 +16841,14 @@
             "description": "File content",
             "content": {
               "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary",
-                  "description": "File content"
-                }
+                "schema": { "type": "string", "format": "binary" }
               }
             }
           },
           "400": {
             "description": "Error response",
             "content": {
-              "application/octet-stream": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
@@ -16879,7 +16875,7 @@
           "401": {
             "description": "Error response",
             "content": {
-              "application/octet-stream": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
@@ -16906,7 +16902,7 @@
           "403": {
             "description": "Error response",
             "content": {
-              "application/octet-stream": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
@@ -16933,7 +16929,7 @@
           "404": {
             "description": "Error response",
             "content": {
-              "application/octet-stream": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
@@ -16960,7 +16956,7 @@
           "500": {
             "description": "Error response",
             "content": {
-              "application/octet-stream": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
