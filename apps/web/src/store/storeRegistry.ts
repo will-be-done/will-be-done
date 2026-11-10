@@ -13,6 +13,7 @@ import {
   Semaphore,
 } from "effect";
 import type { BackupDatabase } from "@/services/browser";
+import { makeAttachmentBlobStore } from "./attachments/blobStore";
 import {
   attachmentTransfersByDB,
   makeAttachmentTransfers,
@@ -97,6 +98,7 @@ const startStore = (
           spaceId: syncConfig.dbId,
           syncEnabled: !syncConfig.disableSync,
           syncStatus: syncer.status,
+          store: yield* makeAttachmentBlobStore(indexedDB, dbName),
         });
         attachmentTransfersByDB.set(syncSubDb, transfers);
       }

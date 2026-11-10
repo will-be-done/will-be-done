@@ -2,7 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import { createBackendAnalytics, type BackendAnalytics } from "./analytics";
 import { createAppRouter } from "./appRouter";
 import { attachmentCleanup } from "./attachments/cleanup";
-import { getAttachmentStorage } from "./attachments/storage";
+import { AttachmentStorage } from "./attachments/storage";
 import { Calendars, calendarSyncLoop } from "./calendars/scheduler";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
@@ -53,11 +53,6 @@ const SyncNotificationsLive = Layer.effectDiscard(
       `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
     );
   }),
-);
-
-// Fails startup on incomplete storage configuration, before the server listens.
-const AttachmentStorageCheck = Layer.effectDiscard(
-  Effect.asVoid(Effect.try(getAttachmentStorage)),
 );
 
 export class Analytics extends Context.Service<Analytics, BackendAnalytics>()(
@@ -125,6 +120,7 @@ export class ApiServer extends Context.Service<
       const accountEmail = yield* AccountEmail;
       const google = yield* Google;
       const calendars = yield* Calendars;
+      const attachmentStorage = yield* AttachmentStorage;
       const server = yield* Effect.acquireRelease(
         Effect.sync(() =>
           createServer({
@@ -146,6 +142,7 @@ export class ApiServer extends Context.Service<
               globalOverride: { max: env.WBD_RATE_LIMIT_GLOBAL_MAX },
             },
             analytics,
+            attachmentStorage,
           }),
         ),
         (server) => Effect.promise(() => server.close()),
@@ -190,9 +187,7 @@ const CalendarSyncLive = Layer.effectDiscard(
 const AttachmentCleanupLive = Layer.effectDiscard(
   Effect.gen(function* () {
     yield* ApiServer;
-    yield* attachmentCleanup(getAttachmentStorage()).pipe(
-      Effect.forkScoped({ startImmediately: true }),
-    );
+    yield* attachmentCleanup.pipe(Effect.forkScoped);
   }),
 );
 
@@ -286,12 +281,16 @@ export const AppLive = Layer.mergeAll(
 ).pipe(
   Layer.provideMerge(ApiServer.layer),
   Layer.provideMerge(
-    Layer.mergeAll(AccountEmail.layer, Google.layer, Calendars.layer),
+    Layer.mergeAll(
+      AccountEmail.layer,
+      Google.layer,
+      Calendars.layer,
+      AttachmentStorage.layer,
+    ),
   ),
   Layer.provideMerge(Analytics.layer),
   Layer.provideMerge(MainDatabase.layer),
   Layer.provideMerge(SyncNotificationsLive),
   Layer.provideMerge(BackupEngineCheck),
-  Layer.provideMerge(AttachmentStorageCheck),
   Layer.provideMerge(AppEnv.layer),
 );

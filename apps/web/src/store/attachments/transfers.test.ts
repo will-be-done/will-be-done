@@ -25,6 +25,7 @@ import {
 import { State } from "@/utils/State";
 import { Database } from "../database";
 import { initialSyncStatus, type SyncStatus } from "../syncStatus";
+import type { AttachmentBlobStore } from "./blobStore";
 import { makeAttachmentTransfers } from "./transfers";
 
 const file = (id: string): Attachment => ({
@@ -47,7 +48,7 @@ const seed = createAction()({
 
 // Resolves once a store method has run for an ID, so tests wait on the
 // milestone itself instead of time.
-class FakeStore {
+class FakeStore implements AttachmentBlobStore {
   blobs = new Map<string, Blob>();
   pending = new Set<string>();
   private waiters = new Map<string, () => void>();
@@ -60,34 +61,33 @@ class FakeStore {
     this.waiters.get(event)?.();
   }
 
-  async get(id: string) {
-    return this.blobs.get(id);
-  }
+  get = (id: string) => Effect.sync(() => this.blobs.get(id));
 
-  async put(id: string, blob: Blob, { uploaded }: { uploaded: boolean }) {
-    this.blobs.set(id, blob);
-    if (uploaded) this.pending.delete(id);
-    else this.pending.add(id);
-    this.emit(`put:${id}`);
-  }
+  put = (id: string, blob: Blob, { uploaded }: { uploaded: boolean }) =>
+    Effect.sync(() => {
+      this.blobs.set(id, blob);
+      if (uploaded) this.pending.delete(id);
+      else this.pending.add(id);
+      this.emit(`put:${id}`);
+    });
 
-  async markUploaded(id: string) {
-    this.pending.delete(id);
-    this.emit(`uploaded:${id}`);
-  }
+  markUploaded = (id: string) =>
+    Effect.sync(() => {
+      this.pending.delete(id);
+      this.emit(`uploaded:${id}`);
+    });
 
-  async delete(id: string) {
-    this.blobs.delete(id);
-    this.pending.delete(id);
-    this.emit(`delete:${id}`);
-  }
+  delete = (id: string) =>
+    Effect.sync(() => {
+      this.blobs.delete(id);
+      this.pending.delete(id);
+      this.emit(`delete:${id}`);
+    });
 
-  async keys() {
-    return {
-      stored: new Set(this.blobs.keys()),
-      pending: new Set(this.pending),
-    };
-  }
+  keys = Effect.sync(() => ({
+    stored: new Set(this.blobs.keys()),
+    pending: new Set(this.pending),
+  }));
 }
 
 const scopes: Scope.Closeable[] = [];
@@ -104,9 +104,13 @@ describe("attachment transfers", () => {
     execSync(db.loadTables([attachmentsTable]));
     syncDispatch(db, seed({}));
     const store = new FakeStore();
-    await store.put("local", new Blob(["local"]), { uploaded: false });
-    await store.put("deleted", new Blob(["gone"]), { uploaded: true });
-    await store.put("unsynced", new Blob(["new"]), { uploaded: false });
+    Effect.runSync(
+      Effect.all([
+        store.put("local", new Blob(["local"]), { uploaded: false }),
+        store.put("deleted", new Blob(["gone"]), { uploaded: true }),
+        store.put("unsynced", new Blob(["new"]), { uploaded: false }),
+      ]),
+    );
 
     const syncStatus = new State<SyncStatus>(initialSyncStatus);
     const uploads: RequestInit[] = [];

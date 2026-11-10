@@ -1,6 +1,11 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { MAX_ATTACHMENT_SIZE } from "@will-be-done/slices/space";
+import { Effect } from "effect";
+import {
+  AttachmentStorage,
+  type AttachmentStore,
+} from "../../attachments/storage";
 import { authenticateRequest } from "../../services/authentication";
 import {
   attachToItem,
@@ -49,7 +54,14 @@ const INLINE_TYPES =
 const contentDisposition = (name: string, inline: boolean) =>
   `${inline ? "inline" : "attachment"}; filename="${name.replace(/[^\x20-\x7e]|["\\]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 
-export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
+export const attachmentRoutes: FastifyPluginAsyncZod<{
+  storage: AttachmentStore;
+}> = async (server, { storage }) => {
+  const run = <A, E>(effect: Effect.Effect<A, E, AttachmentStorage>) =>
+    Effect.runPromise(
+      effect.pipe(Effect.provideService(AttachmentStorage, storage)),
+    );
+
   server.addContentTypeParser(
     "application/octet-stream",
     { parseAs: "buffer", bodyLimit: MAX_ATTACHMENT_SIZE },
@@ -76,11 +88,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const page = await listAttachments({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          ...request.query,
-        });
+        const page = await run(
+          listAttachments({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            ...request.query,
+          }),
+        );
         return reply.code(200).send(page);
       } catch (error) {
         return handleError(request, reply, error, "Failed to list attachments");
@@ -115,16 +129,18 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       if (!user) return unauthorized(reply);
       const { name, mimeType, parentType, parentId } = request.query;
       try {
-        const attachment = await createAttachment({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          name,
-          mimeType: mimeType ?? "application/octet-stream",
-          body: request.body,
-          ...(parentType && parentId
-            ? { parent: { parentType, parentId } }
-            : {}),
-        });
+        const attachment = await run(
+          createAttachment({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            name,
+            mimeType: mimeType ?? "application/octet-stream",
+            body: request.body,
+            ...(parentType && parentId
+              ? { parent: { parentType, parentId } }
+              : {}),
+          }),
+        );
         return reply.code(201).send({ attachment });
       } catch (error) {
         return handleError(
@@ -153,11 +169,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const attachment = await getAttachment({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          attachmentId: request.params.attachmentId,
-        });
+        const attachment = await run(
+          getAttachment({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            attachmentId: request.params.attachmentId,
+          }),
+        );
         return reply.code(200).send({ attachment });
       } catch (error) {
         return handleError(request, reply, error, "Failed to get attachment");
@@ -183,11 +201,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        await deleteAttachment({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          attachmentId: request.params.attachmentId,
-        });
+        await run(
+          deleteAttachment({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            attachmentId: request.params.attachmentId,
+          }),
+        );
         return reply.code(204).send(null);
       } catch (error) {
         return handleError(
@@ -223,11 +243,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const { attachment, body, size } = await getAttachmentContent({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          attachmentId: request.params.attachmentId,
-        });
+        const { attachment, body, size } = await run(
+          getAttachmentContent({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            attachmentId: request.params.attachmentId,
+          }),
+        );
         const inline = INLINE_TYPES.test(attachment.mimeType);
         return reply
           .code(200)
@@ -280,12 +302,14 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        await uploadAttachmentContent({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          attachmentId: request.params.attachmentId,
-          body: request.body,
-        });
+        await run(
+          uploadAttachmentContent({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            attachmentId: request.params.attachmentId,
+            body: request.body,
+          }),
+        );
         return reply.code(204).send(null);
       } catch (error) {
         return handleError(
@@ -315,11 +339,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const itemAttachments = await listItemAttachments({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          parent: request.query,
-        });
+        const itemAttachments = await run(
+          listItemAttachments({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            parent: request.query,
+          }),
+        );
         return reply.code(200).send({ itemAttachments });
       } catch (error) {
         return handleError(
@@ -350,12 +376,14 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       if (!user) return unauthorized(reply);
       const { attachmentId, parentType, parentId } = request.body;
       try {
-        const itemAttachment = await attachToItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          attachmentId,
-          parent: { parentType, parentId },
-        });
+        const itemAttachment = await run(
+          attachToItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            attachmentId,
+            parent: { parentType, parentId },
+          }),
+        );
         return reply.code(201).send({ itemAttachment });
       } catch (error) {
         return handleError(
@@ -386,11 +414,13 @@ export const attachmentRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        await removeItemAttachment({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          itemAttachmentId: request.params.itemAttachmentId,
-        });
+        await run(
+          removeItemAttachment({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            itemAttachmentId: request.params.itemAttachmentId,
+          }),
+        );
         return reply.code(204).send(null);
       } catch (error) {
         return handleError(

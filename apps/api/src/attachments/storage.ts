@@ -5,28 +5,32 @@ import type { Readable } from "node:stream";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
-  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { z } from "zod";
-import { getEnvConfig } from "../env";
+import { Context, Data, Effect, Layer } from "effect";
+import { AppEnv, type EnvConfig } from "../env";
 
 export type StoredAttachment = { id: string; modifiedAt: number };
 
+export class AttachmentStorageError extends Data.TaggedError(
+  "AttachmentStorageError",
+)<{ readonly operation: string; readonly cause: unknown }> {}
+
+type Result<A> = Effect.Effect<A, AttachmentStorageError>;
+
 // Attachment bytes are immutable once written: an ID always names the same
 // content, so writes are idempotent and readers can cache forever.
-export interface AttachmentStorage {
-  put(spaceId: string, id: string, body: Buffer): Promise<void>;
-  get(
+export interface AttachmentStore {
+  readonly put: (spaceId: string, id: string, body: Buffer) => Result<void>;
+  readonly get: (
     spaceId: string,
     id: string,
-  ): Promise<{ body: Readable; size: number } | undefined>;
-  has(spaceId: string, id: string): Promise<boolean>;
-  delete(spaceId: string, id: string): Promise<void>;
-  listSpaces(): Promise<string[]>;
-  list(spaceId: string): Promise<StoredAttachment[]>;
+  ) => Result<{ body: Readable; size: number } | undefined>;
+  readonly delete: (spaceId: string, id: string) => Result<void>;
+  readonly listSpaces: Result<string[]>;
+  readonly list: (spaceId: string) => Result<StoredAttachment[]>;
 }
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
@@ -35,162 +39,96 @@ const assertSafeId = (value: string) => {
   if (!SAFE_ID.test(value)) throw new Error(`Unsafe storage key: ${value}`);
 };
 
-export class LocalAttachmentStorage implements AttachmentStorage {
-  constructor(readonly root: string) {}
+const attempt = <A>(operation: string, run: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: run,
+    catch: (cause) => new AttachmentStorageError({ operation, cause }),
+  });
 
-  private file(spaceId: string, id: string) {
+const isMissingFile = (error: unknown) =>
+  (error as NodeJS.ErrnoException).code === "ENOENT";
+
+export const makeLocalAttachmentStorage = (root: string): AttachmentStore => {
+  const file = (spaceId: string, id: string) => {
     assertSafeId(spaceId);
     assertSafeId(id);
-    return path.join(this.root, spaceId, id);
-  }
-
-  async put(spaceId: string, id: string, body: Buffer) {
-    const target = this.file(spaceId, id);
-    await mkdir(path.dirname(target), { recursive: true });
-    // Readers never see a partially written file.
-    const temp = `${target}.${crypto.randomUUID()}.tmp`;
-    await writeFile(temp, body);
-    await rename(temp, target);
-  }
-
-  async get(spaceId: string, id: string) {
-    const target = this.file(spaceId, id);
-    try {
-      const { size } = await stat(target);
-      return { body: createReadStream(target), size };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-      throw error;
-    }
-  }
-
-  async has(spaceId: string, id: string) {
-    try {
-      await stat(this.file(spaceId, id));
-      return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-      throw error;
-    }
-  }
-
-  async delete(spaceId: string, id: string) {
-    await rm(this.file(spaceId, id), { force: true });
-  }
-
-  async listSpaces() {
-    try {
-      const entries = await readdir(this.root, { withFileTypes: true });
-      return entries
-        .filter((entry) => entry.isDirectory() && SAFE_ID.test(entry.name))
-        .map((entry) => entry.name);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw error;
-    }
-  }
-
-  async list(spaceId: string) {
-    assertSafeId(spaceId);
-    const dir = path.join(this.root, spaceId);
-    let names: string[];
-    try {
-      names = await readdir(dir);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw error;
-    }
-    const files: StoredAttachment[] = [];
-    for (const name of names) {
-      if (!SAFE_ID.test(name)) continue;
-      files.push({
-        id: name,
-        modifiedAt: (await stat(path.join(dir, name))).mtimeMs,
-      });
-    }
-    return files;
-  }
-}
-
-export class S3AttachmentStorage implements AttachmentStorage {
-  constructor(
-    private client: S3Client,
-    private bucket: string,
-    private prefix: string,
-  ) {}
-
-  private key(spaceId: string, id: string) {
-    assertSafeId(spaceId);
-    assertSafeId(id);
-    return `${this.prefix}${spaceId}/${id}`;
-  }
-
-  async put(spaceId: string, id: string, body: Buffer) {
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: this.key(spaceId, id),
-        Body: body,
-        ContentLength: body.length,
+    return path.join(root, spaceId, id);
+  };
+  return {
+    put: (spaceId, id, body) =>
+      attempt("put", async () => {
+        const target = file(spaceId, id);
+        await mkdir(path.dirname(target), { recursive: true });
+        // Readers never see a partially written file.
+        const temp = `${target}.${crypto.randomUUID()}.tmp`;
+        await writeFile(temp, body);
+        await rename(temp, target);
       }),
-    );
-  }
-
-  async get(spaceId: string, id: string) {
-    try {
-      const response = await this.client.send(
-        new GetObjectCommand({
-          Bucket: this.bucket,
-          Key: this.key(spaceId, id),
-        }),
-      );
-      return {
-        body: response.Body as Readable,
-        size: response.ContentLength ?? 0,
-      };
-    } catch (error) {
-      if ((error as { name?: string }).name === "NoSuchKey") return undefined;
-      throw error;
-    }
-  }
-
-  async has(spaceId: string, id: string) {
-    try {
-      await this.client.send(
-        new HeadObjectCommand({
-          Bucket: this.bucket,
-          Key: this.key(spaceId, id),
-        }),
-      );
-      return true;
-    } catch (error) {
-      const { name, $metadata } = error as {
-        name?: string;
-        $metadata?: { httpStatusCode?: number };
-      };
-      if (name === "NotFound" || $metadata?.httpStatusCode === 404) {
-        return false;
+    get: (spaceId, id) =>
+      attempt("get", async () => {
+        const target = file(spaceId, id);
+        try {
+          const { size } = await stat(target);
+          return { body: createReadStream(target), size };
+        } catch (error) {
+          if (isMissingFile(error)) return undefined;
+          throw error;
+        }
+      }),
+    delete: (spaceId, id) =>
+      attempt("delete", () => rm(file(spaceId, id), { force: true })),
+    listSpaces: attempt("listSpaces", async () => {
+      try {
+        const entries = await readdir(root, { withFileTypes: true });
+        return entries
+          .filter((entry) => entry.isDirectory() && SAFE_ID.test(entry.name))
+          .map((entry) => entry.name);
+      } catch (error) {
+        if (isMissingFile(error)) return [];
+        throw error;
       }
-      throw error;
-    }
-  }
-
-  async delete(spaceId: string, id: string) {
-    await this.client.send(
-      new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: this.key(spaceId, id),
+    }),
+    list: (spaceId) =>
+      attempt("list", async () => {
+        assertSafeId(spaceId);
+        const dir = path.join(root, spaceId);
+        let names: string[];
+        try {
+          names = await readdir(dir);
+        } catch (error) {
+          if (isMissingFile(error)) return [];
+          throw error;
+        }
+        const files: StoredAttachment[] = [];
+        for (const name of names) {
+          if (!SAFE_ID.test(name)) continue;
+          files.push({
+            id: name,
+            modifiedAt: (await stat(path.join(dir, name))).mtimeMs,
+          });
+        }
+        return files;
       }),
-    );
-  }
+  };
+};
 
-  private async *pages(prefix: string, delimiter?: string) {
+const makeS3AttachmentStorage = (
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+): AttachmentStore => {
+  const key = (spaceId: string, id: string) => {
+    assertSafeId(spaceId);
+    assertSafeId(id);
+    return `${prefix}${spaceId}/${id}`;
+  };
+  async function* pages(keyPrefix: string, delimiter?: string) {
     let continuationToken: string | undefined;
     do {
-      const response = await this.client.send(
+      const response = await client.send(
         new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: prefix,
+          Bucket: bucket,
+          Prefix: keyPrefix,
           Delimiter: delimiter,
           ContinuationToken: continuationToken,
         }),
@@ -199,86 +137,101 @@ export class S3AttachmentStorage implements AttachmentStorage {
       continuationToken = response.NextContinuationToken;
     } while (continuationToken);
   }
-
-  async listSpaces() {
-    const spaces: string[] = [];
-    for await (const page of this.pages(this.prefix, "/")) {
-      for (const { Prefix } of page.CommonPrefixes ?? []) {
-        const name = Prefix?.slice(this.prefix.length).replace(/\/$/, "");
-        if (name && SAFE_ID.test(name)) spaces.push(name);
+  return {
+    put: (spaceId, id, body) =>
+      attempt("put", async () => {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key(spaceId, id),
+            Body: body,
+            ContentLength: body.length,
+          }),
+        );
+      }),
+    get: (spaceId, id) =>
+      attempt("get", async () => {
+        try {
+          const response = await client.send(
+            new GetObjectCommand({ Bucket: bucket, Key: key(spaceId, id) }),
+          );
+          return {
+            body: response.Body as Readable,
+            size: response.ContentLength ?? 0,
+          };
+        } catch (error) {
+          if ((error as { name?: string }).name === "NoSuchKey") {
+            return undefined;
+          }
+          throw error;
+        }
+      }),
+    delete: (spaceId, id) =>
+      attempt("delete", async () => {
+        await client.send(
+          new DeleteObjectCommand({ Bucket: bucket, Key: key(spaceId, id) }),
+        );
+      }),
+    listSpaces: attempt("listSpaces", async () => {
+      const spaces: string[] = [];
+      for await (const page of pages(prefix, "/")) {
+        for (const { Prefix } of page.CommonPrefixes ?? []) {
+          const name = Prefix?.slice(prefix.length).replace(/\/$/, "");
+          if (name && SAFE_ID.test(name)) spaces.push(name);
+        }
       }
-    }
-    return spaces;
-  }
+      return spaces;
+    }),
+    list: (spaceId) =>
+      attempt("list", async () => {
+        assertSafeId(spaceId);
+        const spacePrefix = `${prefix}${spaceId}/`;
+        const files: StoredAttachment[] = [];
+        for await (const page of pages(spacePrefix)) {
+          for (const object of page.Contents ?? []) {
+            const id = object.Key?.slice(spacePrefix.length);
+            if (!id || !SAFE_ID.test(id)) continue;
+            files.push({ id, modifiedAt: object.LastModified?.getTime() ?? 0 });
+          }
+        }
+        return files;
+      }),
+  };
+};
 
-  async list(spaceId: string) {
-    assertSafeId(spaceId);
-    const prefix = `${this.prefix}${spaceId}/`;
-    const files: StoredAttachment[] = [];
-    for await (const page of this.pages(prefix)) {
-      for (const object of page.Contents ?? []) {
-        const id = object.Key?.slice(prefix.length);
-        if (!id || !SAFE_ID.test(id)) continue;
-        files.push({ id, modifiedAt: object.LastModified?.getTime() ?? 0 });
-      }
-    }
-    return files;
+export const makeAttachmentStorage = (env: EnvConfig): AttachmentStore => {
+  if (env.WBD_ATTACHMENTS_STORAGE === "local") {
+    return makeLocalAttachmentStorage(env.WBD_ATTACHMENTS_PATH);
   }
-}
-
-const AttachmentConfigSchema = z.object({
-  WBD_ATTACHMENTS_STORAGE: z.enum(["local", "s3"]).default("local"),
-  WBD_ATTACHMENTS_PATH: z.string().optional(),
-  WBD_ATTACHMENTS_S3_ACCESS_KEY_ID: z.string().optional(),
-  WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY: z.string().optional(),
-  WBD_ATTACHMENTS_S3_ENDPOINT: z.string().optional(),
-  WBD_ATTACHMENTS_S3_BUCKET_NAME: z.string().optional(),
-  WBD_ATTACHMENTS_S3_REGION: z.string().default("us-east-1"),
-  WBD_ATTACHMENTS_S3_PREFIX: z.string().default("attachments/"),
-});
-
-export const attachmentStoragePath = () =>
-  process.env.WBD_ATTACHMENTS_PATH ||
-  path.join(getEnvConfig().WBD_STORAGE_PATH, "attachments");
-
-export function createAttachmentStorage(): AttachmentStorage {
-  const config = AttachmentConfigSchema.parse(process.env);
-  if (config.WBD_ATTACHMENTS_STORAGE === "local") {
-    return new LocalAttachmentStorage(attachmentStoragePath());
-  }
-  const missing = (
-    [
-      "WBD_ATTACHMENTS_S3_ACCESS_KEY_ID",
-      "WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY",
-      "WBD_ATTACHMENTS_S3_BUCKET_NAME",
-    ] as const
-  ).filter((name) => !config[name]?.trim());
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required attachment S3 environment variables: ${missing.join(", ")}`,
-    );
-  }
+  // parseEnvConfig requires the credentials and bucket for S3.
   const client = new S3Client({
-    region: config.WBD_ATTACHMENTS_S3_REGION,
+    region: env.WBD_ATTACHMENTS_S3_REGION,
     credentials: {
-      accessKeyId: config.WBD_ATTACHMENTS_S3_ACCESS_KEY_ID!,
-      secretAccessKey: config.WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY!,
+      accessKeyId: env.WBD_ATTACHMENTS_S3_ACCESS_KEY_ID!,
+      secretAccessKey: env.WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY!,
     },
-    endpoint: config.WBD_ATTACHMENTS_S3_ENDPOINT,
+    endpoint: env.WBD_ATTACHMENTS_S3_ENDPOINT,
     // MinIO and R2 compatibility, as for backups.
     forcePathStyle: true,
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   });
-  const prefix = config.WBD_ATTACHMENTS_S3_PREFIX.replace(/^\/+/, "");
-  return new S3AttachmentStorage(
+  const prefix = env.WBD_ATTACHMENTS_S3_PREFIX.replace(/^\/+/, "");
+  return makeS3AttachmentStorage(
     client,
-    config.WBD_ATTACHMENTS_S3_BUCKET_NAME!,
+    env.WBD_ATTACHMENTS_S3_BUCKET_NAME!,
     prefix && !prefix.endsWith("/") ? `${prefix}/` : prefix,
   );
+};
+
+export class AttachmentStorage extends Context.Service<
+  AttachmentStorage,
+  AttachmentStore
+>()("@will-be-done/api/AttachmentStorage") {
+  static readonly layer = Layer.effect(
+    AttachmentStorage,
+    Effect.gen(function* () {
+      return makeAttachmentStorage(yield* AppEnv);
+    }),
+  );
 }
-
-let storage: AttachmentStorage | undefined;
-
-export const getAttachmentStorage = () =>
-  (storage ??= createAttachmentStorage());

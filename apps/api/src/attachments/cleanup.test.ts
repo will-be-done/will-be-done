@@ -21,7 +21,8 @@ import {
   sweepSpaceAttachments,
   UNSYNCED_ATTACHMENT_GRACE_MS,
 } from "./cleanup";
-import { LocalAttachmentStorage } from "./storage";
+import { Effect } from "effect";
+import { AttachmentStorage, makeLocalAttachmentStorage } from "./storage";
 
 const now = Date.UTC(2026, 10, 7);
 const spaceId = "space";
@@ -69,7 +70,7 @@ afterEach(async () => {
 describe("attachment storage cleanup", () => {
   test("removes bytes of long-deleted and never-synced rows only", async () => {
     root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
-    const storage = new LocalAttachmentStorage(root);
+    const storage = makeLocalAttachmentStorage(root);
     const db = new DB(new BptreeInmemDriver());
     execSync(db.loadTables([...registeredSpaceSyncableTables, changesTable]));
     syncDispatch(db, seed({}));
@@ -82,15 +83,20 @@ describe("attachment storage cleanup", () => {
       "unsynced-new": now - 1,
     };
     for (const [id, modifiedAt] of Object.entries(files)) {
-      await storage.put(spaceId, id, Buffer.from(id));
+      await Effect.runPromise(storage.put(spaceId, id, Buffer.from(id)));
       const time = new Date(modifiedAt);
       await utimes(path.join(root, spaceId, id), time, time);
     }
 
-    const removed = await sweepSpaceAttachments({ storage, spaceId, db, now });
+    const removed = await Effect.runPromise(
+      sweepSpaceAttachments(spaceId, db, now).pipe(
+        Effect.provideService(AttachmentStorage, storage),
+      ),
+    );
 
     expect(removed.sort()).toEqual(["deleted-long-ago", "unsynced-old"]);
-    expect((await storage.list(spaceId)).map(({ id }) => id).sort()).toEqual([
+    const remaining = await Effect.runPromise(storage.list(spaceId));
+    expect(remaining.map(({ id }) => id).sort()).toEqual([
       "deleted-recently",
       "live",
       "unsynced-new",

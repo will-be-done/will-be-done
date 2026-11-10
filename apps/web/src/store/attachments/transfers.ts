@@ -27,7 +27,7 @@ import {
 import { State } from "@/utils/State";
 import { Database } from "../database";
 import type { SyncStatus } from "../syncStatus";
-import { AttachmentBlobStore } from "./blobStore";
+import type { AttachmentBlobStore, BlobStoreError } from "./blobStore";
 
 export type TransferProgress = {
   files: number;
@@ -74,19 +74,10 @@ class AttachmentNetworkError extends Data.TaggedError(
   "AttachmentNetworkError",
 )<{ readonly cause: unknown }> {}
 
-class AttachmentStorageFullError extends Data.TaggedError(
-  "AttachmentStorageFullError",
-)<{ readonly cause: unknown }> {}
-
-class AttachmentStoreError extends Data.TaggedError("AttachmentStoreError")<{
-  readonly cause: unknown;
-}> {}
-
 type TransferError =
   | AttachmentHttpError
   | AttachmentNetworkError
-  | AttachmentStorageFullError
-  | AttachmentStoreError;
+  | BlobStoreError;
 
 export type AttachmentTransferServices =
   | Database
@@ -95,20 +86,6 @@ export type AttachmentTransferServices =
   | AuthSession
   | HttpClient.HttpClient
   | Digest.Digest;
-
-type BlobStore = Pick<
-  AttachmentBlobStore,
-  "get" | "put" | "markUploaded" | "delete" | "keys"
->;
-
-const fromStore = <A>(run: () => Promise<A>) =>
-  Effect.tryPromise({
-    try: run,
-    catch: (cause) =>
-      cause instanceof DOMException && cause.name === "QuotaExceededError"
-        ? new AttachmentStorageFullError({ cause })
-        : new AttachmentStoreError({ cause }),
-  });
 
 const send = (request: HttpClientRequest.HttpClientRequest) =>
   Effect.gen(function* () {
@@ -150,13 +127,13 @@ export const makeAttachmentTransfers = ({
   spaceId,
   syncEnabled,
   syncStatus,
-  store = new AttachmentBlobStore(dbName),
+  store,
 }: {
   dbName: string;
   spaceId: string;
   syncEnabled: boolean;
   syncStatus: State<SyncStatus>;
-  store?: BlobStore;
+  store: AttachmentBlobStore;
 }): Effect.Effect<
   AttachmentTransfers,
   never,
@@ -244,7 +221,7 @@ export const makeAttachmentTransfers = ({
     const upload = (job: Job) =>
       Effect.gen(function* () {
         const { id } = job.attachment;
-        const blob = yield* fromStore(() => store.get(id));
+        const blob = yield* store.get(id);
         if (!blob) return;
         yield* send(
           HttpClientRequest.put(url(id)).pipe(
@@ -256,7 +233,7 @@ export const makeAttachmentTransfers = ({
             ),
           ),
         );
-        yield* fromStore(() => store.markUploaded(id));
+        yield* store.markUploaded(id);
         job.loaded = job.attachment.size;
       });
 
@@ -272,11 +249,9 @@ export const makeAttachmentTransfers = ({
             statusChanged();
           }),
         );
-        yield* fromStore(() =>
-          store.put(id, new Blob(chunks, { type: mimeType }), {
-            uploaded: true,
-          }),
-        );
+        yield* store.put(id, new Blob(chunks, { type: mimeType }), {
+          uploaded: true,
+        });
         notify(id);
         channel.post({ type: "stored", id });
       });
@@ -292,7 +267,7 @@ export const makeAttachmentTransfers = ({
             "Could not reach the server. Files will transfer when you reconnect.",
           AttachmentStorageFullError: () =>
             "This device is out of storage, so some files stay on the server.",
-          AttachmentStoreError: () =>
+          AttachmentBlobStoreError: () =>
             `Some files could not ${job.kind}. They will retry automatically.`,
         }),
       );
@@ -374,7 +349,7 @@ export const makeAttachmentTransfers = ({
         selector: allAttachments,
         args: {},
       });
-      const { stored, pending } = yield* fromStore(() => store.keys());
+      const { stored, pending } = yield* store.keys;
       const now = yield* Clock.currentTimeMillis;
       for (const attachment of rows) {
         const { id } = attachment;
@@ -393,7 +368,7 @@ export const makeAttachmentTransfers = ({
         const live = new Set(rows.map(({ id }) => id));
         for (const id of stored) {
           if (!live.has(id) && !pending.has(id)) {
-            yield* fromStore(() => store.delete(id));
+            yield* store.delete(id);
           }
         }
       }
@@ -467,9 +442,7 @@ export const makeAttachmentTransfers = ({
               Digest.sha256,
               new Uint8Array(yield* Effect.promise(() => file.arrayBuffer())),
             );
-            yield* fromStore(() =>
-              store.put(id, file, { uploaded: !syncEnabled }),
-            );
+            yield* store.put(id, file, { uploaded: !syncEnabled });
             const { attachment } = yield* database.dispatch(
               createAttachment({
                 attachment: {
@@ -488,33 +461,40 @@ export const makeAttachmentTransfers = ({
           }),
         );
       },
-      getBlob: async (id) => {
-        const blob = await store.get(id);
-        if (!blob && syncEnabled) {
-          if (isLeader()) want(id);
-          else channel.post({ type: "want", id });
-        }
-        return blob;
-      },
-      readBlob: async (attachment) => {
-        const local = await store.get(attachment.id);
-        if (local || !syncEnabled) return local;
-        return run(
-          send(HttpClientRequest.get(url(attachment.id))).pipe(
-            Effect.flatMap((response) => response.arrayBuffer),
-            Effect.map(
-              (bytes) => new Blob([bytes], { type: attachment.mimeType }),
-            ),
-            Effect.catchTag("AttachmentHttpError", () =>
-              Effect.succeed(undefined),
+      getBlob: (id) =>
+        run(
+          store.get(id).pipe(
+            Effect.tap((blob) =>
+              Effect.sync(() => {
+                if (blob || !syncEnabled) return;
+                if (isLeader()) want(id);
+                else channel.post({ type: "want", id });
+              }),
             ),
           ),
-        );
-      },
-      importBlob: async (id, blob) => {
-        await store.put(id, blob, { uploaded: !syncEnabled });
-        notify(id);
-      },
+        ),
+      readBlob: (attachment) =>
+        run(
+          Effect.gen(function* () {
+            const local = yield* store.get(attachment.id);
+            if (local || !syncEnabled) return local;
+            return yield* send(HttpClientRequest.get(url(attachment.id))).pipe(
+              Effect.flatMap((response) => response.arrayBuffer),
+              Effect.map(
+                (bytes) => new Blob([bytes], { type: attachment.mimeType }),
+              ),
+              Effect.catchTag("AttachmentHttpError", () =>
+                Effect.succeed(undefined),
+              ),
+            );
+          }),
+        ),
+      importBlob: (id, blob) =>
+        run(
+          store
+            .put(id, blob, { uploaded: !syncEnabled })
+            .pipe(Effect.tap(() => Effect.sync(() => notify(id)))),
+        ),
       subscribeBlob: (id, listener) => {
         const set = listeners.get(id) ?? new Set();
         set.add(listener);

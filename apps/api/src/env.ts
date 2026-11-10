@@ -64,6 +64,14 @@ const EnvConfigSchema = Schema.Struct({
     "false",
   ),
   WBD_CALENDAR_SYNC_INTERVAL_MS: withDefault(intFromString(60_000), "900000"),
+  WBD_ATTACHMENTS_STORAGE: withDefault(literals(["local", "s3"]), "local"),
+  WBD_ATTACHMENTS_PATH: optionalNonEmptyTrimmed,
+  WBD_ATTACHMENTS_S3_ACCESS_KEY_ID: optionalNonEmptyTrimmed,
+  WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY: optionalNonEmptyTrimmed,
+  WBD_ATTACHMENTS_S3_ENDPOINT: Schema.optional(url),
+  WBD_ATTACHMENTS_S3_BUCKET_NAME: optionalNonEmptyTrimmed,
+  WBD_ATTACHMENTS_S3_REGION: withDefault(nonEmptyTrimmed, "us-east-1"),
+  WBD_ATTACHMENTS_S3_PREFIX: withDefault(Schema.String, "attachments/"),
   PORT: withDefault(intFromString(0), "3000"),
 });
 
@@ -97,6 +105,15 @@ export const parseEnvConfig = (env: NodeJS.ProcessEnv) => {
     });
   }
 
+  if (parsed.WBD_ATTACHMENTS_STORAGE === "s3") {
+    requireVariables("attachment S3", {
+      WBD_ATTACHMENTS_S3_ACCESS_KEY_ID: parsed.WBD_ATTACHMENTS_S3_ACCESS_KEY_ID,
+      WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY:
+        parsed.WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY,
+      WBD_ATTACHMENTS_S3_BUCKET_NAME: parsed.WBD_ATTACHMENTS_S3_BUCKET_NAME,
+    });
+  }
+
   const rateLimitEnabled = parsed.WBD_RATE_LIMIT_ENABLED === "true";
   if (
     (parsed.WBD_SYNC_NOTIFICATIONS_BACKEND === "redis" ||
@@ -111,6 +128,8 @@ export const parseEnvConfig = (env: NodeJS.ProcessEnv) => {
   return {
     ...parsed,
     WBD_DB_PATH: parsed.WBD_DB_PATH ?? `${parsed.WBD_STORAGE_PATH}/db`,
+    WBD_ATTACHMENTS_PATH:
+      parsed.WBD_ATTACHMENTS_PATH ?? `${parsed.WBD_STORAGE_PATH}/attachments`,
     WBD_RATE_LIMIT_ENABLED: rateLimitEnabled,
     WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS:
       parsed.WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS === "true",

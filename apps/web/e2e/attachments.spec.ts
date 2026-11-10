@@ -59,7 +59,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   await createSpace(page, spaceName);
   await openSpace(page, spaceName);
   await createTodayTask(page, taskTitle);
-  const { description } = await openTaskDetails(page, taskTitle);
+  let { description } = await openTaskDetails(page, taskTitle);
 
   const list = page.getByTestId("item-attachments");
   await page.getByTestId("attachment-input").setInputFiles({
@@ -149,6 +149,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("settings-files.png") });
   await closeSpaceSettings(page);
+  ({ description } = await openTaskDetails(page, taskTitle));
 
   // Another device downloads the files from the server.
   const other = await browser.newPage({

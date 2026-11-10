@@ -1,9 +1,9 @@
-import { Effect, Schedule } from "effect";
 import { selectAsync, type HyperDB } from "@will-be-done/hyperdb";
 import { attachmentRowStates } from "@will-be-done/slices/space";
+import { Clock, Effect, Schedule } from "effect";
 import { spaceDBConfig } from "../db/configs";
 import { getHyperDB } from "../db/db";
-import type { AttachmentStorage } from "./storage";
+import { AttachmentStorage } from "./storage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A deleted file stays long enough for undo and offline replicas that still
@@ -12,70 +12,69 @@ export const DELETED_ATTACHMENT_GRACE_MS = 7 * DAY_MS;
 export const UNSYNCED_ATTACHMENT_GRACE_MS = DAY_MS;
 const BATCH_SIZE = 200;
 
-export async function sweepSpaceAttachments({
-  storage,
-  spaceId,
-  db,
-  now,
-}: {
-  storage: AttachmentStorage;
-  spaceId: string;
-  db: HyperDB;
-  now: number;
-}): Promise<string[]> {
-  const files = await storage.list(spaceId);
-  const removed: string[] = [];
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    const batch = files.slice(i, i + BATCH_SIZE);
-    const states = await selectAsync(db, {
-      selector: attachmentRowStates,
-      args: { ids: batch.map((file) => file.id) },
-    });
-    for (const file of batch) {
-      const row = states[file.id];
-      const expired =
-        row?.state === "deleted"
-          ? row.deletedAt < now - DELETED_ATTACHMENT_GRACE_MS
-          : row?.state === "unknown" &&
-            file.modifiedAt < now - UNSYNCED_ATTACHMENT_GRACE_MS;
-      if (!expired) continue;
-      await storage.delete(spaceId, file.id);
-      removed.push(file.id);
-    }
-  }
-  return removed;
-}
-
-export async function sweepAttachments(
-  storage: AttachmentStorage,
+export const sweepSpaceAttachments = (
+  spaceId: string,
+  db: HyperDB,
   now: number,
-) {
-  for (const spaceId of await storage.listSpaces()) {
-    try {
-      const { db } = await getHyperDB(spaceDBConfig(spaceId));
-      const removed = await sweepSpaceAttachments({
-        storage,
-        spaceId,
-        db,
-        now,
-      });
+) =>
+  Effect.gen(function* () {
+    const storage = yield* AttachmentStorage;
+    const files = yield* storage.list(spaceId);
+    const removed: string[] = [];
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const states = yield* Effect.promise(() =>
+        selectAsync(db, {
+          selector: attachmentRowStates,
+          args: { ids: batch.map((file) => file.id) },
+        }),
+      );
+      for (const file of batch) {
+        const row = states[file.id];
+        const expired =
+          row?.state === "deleted"
+            ? row.deletedAt < now - DELETED_ATTACHMENT_GRACE_MS
+            : row?.state === "unknown" &&
+              file.modifiedAt < now - UNSYNCED_ATTACHMENT_GRACE_MS;
+        if (!expired) continue;
+        yield* storage.delete(spaceId, file.id);
+        removed.push(file.id);
+      }
+    }
+    return removed;
+  });
+
+// One space failing does not stop the others.
+const sweepAttachments = Effect.gen(function* () {
+  const now = yield* Clock.currentTimeMillis;
+  for (const spaceId of yield* (yield* AttachmentStorage).listSpaces) {
+    yield* Effect.gen(function* () {
+      const { db } = yield* Effect.promise(() =>
+        getHyperDB(spaceDBConfig(spaceId)),
+      );
+      const removed = yield* sweepSpaceAttachments(spaceId, db, now);
       if (removed.length > 0) {
-        console.log(
+        yield* Effect.log(
           `[Attachments] Removed ${removed.length} unused files from space ${spaceId}`,
         );
       }
-    } catch (error) {
-      console.error(`[Attachments] Cleanup failed for space ${spaceId}`, error);
-    }
+    }).pipe(
+      Effect.catchCause((cause) =>
+        Effect.logError(
+          `[Attachments] Cleanup failed for space ${spaceId}`,
+          cause,
+        ),
+      ),
+    );
   }
-}
+});
 
-// Spreads restarts of several instances across the first hour.
-export const attachmentCleanup = (storage: AttachmentStorage) =>
-  Effect.tryPromise(() => sweepAttachments(storage, Date.now())).pipe(
-    Effect.catchCause((cause) =>
-      Effect.logError("[Attachments] Cleanup failed", cause),
-    ),
-    Effect.repeat(Schedule.spaced(DAY_MS)),
-    Effect.delay(Math.random() * 60 * 60 * 1000),
-  );
+// Daily while its scope is open. The first run waits a random part of an
+// hour, so restarts of several instances spread out.
+export const attachmentCleanup = sweepAttachments.pipe(
+  Effect.catchCause((cause) =>
+    Effect.logError("[Attachments] Cleanup failed", cause),
+  ),
+  Effect.repeat(Schedule.spaced(DAY_MS)),
+  Effect.delay(Math.random() * 60 * 60 * 1000),
+);
