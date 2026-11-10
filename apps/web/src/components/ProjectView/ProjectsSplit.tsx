@@ -6,6 +6,7 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { ProjectView } from "./ProvecjtView.tsx";
 import { useProjectsViewSize } from "./ProjectsViewStore.ts";
+import type { DayRange } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 
 // Page content on top, a resizable and hideable ProjectView below. P toggles
 // the projects view.
@@ -14,13 +15,13 @@ export const ProjectsSplit = ({
   topClassName,
   projectLink,
   selectedProjectId,
-  selectedDate,
+  timelineDays,
 }: {
   children: React.ReactNode;
   topClassName?: string;
   projectLink: React.ComponentProps<typeof ProjectView>["projectLink"];
   selectedProjectId: string;
-  selectedDate: Date;
+  timelineDays?: DayRange;
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -107,7 +108,7 @@ export const ProjectsSplit = ({
             <ProjectView
               selectedProjectId={selectedProjectId}
               projectLink={projectLink}
-              selectedDate={selectedDate}
+              timelineDays={timelineDays}
             />
           </div>
         </div>

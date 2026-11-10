@@ -83,8 +83,6 @@ test("previews upcoming occurrences in the timeline and day views", async ({
 
   await page.getByRole("link", { name: "timeline", exact: true }).click();
   await expect(page).toHaveURL(/\/timeline\/\d{4}-\d{2}-\d{2}/);
-  // The timeline opens on this week, which ends today on a Sunday.
-  await page.getByRole("link", { name: "Next day" }).click();
   await expect(occurrence).toBeVisible();
 
   // Focusing the preview shows its template in item details.

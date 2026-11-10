@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { startOfDay } from "date-fns";
+import { addDays, startOfDay } from "date-fns";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   useAsyncDispatch,
@@ -54,7 +54,10 @@ export const MindmapPage = ({
   const navigate = useNavigate();
   const { createAndOpen, preload } = useCreateMindmap();
   const markOpened = useRecentMindmaps((s) => s.markOpened);
-  const today = useMemo(() => startOfDay(new Date()), []);
+  const nextWeek = useMemo(() => {
+    const today = startOfDay(new Date());
+    return { from: today.getTime(), to: addDays(today, 6).getTime() };
+  }, []);
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -144,7 +147,7 @@ export const MindmapPage = ({
         topClassName="flex min-h-0 flex-col"
         projectLink={ProjectLink}
         selectedProjectId={selectedProjectId}
-        selectedDate={today}
+        timelineDays={nextWeek}
       >
         {/* The name moves to its own line rather than shrinking, so a phone
             shows it whole. */}

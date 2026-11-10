@@ -70,25 +70,17 @@ test("passes the wheel from a scrollbar to the list it belongs to", async ({
     await createTodayTask(page, uniqueE2EName(`Wheel task ${i}`));
   }
   await page.getByRole("link", { name: "timeline", exact: true }).click();
-  // Narrow enough that the week board scrolls sideways.
-  await page.setViewportSize({ width: 700, height: 520 });
 
   const column = page
     .locator('[data-focus-column][data-column-model-type="dailyList"]')
     .filter({ hasText: title });
   const list = scrollViewport(column);
-  const board = page
-    .locator('[data-slot="scroll-area-viewport"]')
-    .filter({ has: column });
+  // The timeline's days scroll sideways without end.
+  const board = page.locator("#timeline-days");
   const scrollbar = column.locator(
     '[data-slot="scroll-area-scrollbar"][data-orientation="vertical"]',
   );
   await expect(scrollbar).toHaveAttribute("data-overflow");
-  await expect(
-    board.locator(
-      'xpath=../*[@data-slot="scroll-area-scrollbar"][@data-orientation="horizontal"]',
-    ),
-  ).toHaveAttribute("data-overflow");
 
   await list.hover();
   const box = await scrollbar.boundingBox();

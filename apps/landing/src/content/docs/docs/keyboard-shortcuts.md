@@ -39,6 +39,9 @@ project and date start from the page you are on.
 | `h`, `ArrowLeft`  | Focus an item in the column to the left  |
 | `l`, `ArrowRight` | Focus an item in the column to the right |
 
+In an empty column, the column itself takes focus. Press `i`, `o`, or `a` there
+to add a task to it.
+
 ## Focused task
 
 | Keys                              | Action                                                      |

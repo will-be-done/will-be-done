@@ -1,4 +1,7 @@
-import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
+import {
+  type DayRange,
+  ProjectItemsList,
+} from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
@@ -505,7 +508,7 @@ export const ProjectView = ({
   marginTop,
   projectLink,
   selectedProjectId,
-  selectedDate,
+  timelineDays,
 }: {
   marginTop?: boolean;
   projectLink: React.ComponentType<
@@ -516,7 +519,7 @@ export const ProjectView = ({
     }>
   >;
   selectedProjectId: string;
-  selectedDate?: Date;
+  timelineDays?: DayRange;
 }) => {
   const projectsListRef = useRef<HTMLDivElement>(null);
   // const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
@@ -587,7 +590,7 @@ export const ProjectView = ({
         })}
         className={cn({ "pt-1": !marginTop })}
       >
-        <ProjectItemsList project={project} selectedDate={selectedDate} />
+        <ProjectItemsList project={project} timelineDays={timelineDays} />
       </ScrollArea>
       <div
         ref={projectsListRef}

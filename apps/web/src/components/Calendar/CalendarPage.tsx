@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
-import { format, parse } from "date-fns";
+import { format, parse, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -77,6 +77,13 @@ export const CalendarPage = ({
   });
 
   const days = useMemo(() => visibleDates(view, anchor), [view, anchor]);
+  const visibleDays = useMemo(
+    () => ({
+      from: startOfDay(days[0]!).getTime(),
+      to: startOfDay(days[days.length - 1]!).getTime(),
+    }),
+    [days],
+  );
   const eventsByDate = useCalendarEvents(days);
   const externalByDate = useExternalEvents(days);
 
@@ -192,7 +199,7 @@ export const CalendarPage = ({
         topClassName="flex min-h-0 flex-col"
         projectLink={ProjectLink}
         selectedProjectId={projectId === "inbox" ? inboxId : projectId}
-        selectedDate={anchor}
+        timelineDays={visibleDays}
       >
         {/* The nav sits flush in the top-left corner, like on the projects
             and timeline pages, so it does not jump when switching views.

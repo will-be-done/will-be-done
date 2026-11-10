@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { expect, test } from "playwright/test";
 
 import {
@@ -50,11 +51,7 @@ for (const view of ["project", "today", "timeline"] as const) {
         await expect(page).toHaveURL(
           /\/spaces\/[^/]+\/timeline\/\d{4}-\d{2}-\d{2}/,
         );
-        await expect(
-          page.locator(
-            '[data-focus-region-direction="row"] [data-column-model-type="dailyList"]',
-          ),
-        ).toHaveCount(7);
+        await expect(dailyTaskItem(page, mainTitle)).toBeInViewport();
       }
     }
 
@@ -64,12 +61,30 @@ for (const view of ["project", "today", "timeline"] as const) {
         : dailyTaskItem(page, mainTitle);
     const stashedTask = stashTaskItem(page, stashedTitle);
     const toggle = page.getByTestId("stash-toggle");
+    const pressHWithStashClosed = async () => {
+      await page.keyboard.press("KeyH");
+      if (view === "timeline") {
+        // The timeline goes on to the day before; picking today puts it back
+        // beside the stash.
+        await expect(
+          page.locator("#timeline-days [data-focus-placeholder]:focus"),
+        ).toHaveCount(1);
+        const shownDate = page.getByText(/^\d{2} [A-Z][a-z]{2} \d{4}$/);
+        await shownDate.click();
+        await page
+          .locator('[data-slot="calendar"]')
+          .getByRole("button", { name: /^Today, / })
+          .click();
+        await expect(shownDate).toHaveText(format(new Date(), "dd MMM yyyy"));
+        await mainTask.click();
+      }
+      await expect(mainTask).toBeFocused();
+    };
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await mainTask.click();
     await expect(mainTask).toBeFocused();
-    await page.keyboard.press("KeyH");
-    await expect(mainTask).toBeFocused();
+    await pressHWithStashClosed();
     await expect(stashedTask).not.toHaveClass(/ring-2 ring-accent/);
 
     await page.keyboard.press("Backslash");
@@ -101,8 +116,7 @@ for (const view of ["project", "today", "timeline"] as const) {
       .toBe(false);
 
     await mainTask.click();
-    await page.keyboard.press("KeyH");
-    await expect(mainTask).toBeFocused();
+    await pressHWithStashClosed();
 
     await page.keyboard.press("Backslash");
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -131,11 +145,7 @@ for (const view of ["project", "today", "timeline"] as const) {
         await page.goto(
           new URL(page.url()).pathname.replace("/dates/", "/timeline/"),
         );
-        await expect(
-          page.locator(
-            '[data-focus-region-direction="row"] [data-column-model-type="dailyList"]',
-          ),
-        ).toHaveCount(7);
+        await expect(dailyTaskItem(page, taskTitle)).toBeInViewport();
       }
     }
 
@@ -151,9 +161,12 @@ for (const view of ["project", "today", "timeline"] as const) {
       "false",
     );
     await mainTask.click();
-    await page.keyboard.press("Control+KeyH");
-    await expect(stashedTask).toHaveCount(0);
-    await expect(mainTask).toBeFocused();
+    if (view !== "timeline") {
+      // The timeline moves it to the day before instead.
+      await page.keyboard.press("Control+KeyH");
+      await expect(stashedTask).toHaveCount(0);
+      await expect(mainTask).toBeFocused();
+    }
 
     await page.keyboard.press("Backslash");
     await expect(stashPanel(page)).toHaveAttribute("aria-hidden", "false");

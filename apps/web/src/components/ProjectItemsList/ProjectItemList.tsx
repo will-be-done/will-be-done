@@ -1,7 +1,7 @@
 import { PreloadedTaskComp } from "../Task/Task.tsx";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { useMemo, useState } from "react";
-import { addDays, startOfDay } from "date-fns";
+import { startOfDay } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
@@ -147,21 +147,23 @@ const ProjectSectionMenu = ({
 const ProjectTasksColumn = ({
   project,
   section,
-  weekDayTimes,
+  timelineDays,
   isFirst,
   isLast,
 }: {
   project: Project;
   section: ProjectSection;
-  weekDayTimes?: Set<number>;
+  timelineDays?: DayRange;
   isFirst: boolean;
   isLast: boolean;
 }) => {
   const dispatch = useAsyncDispatch();
 
-  const isOnDisplayedWeek = (lastScheduleTime: Date | undefined) =>
-    !!lastScheduleTime &&
-    !!weekDayTimes?.has(startOfDay(lastScheduleTime).getTime());
+  const isOnTimeline = (lastScheduleTime: Date | undefined) => {
+    if (!lastScheduleTime || !timelineDays) return false;
+    const day = startOfDay(lastScheduleTime).getTime();
+    return day >= timelineDays.from && day <= timelineDays.to;
+  };
 
   const { data: itemsForDisplay = [] } = useAsyncSelector({
     selector: projectSectionItemsForDisplayChildren,
@@ -245,7 +247,7 @@ const ProjectTasksColumn = ({
               displayedUnderProjectId={project.id}
               hasCheclistItems={displayData.hasChecklist}
               displayLastScheduleTime
-              isOnTimeline={isOnDisplayedWeek(displayData.lastScheduleTime)}
+              isOnTimeline={isOnTimeline(displayData.lastScheduleTime)}
             />
           );
         })}
@@ -263,7 +265,7 @@ const ProjectTasksColumn = ({
               displayedUnderProjectId={project.id}
               hasCheclistItems={displayData.hasChecklist}
               displayLastScheduleTime
-              isOnTimeline={isOnDisplayedWeek(displayData.lastScheduleTime)}
+              isOnTimeline={isOnTimeline(displayData.lastScheduleTime)}
             />
           );
         })}
@@ -281,27 +283,23 @@ const ProjectTasksColumn = ({
   );
 };
 
+// Start-of-day timestamps, inclusive.
+export type DayRange = { from: number; to: number };
+
 export const ProjectItemsList = ({
   project,
-  selectedDate,
+  timelineDays,
   isFocusRegion = true,
 }: {
   project: Project;
-  selectedDate?: Date;
+  // Tasks scheduled on these days get the "on timeline" outline.
+  timelineDays?: DayRange;
   isFocusRegion?: boolean;
 }) => {
   const { data: sections = [] } = useAsyncSelector({
     selector: projectSectionsByProjectId,
     args: { projectId: project.id },
   });
-
-  const weekDayTimes = useMemo(() => {
-    if (!selectedDate) return undefined;
-    const start = startOfDay(selectedDate);
-    return new Set(
-      Array.from({ length: 7 }, (_, i) => addDays(start, i).getTime()),
-    );
-  }, [selectedDate]);
 
   return (
     <>
@@ -314,7 +312,7 @@ export const ProjectItemsList = ({
             key={group.id}
             section={group}
             project={project}
-            weekDayTimes={weekDayTimes}
+            timelineDays={timelineDays}
             isFirst={i === 0}
             isLast={i === sections.length - 1}
           />
