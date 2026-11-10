@@ -161,8 +161,11 @@ export const InfiniteScrollbar = ({
   };
 
   return (
+    // A pointer aid, like ScrollArea's bars; keys reach days through focus and
+    // the day buttons.
     <div
       ref={trackRef}
+      aria-hidden
       data-dragging={offset !== null || undefined}
       onPointerDown={handleTrackPointerDown}
       // Clear of the projects panel's divider handles below it; touch swipes.
@@ -172,11 +175,7 @@ export const InfiniteScrollbar = ({
       )}
     >
       <div
-        role="scrollbar"
-        aria-orientation="horizontal"
-        aria-controls="timeline-days"
-        aria-label="Scroll days"
-        aria-valuenow={50}
+        data-testid="timeline-scrollbar-thumb"
         onPointerDown={handleThumbPointerDown}
         onPointerMove={handleThumbPointerMove}
         onLostPointerCapture={endDrag}

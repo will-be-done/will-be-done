@@ -208,7 +208,7 @@ test("scrolls while a dragged task is held at either edge", async ({
 
 test("scrolls with its own scrollbar, which has no ends", async ({ page }) => {
   await openTimeline(page);
-  const thumb = page.getByRole("scrollbar", { name: "Scroll days" });
+  const thumb = page.getByTestId("timeline-scrollbar-thumb");
   const rest = (await thumb.boundingBox())!;
 
   // Like the app's other scrollbars, it shows on hover.
@@ -391,10 +391,10 @@ test("follows the scroll again after the days were squeezed to no width", async 
   await expect(dayColumn(page, monday)).toBeVisible();
   await page.keyboard.press("Backslash");
   await page.setViewportSize({ width: 700, height: 720 });
-  await expect.poll(() => timelineWidth(page)).toBe(0);
+  await expect(timeline(page)).toHaveJSProperty("clientWidth", 0);
 
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect.poll(() => timelineWidth(page)).toBeGreaterThan(0);
+  await expect(dayColumn(page, monday)).toBeInViewport();
   await scrollByDays(page, 30);
   await expectFirstDay(page, addDays(monday, 30));
 });
