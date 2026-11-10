@@ -21,10 +21,24 @@ const BLANK_DAYS = 1000;
 // How far a smooth scroll runs before it jumps instead.
 const MAX_SMOOTH_DAYS = 60;
 
+// The days rendered before the screen's width is known, around `day`.
+export const initialRenderedDays = (
+  day: number,
+  overscan: number,
+): RenderedDays => {
+  const from = day - overscan;
+  return {
+    from,
+    to: day + Math.ceil(window.innerWidth / DAY_WIDTH) + overscan,
+    base: from - BLANK_DAYS,
+  };
+};
+
 type Callbacks = {
   onRenderedChange: (rendered: RenderedDays) => void;
   onFirstVisibleChange: (day: number) => void;
-  // After scrolling settles, so heavy views do not follow every frame.
+  // At once on first layout, then after scrolling settles, so heavy views do
+  // not follow every frame.
   onVisibleDaysChange: (first: number, last: number) => void;
 };
 
@@ -34,23 +48,23 @@ class InfiniteDays {
   private scroller: HTMLElement | null = null;
   private row: HTMLElement | null = null;
   private anchor: { day: number; x: number } | null = null;
-  private alignDay: number | null = 0;
-  private firstVisible = 0;
+  private alignDay: number | null;
+  private firstVisible: number;
   private lastVisible = 0;
   private animation: { day: number; frame: number } | null = null;
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
+  private hasReportedVisible = false;
   private observer: ResizeObserver;
 
   constructor(
     private overscan: number,
+    initialDay: number,
     callbacks: Callbacks,
   ) {
     this.callbacks = callbacks;
-    this.rendered = {
-      from: -overscan,
-      to: Math.ceil(window.innerWidth / DAY_WIDTH) + overscan,
-      base: -overscan - BLANK_DAYS,
-    };
+    this.alignDay = initialDay;
+    this.firstVisible = initialDay;
+    this.rendered = initialRenderedDays(initialDay, overscan);
     this.observer = new ResizeObserver(this.update);
   }
 
@@ -274,10 +288,13 @@ class InfiniteDays {
     }
 
     clearTimeout(this.settleTimer);
-    this.settleTimer = setTimeout(
-      () => this.callbacks.onVisibleDaysChange(firstDay, lastDay),
-      150,
-    );
+    const report = () => this.callbacks.onVisibleDaysChange(firstDay, lastDay);
+    if (this.hasReportedVisible) {
+      this.settleTimer = setTimeout(report, 150);
+    } else {
+      this.hasReportedVisible = true;
+      report();
+    }
   };
 
   // The focused day, unless scrolled far from it.
@@ -331,17 +348,19 @@ class InfiniteDays {
 
 export function useInfiniteDays({
   overscan,
+  initialDay,
   onVisibleDaysChange,
 }: {
   overscan: number;
+  initialDay: number;
   onVisibleDaysChange: (first: number, last: number) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
-  const [firstVisible, setFirstVisible] = useState(0);
+  const [firstVisible, setFirstVisible] = useState(initialDay);
   const [engine] = useState(
     () =>
-      new InfiniteDays(overscan, {
+      new InfiniteDays(overscan, initialDay, {
         onRenderedChange: () => {},
         onFirstVisibleChange: () => {},
         onVisibleDaysChange: () => {},

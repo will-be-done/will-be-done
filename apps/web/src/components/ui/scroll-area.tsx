@@ -1,10 +1,10 @@
 // Adapted from Base UI's ScrollArea (MIT, https://base-ui.com/react/components/scroll-area).
 import { useCallback, useEffect, useRef, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
+import { wheelPixels } from "@/lib/wheel.ts";
 
 const SCROLL_TIMEOUT = 500;
 const MIN_THUMB_SIZE = 16;
-const WHEEL_LINE_HEIGHT = 16;
 
 type Axis = "x" | "y";
 
@@ -95,19 +95,14 @@ export function ScrollArea({
     // instead. Let it through once the viewport can't move.
     const onWheel = (event: WheelEvent) => {
       if (event.ctrlKey) return;
-      const [lineX, lineY] =
-        event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-          ? [viewport.clientWidth, viewport.clientHeight]
-          : event.deltaMode === WheelEvent.DOM_DELTA_LINE
-            ? [WHEEL_LINE_HEIGHT, WHEEL_LINE_HEIGHT]
-            : [1, 1];
+      const [deltaX, deltaY] = wheelPixels(event, viewport);
       const left = clamp(
-        viewport.scrollLeft + event.deltaX * lineX,
+        viewport.scrollLeft + deltaX,
         0,
         viewport.scrollWidth - viewport.clientWidth,
       );
       const top = clamp(
-        viewport.scrollTop + event.deltaY * lineY,
+        viewport.scrollTop + deltaY,
         0,
         viewport.scrollHeight - viewport.clientHeight,
       );

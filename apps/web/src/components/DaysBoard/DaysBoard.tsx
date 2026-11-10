@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   addDays,
   differenceInCalendarDays,
@@ -20,6 +28,7 @@ import {
   dailyEntryByTaskId,
   doneDailyEntryChildrenForDisplay,
   dailyEntryType,
+  dailyListType,
   getDMY,
   inboxProjectId,
   parseDMY,
@@ -33,6 +42,11 @@ import { useUpcomingOccurrences } from "@/components/Task/useUpcomingOccurrences
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
 import { DAY_WIDTH, useInfiniteDays } from "./useInfiniteDays.ts";
+import {
+  DATA_CHUNK_DAYS,
+  OVERSCAN_DAYS,
+  dataWindowDates,
+} from "./timelineWindow.ts";
 import { InfiniteScrollbar } from "./InfiniteScrollbar.tsx";
 import { ProjectsSplit } from "../ProjectView/ProjectsSplit.tsx";
 import { useProjectsViewSize } from "../ProjectView/ProjectsViewStore.ts";
@@ -51,11 +65,6 @@ import { DayEventsStrip } from "@/components/ExternalEvents/ExternalEventChip.ts
 import { useExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
 import type { DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
 import type { DayRange } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-
-// Data is queried for whole chunks of days around the rendered ones, so
-// scrolling only changes the queries when it crosses a chunk boundary.
-const DATA_CHUNK_DAYS = 7;
-const OVERSCAN_DAYS = 10;
 
 const DayHeader = ({
   date,
@@ -90,8 +99,8 @@ const DayHeader = ({
   </>
 );
 
-// Stands in for a day until its DailyList exists and its tasks are loaded:
-// cheap to render while scrolling, and as wide as the open column it becomes.
+// Stands in for a day until its DailyList exists: cheap to render while
+// scrolling, and as wide as the open column it becomes.
 const DayColumnMock = ({ date }: { date: string }) => {
   const isToday = useCurrentDMY() === date;
 
@@ -121,56 +130,57 @@ const DayColumnMock = ({ date }: { date: string }) => {
 };
 
 const ColumnView = memo(function ColumnView({
-  dailyList,
+  dailyListId,
+  date,
   occurrences,
   externalEvents,
   onTaskAdd,
 }: {
-  dailyList: DailyList;
+  dailyListId: string;
+  date: string;
   occurrences: TaskTemplateOccurrence[];
   externalEvents: DayExternalEvent[];
-  onTaskAdd: (dailyList: DailyList) => void;
+  onTaskAdd: (dailyListId: string) => void;
 }) {
   const currentDate = useCurrentDMY();
-  const isToday = currentDate === dailyList.date;
+  const isToday = currentDate === date;
 
   const { data: itemsForDisplay = [], isPending } = useAsyncSelector({
     selector: dailyEntryChildrenForDisplay,
-    args: { dailyListId: dailyList.id },
+    args: { dailyListId },
   });
 
   const { data: doneItemsForDisplay = [], isPending: isDonePending } =
     useAsyncSelector({
       selector: doneDailyEntryChildrenForDisplay,
-      args: { dailyListId: dailyList.id },
+      args: { dailyListId },
     });
 
   // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
 
   const isManuallyHidden = useHiddenDays(
-    (state) => state.hiddenDays[dailyList.id],
+    (state) => state.hiddenDays[dailyListId],
   );
   const setIsHidden = useHiddenDays((state) => state.setIsHidden);
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
   const isHidden = !!isManuallyHidden;
+  // Still a column while its tasks load, so keys and moves don't pass it by.
   const isEmpty =
+    !isPending &&
+    !isDonePending &&
     itemsForDisplay.length == 0 &&
     doneItemsForDisplay.length == 0 &&
     occurrences.length == 0 &&
     externalEvents.length == 0;
-  const handleHideClick = () => toggleIsHidden(dailyList.id);
+  const handleHideClick = () => toggleIsHidden(dailyListId);
 
   const handleAddClick = () => {
     if (isHidden) {
-      setIsHidden(dailyList.id, false);
+      setIsHidden(dailyListId, false);
     }
 
-    onTaskAdd(dailyList);
+    onTaskAdd(dailyListId);
   };
-
-  // Mounts complete instead of rendering empty and filling in.
-  if (isPending || isDonePending)
-    return <DayColumnMock date={dailyList.date} />;
 
   return (
     <TasksColumn
@@ -178,13 +188,13 @@ const ColumnView = memo(function ColumnView({
       onHideClick={handleHideClick}
       header={
         <DayHeader
-          date={dailyList.date}
+          date={date}
           isToday={isToday}
           count={itemsForDisplay.length}
         />
       }
-      columnModelId={dailyList.id}
-      columnModelType={dailyList.type}
+      columnModelId={dailyListId}
+      columnModelType={dailyListType}
       panelWidth={DAY_WIDTH}
       onAddClick={handleAddClick}
     >
@@ -258,24 +268,38 @@ const noExternalEvents: DayExternalEvent[] = [];
 
 const DaysTimeline = ({
   startDate,
+  scrollDate,
+  onScrollDateChange,
   onVisibleDaysChange,
   onTaskAdd,
 }: {
   startDate: Date;
+  scrollDate: Date | undefined;
+  onScrollDateChange: (date: Date, replace: boolean) => void;
   onVisibleDaysChange: (days: DayRange) => void;
-  onTaskAdd: (dailyList: DailyList) => void;
+  onTaskAdd: (dailyListId: string) => void;
 }) => {
   const dispatch = useAsyncDispatch();
   const isStashOpen = useStashOpen((s) => s.isOpen);
   const stashWidth = useStashSize((s) => s.width);
 
+  const urlDay = scrollDate
+    ? differenceInCalendarDays(scrollDate, startDate)
+    : 0;
+  // The day last shown or put in the URL from here; a URL day other than this
+  // came from outside (Back, a link) and is scrolled to.
+  const shownDay = useRef(urlDay);
+
   const handleVisibleDaysChange = useCallback(
-    (first: number, last: number) =>
+    (first: number, last: number) => {
       onVisibleDaysChange({
         from: addDays(startDate, first).getTime(),
         to: addDays(startDate, last).getTime(),
-      }),
-    [onVisibleDaysChange, startDate],
+      });
+      shownDay.current = first;
+      if (first !== urlDay) onScrollDateChange(addDays(startDate, first), true);
+    },
+    [onVisibleDaysChange, onScrollDateChange, startDate, urlDay],
   );
   const {
     scrollerRef,
@@ -290,20 +314,20 @@ const DaysTimeline = ({
     page,
   } = useInfiniteDays({
     overscan: OVERSCAN_DAYS,
+    initialDay: urlDay,
     onVisibleDaysChange: handleVisibleDaysChange,
   });
   useHorizontalDragAutoScroll(scrollerRef);
   const areaRef = useRef<HTMLDivElement>(null);
 
-  const chunkStart = Math.floor(rendered.from / DATA_CHUNK_DAYS);
-  const chunkEnd = Math.ceil((rendered.to + 1) / DATA_CHUNK_DAYS);
+  const { from: renderedFrom, to: renderedTo } = rendered;
   const windowDates = useMemo(
     () =>
-      Array.from(
-        { length: (chunkEnd - chunkStart) * DATA_CHUNK_DAYS },
-        (_, i) => addDays(startDate, chunkStart * DATA_CHUNK_DAYS + i),
-      ),
-    [startDate, chunkStart, chunkEnd],
+      dataWindowDates(startDate, {
+        from: renderedFrom,
+        to: renderedTo,
+      }),
+    [startDate, renderedFrom, renderedTo],
   );
   const windowTimes = useMemo(
     () => windowDates.map((date) => date.getTime()),
@@ -326,9 +350,23 @@ const DaysTimeline = ({
     void dispatch(createManyDailyListsIfNotPresent({ dates: windowTimes }));
   }, [dispatch, windowTimes]);
 
-  const jumpTo = (date: Date) => {
-    const day = differenceInCalendarDays(date, startDate);
+  const scrollToShownDay = (day: number) => {
+    shownDay.current = day;
     scrollToDay(day, Math.abs(day - firstVisible) <= DATA_CHUNK_DAYS * 2);
+  };
+  const jumpTo = (date: Date) => {
+    scrollToShownDay(differenceInCalendarDays(date, startDate));
+    onScrollDateChange(date, false);
+  };
+  const followUrl = useEffectEvent((day: number) => {
+    if (day !== shownDay.current) scrollToShownDay(day);
+  });
+  useEffect(() => followUrl(urlDay), [urlDay]);
+
+  const eventsOn = (date: string) => {
+    const events = externalEventsByDate.get(date);
+    // Shared when empty, so the column memo holds as the window moves.
+    return events?.length ? events : noExternalEvents;
   };
 
   const days = Array.from(
@@ -379,11 +417,10 @@ const DaysTimeline = ({
                     >
                       {dailyList ? (
                         <ColumnView
-                          dailyList={dailyList}
+                          dailyListId={dailyList.id}
+                          date={date}
                           occurrences={occurrencesOf(date)}
-                          externalEvents={
-                            externalEventsByDate.get(date) ?? noExternalEvents
-                          }
+                          externalEvents={eventsOn(date)}
                           onTaskAdd={onTaskAdd}
                         />
                       ) : (
@@ -416,9 +453,13 @@ const DaysTimeline = ({
 
 export const Board = ({
   selectedDate,
+  scrollDate,
+  onScrollDateChange,
   selectedProjectId,
 }: {
   selectedDate: Date;
+  scrollDate: Date | undefined;
+  onScrollDateChange: (date: Date, replace: boolean) => void;
   selectedProjectId: string;
 }) => {
   const startDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
@@ -442,11 +483,11 @@ export const Board = ({
   }, []);
 
   const handleAddTask = useCallback(
-    (dailyList: DailyList) => {
+    (dailyListId: string) => {
       void (async () => {
         const task = await dispatch(
           createTaskInList({
-            dailyListId: dailyList.id,
+            dailyListId,
             projectId: inboxId,
             listPosition: "prepend",
             sectionPosition: "prepend",
@@ -521,9 +562,7 @@ export const Board = ({
             date: format(selectedDate, "yyyy-MM-dd"),
             spaceId,
           }}
-          search={{
-            projectId,
-          }}
+          search={(previous) => ({ ...previous, projectId })}
           className={className}
           ref={ref}
         >
@@ -546,6 +585,8 @@ export const Board = ({
         <DaysTimeline
           key={startDate.getTime()}
           startDate={startDate}
+          scrollDate={scrollDate}
+          onScrollDateChange={onScrollDateChange}
           onVisibleDaysChange={handleVisibleDaysChange}
           onTaskAdd={handleAddTask}
         />

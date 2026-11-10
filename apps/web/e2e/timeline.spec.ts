@@ -245,6 +245,35 @@ test("scrolls with its own scrollbar, which has no ends", async ({ page }) => {
   await expectFirstDay(page, addDays(monday, fullDays));
   await page.mouse.click(rest.x - rest.width * 0.4, center.y);
   await expectFirstDay(page, monday);
+
+  // The wheel over the bar still reaches the days under it.
+  await page.mouse.wheel(DAY_WIDTH, 0);
+  await expectFirstDay(page, addDays(monday, 1));
+});
+
+test("keeps the first day on screen in the URL", async ({ page }) => {
+  await openTimeline(page);
+  const scrolled = addDays(monday, 5);
+  await scrollByDays(page, 5);
+  await expectFirstDay(page, scrolled);
+  await expect(page).toHaveURL(new RegExp(`[?&]day=${ymd(scrolled)}`));
+
+  // Reloading, or opening a shared link, shows the same days.
+  await page.reload();
+  await expectFirstDay(page, scrolled);
+
+  // A picked date is a step that Back undoes.
+  const farAway = new Date(monday.getFullYear(), monday.getMonth() + 2, 10);
+  await pickDate(page, scrolled, farAway);
+  await expectFirstDay(page, farAway);
+  await expect(page).toHaveURL(new RegExp(`[?&]day=${ymd(farAway)}`));
+  await page.goBack();
+  await expectFirstDay(page, scrolled);
+  await page.goForward();
+  await expectFirstDay(page, farAway);
+
+  await page.getByRole("link", { name: "timeline", exact: true }).click();
+  await expectFirstDay(page, monday);
 });
 
 test("keeps the first day in place when days around it change width", async ({

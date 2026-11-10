@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { cn } from "@/lib/utils.ts";
+import { wheelPixels } from "@/lib/wheel.ts";
 
 // The timeline has no ends, so a scrollbar that maps its thumb to an absolute
 // position fights the days added under it. This thumb rests in the middle
@@ -63,16 +64,32 @@ export const InfiniteScrollbar = ({
     };
     const onPointerLeave = () => setHovering(false);
     const onDragStart = () => setHovering(false);
+    // The bar lies over the days, which would otherwise not get the wheel.
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      event.preventDefault();
+      const [deltaX, deltaY] = wheelPixels(event, scroller);
+      scroller.scrollLeft += deltaX;
+      const below = document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .find((element) => !track.contains(element));
+      const list = below?.closest<HTMLElement>(
+        '[data-slot="scroll-area-viewport"]',
+      );
+      if (list && scroller.contains(list)) list.scrollTop += deltaY;
+    };
 
     scroller.addEventListener("scroll", onScroll, { passive: true });
     area.addEventListener("pointermove", onPointerMove);
     area.addEventListener("pointerleave", onPointerLeave);
     window.addEventListener("dragstart", onDragStart, true);
+    track.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       scroller.removeEventListener("scroll", onScroll);
       area.removeEventListener("pointermove", onPointerMove);
       area.removeEventListener("pointerleave", onPointerLeave);
       window.removeEventListener("dragstart", onDragStart, true);
+      track.removeEventListener("wheel", onWheel);
       window.clearTimeout(timeout);
     };
   }, [areaRef, scrollerRef]);

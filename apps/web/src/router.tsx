@@ -6,7 +6,10 @@ export function getRouter() {
     routeTree,
     context: {},
     defaultPreload: false,
-    scrollRestoration: true,
+    // The timeline keeps its scrolled day in the URL; restoring its raw scroll
+    // offset would fight that.
+    scrollRestoration: ({ location }) =>
+      !location.pathname.includes("/timeline/"),
     defaultStructuralSharing: true,
     // defaultPreloadStaleTime: 0,
     scrollToTopSelectors: ["#main-scrollable-area"],

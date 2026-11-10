@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { addDays, parse, startOfDay } from "date-fns";
+import { useCallback } from "react";
+import {
+  addDays,
+  differenceInCalendarDays,
+  format,
+  parse,
+  startOfDay,
+} from "date-fns";
 import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { Board } from "@/components/DaysBoard/DaysBoard.tsx";
 import { selectedProject } from "@/components/ProjectView/selectors.ts";
@@ -21,27 +28,52 @@ import {
   parseDMY,
 } from "@will-be-done/slices/space";
 import { externalEventsRange } from "@/components/ExternalEvents/useExternalEvents.ts";
+import {
+  DAY_WIDTH,
+  initialRenderedDays,
+} from "@/components/DaysBoard/useInfiniteDays.ts";
+import {
+  OVERSCAN_DAYS,
+  dataWindowDates,
+} from "@/components/DaysBoard/timelineWindow.ts";
 
 const filterParams = z.object({
   projectId: z.string().default("inbox"),
+  // The first day on screen, when scrolled away from the date in the path.
+  day: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
+
+const parseDate = (date: string) =>
+  startOfDay(parse(date, "yyyy-MM-dd", new Date()));
 
 export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
   component: RouteComponent,
   validateSearch: zodValidator(filterParams),
   loaderDeps: ({ search }) => ({ projectId: search.projectId }),
-  loader: async ({ context, deps, params }) => {
+  // Scrolling rewrites the day in the URL; the timeline loads what it needs.
+  shouldReload: ({ cause }) => cause !== "stay",
+  loader: async ({ context, deps, params, location }) => {
     const db = await context.spaceDbPromise;
-    const selectedDate = startOfDay(
-      parse(params.date, "yyyy-MM-dd", new Date()),
+    const selectedDate = parseDate(params.date);
+    const { day: scrollDate } = filterParams.parse(location.search);
+    const firstDay = scrollDate
+      ? differenceInCalendarDays(parseDate(scrollDate), selectedDate)
+      : 0;
+    // The dates the timeline queries first; entries are preloaded only for
+    // days on its first screen.
+    const windowDates = dataWindowDates(
+      selectedDate,
+      initialRenderedDays(firstDay, OVERSCAN_DAYS),
     );
-    // The days around the first screen of the timeline; entries are preloaded
-    // only for days likely to be on it.
-    const dates = Array.from({ length: 35 }, (_, i) =>
-      addDays(selectedDate, i - 14).getTime(),
-    );
-    const firstScreenStart = selectedDate.getTime();
-    const firstScreenEnd = addDays(selectedDate, 14).getTime();
+    const dates = windowDates.map((date) => date.getTime());
+    const firstScreenStart = addDays(selectedDate, firstDay).getTime();
+    const firstScreenEnd = addDays(
+      selectedDate,
+      firstDay + Math.ceil(window.innerWidth / DAY_WIDTH),
+    ).getTime();
     const promises: Promise<unknown>[] = [];
     const appendPromise = (promise: Promise<unknown>) => {
       promises.push(promise);
@@ -95,13 +127,13 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
     appendPromise(
       preloadSelectorAsync(db, {
         selector: externalEventOccurrencesInRange,
-        args: externalEventsRange(dates.map((date) => new Date(date))),
+        args: externalEventsRange(windowDates),
       }),
     );
 
     for (const dailyList of dailyLists) {
       const time = parseDMY(dailyList.date).getTime();
-      if (time < firstScreenStart || time >= firstScreenEnd) continue;
+      if (time < firstScreenStart || time > firstScreenEnd) continue;
 
       appendPromise(
         preloadSelectorAsync(db, {
@@ -123,8 +155,23 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
 
 function RouteComponent() {
   const params = Route.useParams();
-  const { projectId } = Route.useSearch();
+  const { projectId, day } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const date = parse(params.date, "yyyy-MM-dd", new Date());
+
+  const handleScrollDateChange = useCallback(
+    (scrollDate: Date, replace: boolean) =>
+      void navigate({
+        to: ".",
+        search: (previous) => ({
+          ...previous,
+          day: format(scrollDate, "yyyy-MM-dd"),
+        }),
+        replace,
+        resetScroll: false,
+      }),
+    [navigate],
+  );
 
   const { data: inboxProjectId = "" } = useAsyncSelector({
     selector: getInboxProjectId,
@@ -135,6 +182,8 @@ function RouteComponent() {
     <GlobalLayout>
       <Board
         selectedDate={date}
+        scrollDate={day ? parseDate(day) : undefined}
+        onScrollDateChange={handleScrollDateChange}
         selectedProjectId={projectId === "inbox" ? inboxProjectId : projectId}
       />
     </GlobalLayout>
