@@ -152,6 +152,7 @@ export async function createStashTask({
   userId,
   title,
   content,
+  briefDescription,
   nature,
   durationMinutes,
   placement = { kind: "first" },
@@ -160,6 +161,7 @@ export async function createStashTask({
   userId: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   nature?: PublicTaskNature;
   durationMinutes?: number;
   placement?: Placement;
@@ -179,6 +181,7 @@ export async function createStashTask({
       sectionPosition: "prepend",
       taskAttrs: {
         title,
+        ...(briefDescription === undefined ? {} : { briefDescription }),
         ...(content === undefined ? {} : { content }),
         ...(nature === undefined ? {} : { nature }),
         ...(durationMinutes === undefined ? {} : { durationMinutes }),

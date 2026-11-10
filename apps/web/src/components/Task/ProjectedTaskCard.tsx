@@ -6,7 +6,9 @@ import {
   taskTemplateType,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { useProjectCardStyle } from "@/components/ProjectView/useProjectCardStyle";
+import { useProjectCardAppearance } from "@/components/ProjectView/useProjectCardStyle";
+import { BriefDescription } from "./BriefDescription";
+import { ProjectCardBody } from "./ProjectCardBody";
 import { formatDuration, formatTaskTime } from "@/lib/taskTime.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 
@@ -21,7 +23,9 @@ export const ProjectedTaskCard = ({
   onAddTask: () => void;
 }) => {
   const { template } = occurrence;
-  const projectStyle = useProjectCardStyle(template.projectSectionId);
+  const { style: projectStyle, project } = useProjectCardAppearance(
+    template.projectSectionId,
+  );
   // The template id keeps item details working; the occurrence id keeps keys
   // unique when a template occurs several times in view (even on one day).
   const focusKey = buildFocusKey(template.id, taskTemplateType, occurrence.id);
@@ -57,6 +61,9 @@ export const ProjectedTaskCard = ({
       <div className="font-medium">
         <RichTextView text={template.title} />
       </div>
+      <ProjectCardBody project={project}>
+        <BriefDescription text={template.briefDescription} />
+      </ProjectCardBody>
       <div className="mt-1 flex items-center gap-1.5 text-xs tabular-nums">
         <Repeat className="size-3" />
         {occurrence.time && (

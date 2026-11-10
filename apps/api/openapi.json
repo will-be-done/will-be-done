@@ -3732,6 +3732,7 @@
                           },
                           "title": { "type": "string" },
                           "content": { "type": "string" },
+                          "briefDescription": { "type": "string" },
                           "state": {
                             "type": "string",
                             "enum": ["todo", "done"]
@@ -4036,6 +4037,7 @@
                           },
                           "title": { "type": "string" },
                           "content": { "type": "string" },
+                          "briefDescription": { "type": "string" },
                           "state": {
                             "type": "string",
                             "enum": ["todo", "done"]
@@ -4314,6 +4316,7 @@
                               },
                               "title": { "type": "string" },
                               "content": { "type": "string" },
+                              "briefDescription": { "type": "string" },
                               "state": {
                                 "type": "string",
                                 "enum": ["todo", "done"]
@@ -4400,6 +4403,7 @@
                               },
                               "title": { "type": "string" },
                               "content": { "type": "string" },
+                              "briefDescription": { "type": "string" },
                               "projectSectionId": {
                                 "type": "string",
                                 "description": "Parent project section identifier"
@@ -4472,6 +4476,7 @@
                               },
                               "title": { "type": "string" },
                               "content": { "type": "string" },
+                              "briefDescription": { "type": "string" },
                               "projectSectionId": {
                                 "type": "string",
                                 "description": "Parent project section identifier"
@@ -4653,6 +4658,7 @@
                 "properties": {
                   "title": { "type": "string", "minLength": 1 },
                   "content": { "type": "string" },
+                  "briefDescription": { "type": "string" },
                   "nature": {
                     "type": "string",
                     "enum": ["red", "green", "unknown"]
@@ -4752,6 +4758,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -5035,6 +5042,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -5265,6 +5273,7 @@
                   "content": {
                     "anyOf": [{ "type": "string" }, { "type": "null" }]
                   },
+                  "briefDescription": { "type": "string" },
                   "state": { "type": "string", "enum": ["todo", "done"] },
                   "nature": {
                     "anyOf": [
@@ -5335,6 +5344,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -6018,6 +6028,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -6367,6 +6378,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -6703,6 +6715,7 @@
                                 },
                                 "title": { "type": "string" },
                                 "content": { "type": "string" },
+                                "briefDescription": { "type": "string" },
                                 "state": {
                                   "type": "string",
                                   "enum": ["todo", "done"]
@@ -6988,6 +7001,7 @@
                           },
                           "title": { "type": "string" },
                           "content": { "type": "string" },
+                          "briefDescription": { "type": "string" },
                           "state": {
                             "type": "string",
                             "enum": ["todo", "done"]
@@ -7223,6 +7237,7 @@
                   "content": {
                     "anyOf": [{ "type": "string" }, { "type": "null" }]
                   },
+                  "briefDescription": { "type": "string" },
                   "nature": {
                     "anyOf": [
                       { "type": "string", "enum": ["red", "green", "unknown"] },
@@ -7349,6 +7364,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -7623,6 +7639,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -7844,6 +7861,7 @@
                   "content": {
                     "anyOf": [{ "type": "string" }, { "type": "null" }]
                   },
+                  "briefDescription": { "type": "string" },
                   "nature": {
                     "anyOf": [
                       { "type": "string", "enum": ["red", "green", "unknown"] },
@@ -7922,6 +7940,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -8391,6 +8410,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -8641,6 +8661,7 @@
                   "content": {
                     "anyOf": [{ "type": "string" }, { "type": "null" }]
                   },
+                  "briefDescription": { "type": "string" },
                   "nature": {
                     "anyOf": [
                       { "type": "string", "enum": ["red", "green", "unknown"] },
@@ -8719,6 +8740,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -8966,6 +8988,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -9222,6 +9245,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -9397,7 +9421,8 @@
                 "type": "object",
                 "properties": {
                   "title": { "type": "string", "minLength": 1 },
-                  "content": { "type": "string" }
+                  "content": { "type": "string" },
+                  "briefDescription": { "type": "string" }
                 },
                 "additionalProperties": false
               }
@@ -9439,6 +9464,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -9865,6 +9891,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -10096,6 +10123,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "projectSectionId": {
                           "type": "string",
                           "description": "Parent project section identifier"
@@ -10300,6 +10328,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -12569,6 +12598,7 @@
                           },
                           "title": { "type": "string" },
                           "content": { "type": "string" },
+                          "briefDescription": { "type": "string" },
                           "state": {
                             "type": "string",
                             "enum": ["todo", "done"]
@@ -12802,6 +12832,7 @@
                 "properties": {
                   "title": { "type": "string", "minLength": 1 },
                   "content": { "type": "string" },
+                  "briefDescription": { "type": "string" },
                   "nature": {
                     "type": "string",
                     "enum": ["red", "green", "unknown"]
@@ -12894,6 +12925,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",
@@ -13238,6 +13270,7 @@
                         },
                         "title": { "type": "string" },
                         "content": { "type": "string" },
+                        "briefDescription": { "type": "string" },
                         "state": { "type": "string", "enum": ["todo", "done"] },
                         "projectSectionId": {
                           "type": "string",

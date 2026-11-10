@@ -482,6 +482,7 @@ describe("taskTemplates timezone consistency", () => {
       id: "task-to-template",
       title: "Converted daily task",
       content: "Task body",
+      briefDescription: "Short summary",
       state: "todo",
       projectSectionId: "section-1",
       orderToken: "a0",
@@ -527,10 +528,12 @@ describe("taskTemplates timezone consistency", () => {
     );
 
     expect(template.title).toBe(task.title);
+    expect(template.briefDescription).toBe("Short summary");
     expect(tasks).toHaveLength(1);
     expect(tasks[0].id).not.toBe(task.id);
     expect(tasks[0].templateId).toBe(template.id);
     expect(tasks[0].title).toBe(task.title);
+    expect(tasks[0].briefDescription).toBe("Short summary");
     expect(tasks[0].projectSectionId).toBe(task.projectSectionId);
     expect(tasks[0].templateDate).toBe(
       new Date("2026-03-04T00:00:00Z").getTime(),

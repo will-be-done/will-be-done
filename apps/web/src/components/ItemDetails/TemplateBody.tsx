@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { BriefDescriptionField } from "./BriefDescriptionField";
 import { CalendarDays, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
@@ -124,6 +125,18 @@ export function TemplateBody({
       />
 
       <div className="space-y-2 text-xs">
+        <BriefDescriptionField
+          key={template.id}
+          value={template.briefDescription}
+          onChange={(briefDescription) =>
+            void dispatch(
+              updateTemplate({
+                id: template.id,
+                template: { briefDescription },
+              }),
+            )
+          }
+        />
         <ProjectDetailRow
           project={project}
           onOpenClick={() => openProject(project.id)}

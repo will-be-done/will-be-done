@@ -29,7 +29,10 @@ import {
 } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
 import { cardClass } from "./styles";
-import { useProjectCardStyle } from "@/components/ProjectView/useProjectCardStyle";
+import { BriefDescription } from "@/components/Task/BriefDescription";
+import { useProjectCardAppearance } from "@/components/ProjectView/useProjectCardStyle";
+import { ProjectCardBody } from "@/components/Task/ProjectCardBody";
+import type { Project } from "@will-be-done/slices/space";
 import { type DayActions } from "./DayCells";
 import {
   type DayExternalEvent,
@@ -268,6 +271,7 @@ const GridColumn = ({
   const preview = drag?.target?.time
     ? {
         title: drag.event.title,
+        briefDescription: drag.event.briefDescription,
         start: timeToMinutes(drag.target.time),
         length: drag.durationMinutes,
         // Resizing shows the new duration; a move keeps the task's own.
@@ -320,8 +324,7 @@ const GridColumn = ({
       {preview && (
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0.5 z-20 overflow-hidden rounded-md border border-accent bg-accent/25 px-1.5 py-0.5 text-xs text-content",
-            isShortBlock(preview.length) && "flex items-baseline gap-1.5",
+            "pointer-events-none absolute inset-x-0.5 z-20 flex flex-col overflow-hidden rounded-md border border-accent bg-accent/25 px-1.5 py-0.5 text-xs text-content",
           )}
           style={{
             top: percent(preview.start),
@@ -330,6 +333,7 @@ const GridColumn = ({
         >
           <BlockContent
             title={preview.title}
+            briefDescription={preview.briefDescription}
             start={preview.start}
             length={preview.length}
             durationMinutes={preview.durationMinutes}
@@ -354,10 +358,11 @@ const TimedBlock = ({
   actions: DayActions;
 }) => {
   const isFocused = useFocusStore((s) => s.focusItemKey === event.focusKey);
-  const projectStyle = useProjectCardStyle(event.projectSectionId);
+  const { style: projectStyle, project } = useProjectCardAppearance(
+    event.projectSectionId,
+  );
   const start = timeToMinutes(event.time!);
   const length = Math.min(blockMinutes(event), minutesInDay - start);
-  const isShort = isShortBlock(length);
 
   return (
     <div
@@ -372,8 +377,7 @@ const TimedBlock = ({
       }
       className={cn(
         cardClass(event, isFocused, isDraggable(event)),
-        "absolute z-10 overflow-hidden px-1.5 py-0.5 text-xs",
-        isShort && "flex items-baseline gap-1.5",
+        "absolute z-10 flex flex-col overflow-hidden px-1.5 py-0.5 text-xs",
         isDragged && "opacity-40",
       )}
       style={{
@@ -385,6 +389,8 @@ const TimedBlock = ({
     >
       <BlockContent
         title={event.title}
+        briefDescription={event.briefDescription}
+        project={project}
         start={start}
         length={length}
         durationMinutes={event.durationMinutes}
@@ -453,12 +459,16 @@ const isShortBlock = (length: number) => length < 45;
 // first so it stays visible however long the title is.
 const BlockContent = ({
   title,
+  briefDescription,
+  project,
   start,
   length,
   durationMinutes,
   isDone = false,
 }: {
   title: string;
+  briefDescription?: string;
+  project?: Project;
   start: number;
   length: number;
   durationMinutes: number | null;
@@ -469,27 +479,73 @@ const BlockContent = ({
       className={cn("min-w-0 truncate font-medium", isDone && "line-through")}
     >
       {title}
+      {isShortBlock(length) &&
+        (length * hourHeight) / 60 < 32 &&
+        briefDescription && (
+          <span className="font-normal text-content-tinted">
+            {" "}
+            — {briefDescription}
+          </span>
+        )}
     </div>
   );
 
   if (isShortBlock(length)) {
-    return (
-      <>
-        <div className="shrink-0 tabular-nums text-content-tinted">
-          {formatTaskTime(minutesToTime(start))}
+    if ((length * hourHeight) / 60 >= 32) {
+      return (
+        <div className="flex h-full min-w-0 w-full flex-col">
+          {titleNode}
+          <ProjectCardBody
+            project={project}
+            fillImage
+            className="flex min-h-0 min-w-0 flex-1 items-start gap-1.5"
+          >
+            <span className="shrink-0 tabular-nums text-content-tinted">
+              {formatTaskTime(minutesToTime(start))}
+            </span>
+            <BriefDescription
+              text={briefDescription}
+              maxLines={1}
+              className="mt-0 min-w-0 flex-1"
+            />
+          </ProjectCardBody>
         </div>
+      );
+    }
+    return (
+      <div className="flex h-full min-w-0 items-baseline gap-1.5">
+        <ProjectCardBody
+          project={project}
+          fillImage
+          className="shrink-0 self-stretch tabular-nums text-content-tinted"
+        >
+          {formatTaskTime(minutesToTime(start))}
+        </ProjectCardBody>
         {titleNode}
-      </>
+      </div>
     );
   }
 
   return (
     <>
       {titleNode}
-      <div className="truncate tabular-nums text-content-tinted">
-        {minutesLabel(start, length)}
-        {durationMinutes ? ` · ${formatDuration(durationMinutes)}` : ""}
-      </div>
+      <ProjectCardBody
+        project={project}
+        fillImage
+        className="mt-0.5 min-h-0 flex-1 rounded-sm px-1 pb-1"
+      >
+        <div className="truncate tabular-nums text-content-tinted">
+          {minutesLabel(start, length)}
+          {durationMinutes ? ` · ${formatDuration(durationMinutes)}` : ""}
+        </div>
+        <BriefDescription
+          text={briefDescription}
+          maxLines={Math.max(
+            1,
+            Math.min(4, Math.floor(((length * hourHeight) / 60 - 36) / 14)),
+          )}
+        />
+      </ProjectCardBody>
     </>
   );
 };

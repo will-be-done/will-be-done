@@ -284,6 +284,7 @@ describe("space backup compatibility", () => {
             {
               id: "task-1",
               title: "Legacy task",
+              briefDescription: "Backup summary",
               state: "todo",
               projectSectionId: "section-1",
               orderToken: "a",
@@ -337,6 +338,9 @@ describe("space backup compatibility", () => {
     );
 
     const restored = selectSync(db, { selector: getSpaceBackup, args: {} });
+    expect(
+      restored.tasks.find((task) => task.id === "task-1")?.briefDescription,
+    ).toBe("Backup summary");
 
     expect(restored.dailyEntries).toEqual([
       expect.objectContaining({

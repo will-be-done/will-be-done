@@ -29,6 +29,7 @@ export const minBlockMinutes = 25;
 // One appearance of a Task on a calendar day. Projected events are template
 // occurrences that will be generated later; they are not real Tasks yet.
 export type CalendarEvent = {
+  briefDescription?: string;
   projectSectionId?: string;
   key: string;
   taskId: string;

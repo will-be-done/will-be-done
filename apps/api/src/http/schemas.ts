@@ -261,6 +261,7 @@ export const TaskSchema = z.object({
   id: z.string().describe("Task identifier"),
   title: z.string(),
   content: z.string().optional(),
+  briefDescription: z.string().optional(),
   state: TaskStateSchema,
   projectSectionId: z.string().describe("Parent project section identifier"),
   nature: TaskNatureSchema,
@@ -289,6 +290,7 @@ export const TaskTemplateSchema = z.object({
   id: z.string().describe("Task template identifier"),
   title: z.string(),
   content: z.string().optional(),
+  briefDescription: z.string().optional(),
   projectSectionId: z.string().describe("Parent project section identifier"),
   nature: TaskNatureSchema,
   repeatRule: z.string(),
@@ -310,6 +312,7 @@ export const CreateTaskTemplateBodySchema = z
   .object({
     title: z.string().trim().min(1),
     content: z.string().nullable().optional(),
+    briefDescription: z.string().optional(),
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
@@ -323,6 +326,7 @@ export const UpdateTaskTemplateBodySchema = z
   .object({
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
+    briefDescription: z.string().optional(),
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
@@ -338,6 +342,7 @@ export const ConvertTaskToTemplateBodySchema = z
   .object({
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
+    briefDescription: z.string().optional(),
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
@@ -362,6 +367,7 @@ export const NoteSchema = z.object({
   id: z.string().describe("Note identifier"),
   title: z.string(),
   content: z.string().optional(),
+  briefDescription: z.string().optional(),
   projectSectionId: z.string().describe("Parent project section identifier"),
   createdAt: z.number().int().nonnegative(),
 });
@@ -375,6 +381,7 @@ export const UpdateNoteBodySchema = z
   .object({
     title: z.string().trim().min(1).optional(),
     content: z.string().optional(),
+    briefDescription: z.string().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -410,6 +417,7 @@ export const CreateTaskBodySchema = z
   .object({
     title: z.string().trim().min(1),
     content: z.string().optional(),
+    briefDescription: z.string().optional(),
     nature: TaskNatureSchema.optional(),
     durationMinutes: DurationMinutesSchema.optional(),
     placement: PlacementSchema.optional(),
@@ -549,6 +557,7 @@ export const UpdateTaskBodySchema = z
   .object({
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
+    briefDescription: z.string().optional(),
     state: TaskStateSchema.optional(),
     nature: TaskNatureSchema.nullable().optional(),
     scheduledTime: TaskTimeSchema.nullable()

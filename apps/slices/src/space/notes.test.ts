@@ -49,7 +49,12 @@ function addTask(db: DB, projectSectionId: string, id: string) {
     createTaskInSection({
       projectSectionId,
       position: "append",
-      taskAttrs: { id, title: `Title ${id}`, content: `Content ${id}` },
+      taskAttrs: {
+        id,
+        title: `Title ${id}`,
+        content: `Content ${id}`,
+        briefDescription: `Summary ${id}`,
+      },
     }),
   ) as Task;
 }
@@ -82,6 +87,7 @@ describe("notes", () => {
       type: "note",
       title: task.title,
       content: task.content,
+      briefDescription: task.briefDescription,
       projectSectionId: task.projectSectionId,
       orderToken: task.orderToken,
       createdAt: task.createdAt,
@@ -141,6 +147,7 @@ describe("notes", () => {
       state: "todo",
       title: note.title,
       content: note.content,
+      briefDescription: note.briefDescription,
       projectSectionId: note.projectSectionId,
       orderToken: note.orderToken,
       createdAt: note.createdAt,

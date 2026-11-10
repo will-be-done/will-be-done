@@ -22,6 +22,7 @@ import { toPublicTask, type PublicTask } from "./tasks";
 export interface TaskTemplateUpdates {
   title?: string;
   content?: string | null;
+  briefDescription?: string;
   nature?: "red" | "green" | "unknown" | null;
   repeatRule?: string;
   repeatRuleDtStart?: number;
@@ -44,6 +45,9 @@ async function applyUpdates(
 ): Promise<TaskTemplate> {
   const proposed: TaskTemplate = {
     ...current,
+    ...(updates.briefDescription === undefined
+      ? {}
+      : { briefDescription: updates.briefDescription }),
     ...(updates.title === undefined ? {} : { title: updates.title }),
     ...(typeof updates.content === "string"
       ? { content: updates.content }
@@ -92,6 +96,7 @@ export async function createSectionTaskTemplate({
   userId,
   title,
   content,
+  briefDescription,
   nature,
   repeatRule,
   repeatRuleDtStart,
@@ -104,6 +109,7 @@ export async function createSectionTaskTemplate({
   userId: string;
   title: string;
   content?: string | null;
+  briefDescription?: string;
   nature?: "red" | "green" | "unknown" | null;
   repeatRule?: string;
   repeatRuleDtStart?: number;
@@ -125,6 +131,7 @@ export async function createSectionTaskTemplate({
           entities: await itemsInSection(db, sectionId),
           placement,
         }),
+        ...(briefDescription === undefined ? {} : { briefDescription }),
         ...(typeof content === "string" ? { content } : {}),
         ...(typeof nature === "string" ? { nature } : {}),
         ...(repeatRule === undefined ? {} : { repeatRule }),

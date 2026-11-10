@@ -10,6 +10,12 @@ sidebar:
 A task has a title, a todo or done state, and a project section. It can also
 have a description and checklist items.
 
+Add a **Brief description** in Item details to show a short summary beneath
+the task title on cards, including project boards, daily lists, Stash,
+calendar views and linked mindmap cards. Changes save automatically. Clear
+the field to remove the summary. It is separate from the full description
+and is also available on recurring task templates.
+
 Project sections appear as columns on a project's board. Drag tasks between
 sections to organize them, or move a task to another project through its action
 menu. The inbox is a project for tasks you have not organized yet.

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { BriefDescriptionField } from "./BriefDescriptionField";
 import {
   Calendar,
   CalendarDays,
@@ -204,6 +205,15 @@ export function TaskBody({
       />
 
       <div className="space-y-2 text-xs">
+        <BriefDescriptionField
+          key={task.id}
+          value={task.briefDescription}
+          onChange={(briefDescription) =>
+            void dispatch(
+              updateTask({ id: task.id, task: { briefDescription } }),
+            )
+          }
+        />
         <ProjectDetailRow
           project={project}
           onOpenClick={() => openProject(project.id)}

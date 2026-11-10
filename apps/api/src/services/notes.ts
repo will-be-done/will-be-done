@@ -47,7 +47,7 @@ export async function updateNote({
   spaceId: string;
   noteId: string;
   userId: string;
-  updates: { title?: string; content?: string };
+  updates: { title?: string; content?: string; briefDescription?: string };
 }): Promise<PublicNote> {
   const db = await getSpaceDatabase(spaceId, userId);
   await requireNote(db, noteId);

@@ -495,6 +495,9 @@ export const createTaskFromTemplate = action({
     const newTask: Task = {
       id: newId,
       title: taskTemplate.title,
+      ...(taskTemplate.briefDescription === undefined
+        ? {}
+        : { briefDescription: taskTemplate.briefDescription }),
       state: "todo",
       projectSectionId: taskTemplate.projectSectionId,
       type: taskType,

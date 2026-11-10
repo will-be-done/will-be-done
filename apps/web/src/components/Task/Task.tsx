@@ -36,6 +36,8 @@ import clsx from "clsx";
 import { CircleDashed, Clock, RotateCw, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getProjectCardStyle } from "@/lib/projectColors";
+import { BriefDescription } from "./BriefDescription";
+import { ProjectCardBody } from "./ProjectCardBody";
 import {
   addToDailyList,
   AnyModelType,
@@ -1736,16 +1738,26 @@ export const PreloadedTaskComp = ({
                 </div>
               )}
             </div>
-            {(isTask(item) || isTaskTemplate(item)) && (
-              <ChecklistItems
-                hasChecklistItems={hasCheclistItems}
-                parent={item}
-                visible={isFocused || isEditing}
-                focusableItemKey={focusableItemKey}
-                editTrigger="doubleClick"
-                onItemsRemoved={handleChecklistItemsRemoved}
+            <ProjectCardBody
+              project={
+                displayedUnderProjectId === project.id ? undefined : project
+              }
+            >
+              <BriefDescription
+                text={item.briefDescription}
+                className="px-2 pb-1"
               />
-            )}
+              {(isTask(item) || isTaskTemplate(item)) && (
+                <ChecklistItems
+                  hasChecklistItems={hasCheclistItems}
+                  parent={item}
+                  visible={isFocused || isEditing}
+                  focusableItemKey={focusableItemKey}
+                  editTrigger="doubleClick"
+                  onItemsRemoved={handleChecklistItemsRemoved}
+                />
+              )}
+            </ProjectCardBody>
           </div>
           <div
             className={cn(

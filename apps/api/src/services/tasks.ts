@@ -37,6 +37,7 @@ export interface PublicTask {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: PublicTaskState;
   projectSectionId: string;
   nature: PublicTaskNature;
@@ -125,6 +126,9 @@ export function toPublicTask(
     type: "task",
     id: task.id,
     title: task.title,
+    ...(task.briefDescription === undefined
+      ? {}
+      : { briefDescription: task.briefDescription }),
     ...(task.content === undefined ? {} : { content: task.content }),
     state: task.state,
     projectSectionId: task.projectSectionId,
@@ -161,6 +165,7 @@ export async function createSectionTask({
   userId,
   title,
   content,
+  briefDescription,
   nature,
   durationMinutes,
   placement = { kind: "last" },
@@ -170,6 +175,7 @@ export async function createSectionTask({
   userId: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   nature?: PublicTaskNature;
   durationMinutes?: number;
   placement?: Placement;
@@ -191,6 +197,7 @@ export async function createSectionTask({
       position,
       taskAttrs: {
         title,
+        ...(briefDescription === undefined ? {} : { briefDescription }),
         ...(content === undefined ? {} : { content }),
         ...(nature === undefined ? {} : { nature }),
         ...(durationMinutes === undefined ? {} : { durationMinutes }),
@@ -212,6 +219,7 @@ export async function updateTask({
   updates: {
     title?: string;
     content?: string | null;
+    briefDescription?: string;
     state?: PublicTaskState;
     nature?: PublicTaskNature | null;
     scheduledTime?: string | null;
@@ -233,6 +241,9 @@ export async function updateTask({
 
   const proposed: Task = {
     ...current,
+    ...(updates.briefDescription === undefined
+      ? {}
+      : { briefDescription: updates.briefDescription }),
     ...(updates.title === undefined ? {} : { title: updates.title }),
     ...(typeof updates.content === "string"
       ? { content: updates.content }

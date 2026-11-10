@@ -42,6 +42,7 @@ export function useCalendarEvents(dates: Date[]): Map<string, CalendarEvent[]> {
         key: entry.id,
         taskId: task.id,
         projectSectionId: task.projectSectionId,
+        briefDescription: task.briefDescription,
         focusKey: buildFocusKey(entry.id, dailyEntryType),
         date,
         title: richTextMarkdownToPlainText(task.title, "title"),
@@ -60,6 +61,7 @@ export function useCalendarEvents(dates: Date[]): Map<string, CalendarEvent[]> {
         key: `projected-${occurrence.id}`,
         taskId: occurrence.id,
         projectSectionId: template.projectSectionId,
+        briefDescription: template.briefDescription,
         // A template can occur several times in view; keys must be unique.
         focusKey: buildFocusKey(template.id, taskTemplateType, occurrence.date),
         date: occurrence.date,

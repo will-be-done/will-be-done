@@ -89,6 +89,9 @@ const templateToTask = selector({
         epoch,
       }),
       title: tmpl.title,
+      ...(tmpl.briefDescription === undefined
+        ? {}
+        : { briefDescription: tmpl.briefDescription }),
       content: "",
       state: "todo",
       projectSectionId: tmpl.projectSectionId,
@@ -580,6 +583,9 @@ export const createTaskTemplateFromTask = action({
       id: newId,
       type: taskTemplateType,
       title: task.title,
+      ...(task.briefDescription === undefined
+        ? {}
+        : { briefDescription: task.briefDescription }),
       ...(task.content === undefined ? {} : { content: task.content }),
       orderToken: task.orderToken,
       createdAt: task.createdAt,

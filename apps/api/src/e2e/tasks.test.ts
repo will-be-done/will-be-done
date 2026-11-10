@@ -32,6 +32,7 @@ test("covers every task operation, including pagination and scheduling", async (
       {
         title: "Task A",
         content: "Task content",
+        briefDescription: "Short task summary",
         nature: "red",
         placement: { kind: "last" },
       },
@@ -40,6 +41,7 @@ test("covers every task operation, including pagination and scheduling", async (
     201,
   );
   const taskA = created.data.task;
+  expect(taskA.briefDescription).toBe("Short task summary");
   const taskB = expectResponseStatus(
     await createSectionTask(
       space.id,
@@ -90,7 +92,12 @@ test("covers every task operation, including pagination and scheduling", async (
     updateTask(
       space.id,
       taskA.id,
-      { title: "Updated task", content: "Updated content", nature: "green" },
+      {
+        title: "Updated task",
+        content: "Updated content",
+        nature: "green",
+        briefDescription: "Updated summary",
+      },
       options,
     ),
     200,
@@ -98,6 +105,7 @@ test("covers every task operation, including pagination and scheduling", async (
   expect(updated.data.task).toMatchObject({
     title: "Updated task",
     content: "Updated content",
+    briefDescription: "Updated summary",
     nature: "green",
   });
 

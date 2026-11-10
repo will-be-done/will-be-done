@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getProjectCardStyle } from "@/lib/projectColors";
+import { BriefDescription } from "@/components/Task/BriefDescription";
+import { ProjectCardBody } from "@/components/Task/ProjectCardBody";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   useAsyncDispatch,
@@ -322,6 +324,13 @@ export function MindmapNodeCard({
           )}
         </div>
       </div>
+      {item && (
+        <ProjectCardBody
+          project={entry.kind === "node" ? entry.tree.project : undefined}
+        >
+          <BriefDescription text={item.briefDescription} />
+        </ProjectCardBody>
+      )}
       {task && (
         <ChecklistItems
           hasChecklistItems={undefined}

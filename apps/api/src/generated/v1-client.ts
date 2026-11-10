@@ -2223,6 +2223,7 @@ export type ListTasks200TasksItem = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ListTasks200TasksItemState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -2415,6 +2416,7 @@ export type ListScheduledTasks200TasksItem = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ListScheduledTasks200TasksItemState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -2565,6 +2567,7 @@ export type ListSectionItems200ItemsItem =
       id: string;
       title: string;
       content?: string;
+      briefDescription?: string;
       state: "todo" | "done";
       /** Parent project section identifier */
       projectSectionId: string;
@@ -2593,6 +2596,7 @@ export type ListSectionItems200ItemsItem =
       id: string;
       title: string;
       content?: string;
+      briefDescription?: string;
       /** Parent project section identifier */
       projectSectionId: string;
       nature: "red" | "green" | "unknown";
@@ -2622,6 +2626,7 @@ export type ListSectionItems200ItemsItem =
       id: string;
       title: string;
       content?: string;
+      briefDescription?: string;
       /** Parent project section identifier */
       projectSectionId: string;
       /**
@@ -2775,6 +2780,7 @@ export type CreateSectionTaskBody = {
   /** @minLength 1 */
   title: string;
   content?: string;
+  briefDescription?: string;
   nature?: CreateSectionTaskBodyNature;
   /**
    * Estimated duration in whole minutes
@@ -2816,6 +2822,7 @@ export type CreateSectionTask201Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: CreateSectionTask201TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -2996,6 +3003,7 @@ export type GetTask200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: GetTask200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -3148,6 +3156,7 @@ export type UpdateTaskBody = {
   /** @minLength 1 */
   title?: string;
   content?: string | null;
+  briefDescription?: string;
   state?: UpdateTaskBodyState;
   nature?: UpdateTaskBodyNature;
   /** Time on the current schedule date; the task must be scheduled */
@@ -3185,6 +3194,7 @@ export type UpdateTask200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: UpdateTask200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -3604,6 +3614,7 @@ export type ScheduleTask200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ScheduleTask200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -3817,6 +3828,7 @@ export type MoveTask200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: MoveTask200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -4026,6 +4038,7 @@ export type ListDailyLists200DailyListsItemItemsItem = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ListDailyLists200DailyListsItemItemsItemState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -4205,6 +4218,7 @@ export type ListDailyListItems200ItemsItem = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ListDailyListItems200ItemsItemState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -4373,6 +4387,7 @@ export type CreateTaskTemplateBody = {
   /** @minLength 1 */
   title: string;
   content?: string | null;
+  briefDescription?: string;
   nature?: CreateTaskTemplateBodyNature;
   /**
    * RFC 5545 recurrence rule
@@ -4412,6 +4427,7 @@ export type CreateTaskTemplate201Template = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   nature: CreateTaskTemplate201TemplateNature;
@@ -4582,6 +4598,7 @@ export type GetTaskTemplate200Template = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   nature: GetTaskTemplate200TemplateNature;
@@ -4724,6 +4741,7 @@ export type UpdateTaskTemplateBody = {
   /** @minLength 1 */
   title?: string;
   content?: string | null;
+  briefDescription?: string;
   nature?: UpdateTaskTemplateBodyNature;
   /**
    * RFC 5545 recurrence rule
@@ -4761,6 +4779,7 @@ export type UpdateTaskTemplate200Template = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   nature: UpdateTaskTemplate200TemplateNature;
@@ -5045,6 +5064,7 @@ export type MoveTaskTemplate200Template = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   nature: MoveTaskTemplate200TemplateNature;
@@ -5207,6 +5227,7 @@ export type ConvertTaskToTemplateBody = {
   /** @minLength 1 */
   title?: string;
   content?: string | null;
+  briefDescription?: string;
   nature?: ConvertTaskToTemplateBodyNature;
   /**
    * RFC 5545 recurrence rule
@@ -5244,6 +5265,7 @@ export type ConvertTaskToTemplate200Template = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   nature: ConvertTaskToTemplate200TemplateNature;
@@ -5402,6 +5424,7 @@ export type ConvertTaskTemplateToTask200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ConvertTaskTemplateToTask200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -5545,6 +5568,7 @@ export type GetNote200Note = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   /**
@@ -5662,6 +5686,7 @@ export type UpdateNoteBody = {
   /** @minLength 1 */
   title?: string;
   content?: string;
+  briefDescription?: string;
 };
 
 export type UpdateNote200NoteType =
@@ -5677,6 +5702,7 @@ export type UpdateNote200Note = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   /**
@@ -5937,6 +5963,7 @@ export type MoveNote200Note = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   /**
@@ -6083,6 +6110,7 @@ export type ConvertTaskToNote200Note = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   /** Parent project section identifier */
   projectSectionId: string;
   /**
@@ -6226,6 +6254,7 @@ export type ConvertNoteToTask200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ConvertNoteToTask200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -7709,6 +7738,7 @@ export type ListStashTasks200TasksItem = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: ListStashTasks200TasksItemState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -7879,6 +7909,7 @@ export type CreateStashTaskBody = {
   /** @minLength 1 */
   title: string;
   content?: string;
+  briefDescription?: string;
   nature?: CreateStashTaskBodyNature;
   /**
    * Estimated duration in whole minutes
@@ -7920,6 +7951,7 @@ export type CreateStashTask201Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: CreateStashTask201TaskState;
   /** Parent project section identifier */
   projectSectionId: string;
@@ -8132,6 +8164,7 @@ export type PutTaskInStash200Task = {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: PutTaskInStash200TaskState;
   /** Parent project section identifier */
   projectSectionId: string;

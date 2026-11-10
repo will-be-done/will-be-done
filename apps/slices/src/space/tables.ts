@@ -22,6 +22,7 @@ export const tasksTable = defineTable("tasks", {
   // app undo leaves these fields alone.
   title: v.string().with(undoIgnore()),
   content: v.optional(v.string()).with(undoIgnore()),
+  briefDescription: v.optional(v.string()),
   // Base64 Yjs states; once present they own title/content (see richText.ts).
   titleDoc: v.optional(v.string()).with(undoIgnore()),
   contentDoc: v.optional(v.string()).with(undoIgnore()),
@@ -64,6 +65,7 @@ export const taskTemplatesTable = defineTable("task_templates", {
   id: v.string(),
   title: v.string().with(undoIgnore()),
   content: v.optional(v.string()).with(undoIgnore()),
+  briefDescription: v.optional(v.string()),
   titleDoc: v.optional(v.string()).with(undoIgnore()),
   contentDoc: v.optional(v.string()).with(undoIgnore()),
   orderToken: v.string(),
@@ -93,6 +95,7 @@ export const notesTable = defineTable("notes", {
   id: v.string(),
   title: v.string().with(undoIgnore()),
   content: v.optional(v.string()).with(undoIgnore()),
+  briefDescription: v.optional(v.string()),
   titleDoc: v.optional(v.string()).with(undoIgnore()),
   contentDoc: v.optional(v.string()).with(undoIgnore()),
   projectSectionId: v.string(),

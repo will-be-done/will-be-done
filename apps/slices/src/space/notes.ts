@@ -55,8 +55,13 @@ const richTextOf = ({
   content,
   titleDoc,
   contentDoc,
-}: Pick<Note, "title" | "content" | "titleDoc" | "contentDoc">) => ({
+  briefDescription,
+}: Pick<
+  Note,
+  "title" | "content" | "titleDoc" | "contentDoc" | "briefDescription"
+>) => ({
   title,
+  ...(briefDescription === undefined ? {} : { briefDescription }),
   ...(content === undefined ? {} : { content }),
   ...(titleDoc === undefined ? {} : { titleDoc }),
   ...(contentDoc === undefined ? {} : { contentDoc }),

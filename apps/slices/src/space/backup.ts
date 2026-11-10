@@ -68,6 +68,7 @@ interface TaskBackup {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   state: "todo" | "done";
   projectSectionId: string;
   orderToken: string;
@@ -112,6 +113,7 @@ interface TaskTemplateBackup {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   orderToken: string;
   repeatRule: string;
   repeatRuleDtStart?: number;
@@ -126,6 +128,7 @@ interface NoteBackup {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   orderToken: string;
   createdAt: number;
   projectSectionId: string;
@@ -216,6 +219,7 @@ const backupSchema = v.object({
       id: v.string(),
       title: v.string(),
       content: v.optional(v.string()),
+      briefDescription: v.optional(v.string()),
       state: v.union(v.literal("todo"), v.literal("done")),
       projectSectionId: v.string(),
       orderToken: v.string(),
@@ -255,6 +259,7 @@ const backupSchema = v.object({
       id: v.string(),
       title: v.string(),
       content: v.optional(v.string()),
+      briefDescription: v.optional(v.string()),
       orderToken: v.string(),
       repeatRule: v.string(),
       repeatRuleDtStart: v.optional(v.number()),
@@ -354,6 +359,7 @@ const backupSchema = v.object({
         id: v.string(),
         title: v.string(),
         content: v.optional(v.string()),
+        briefDescription: v.optional(v.string()),
         orderToken: v.string(),
         createdAt: v.number(),
         projectSectionId: v.string(),
@@ -368,6 +374,7 @@ const legacyBackupSchema = v.object({
       id: v.string(),
       title: v.string(),
       content: v.optional(v.string()),
+      briefDescription: v.optional(v.string()),
       state: v.union(v.literal("todo"), v.literal("done")),
       projectCategoryId: v.string(),
       orderToken: v.string(),
@@ -403,6 +410,7 @@ const legacyBackupSchema = v.object({
       id: v.string(),
       title: v.string(),
       content: v.optional(v.string()),
+      briefDescription: v.optional(v.string()),
       orderToken: v.string(),
       repeatRule: v.string(),
       repeatRuleDtStart: v.optional(v.number()),
@@ -632,6 +640,9 @@ const getNewModels = action({
         type: taskType,
         id: taskBackup.id,
         title: taskBackup.title,
+        ...(taskBackup.briefDescription === undefined
+          ? {}
+          : { briefDescription: taskBackup.briefDescription }),
         ...(taskBackup.content === undefined
           ? {}
           : { content: taskBackup.content }),
@@ -692,6 +703,9 @@ const getNewModels = action({
         type: taskTemplateType,
         id: templateBackup.id,
         title: templateBackup.title,
+        ...(templateBackup.briefDescription === undefined
+          ? {}
+          : { briefDescription: templateBackup.briefDescription }),
         ...(templateBackup.content === undefined
           ? {}
           : { content: templateBackup.content }),
@@ -724,6 +738,9 @@ const getNewModels = action({
         type: noteType,
         id: noteBackup.id,
         title: noteBackup.title,
+        ...(noteBackup.briefDescription === undefined
+          ? {}
+          : { briefDescription: noteBackup.briefDescription }),
         ...(noteBackup.content === undefined
           ? {}
           : { content: noteBackup.content }),
@@ -978,6 +995,9 @@ export const getSpaceBackup = selector({
         templateDate: task.templateDate,
         projectSectionId: task.projectSectionId,
         content: task.content || "",
+        ...(task.briefDescription === undefined
+          ? {}
+          : { briefDescription: task.briefDescription }),
         ...(task.durationMinutes == null
           ? {}
           : { durationMinutes: task.durationMinutes }),
@@ -1015,6 +1035,9 @@ export const getSpaceBackup = selector({
         id: template.id,
         title: template.title,
         content: template.content || "",
+        ...(template.briefDescription === undefined
+          ? {}
+          : { briefDescription: template.briefDescription }),
         orderToken: template.orderToken,
         repeatRule: template.repeatRule,
         repeatRuleDtStart: template.repeatRuleDtStart,
@@ -1054,6 +1077,9 @@ export const getSpaceBackup = selector({
         id: note.id,
         title: note.title,
         content: note.content || "",
+        ...(note.briefDescription === undefined
+          ? {}
+          : { briefDescription: note.briefDescription }),
         orderToken: note.orderToken,
         createdAt: note.createdAt,
         projectSectionId: note.projectSectionId,

@@ -15,6 +15,7 @@ export interface PublicTaskTemplate {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   projectSectionId: string;
   nature: "red" | "green" | "unknown";
   repeatRule: string;
@@ -30,6 +31,7 @@ export interface PublicNote {
   id: string;
   title: string;
   content?: string;
+  briefDescription?: string;
   projectSectionId: string;
   createdAt: number;
 }
@@ -41,6 +43,9 @@ export function toPublicNote(note: Note): PublicNote {
     type: "note",
     id: note.id,
     title: note.title,
+    ...(note.briefDescription === undefined
+      ? {}
+      : { briefDescription: note.briefDescription }),
     ...(note.content === undefined ? {} : { content: note.content }),
     projectSectionId: note.projectSectionId,
     createdAt: note.createdAt,
@@ -54,6 +59,9 @@ export function toPublicTaskTemplate(
     type: "template",
     id: template.id,
     title: template.title,
+    ...(template.briefDescription === undefined
+      ? {}
+      : { briefDescription: template.briefDescription }),
     ...(template.content === undefined ? {} : { content: template.content }),
     projectSectionId: template.projectSectionId,
     nature: template.nature ?? "unknown",

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { BriefDescriptionField } from "./BriefDescriptionField";
 import { CalendarDays, StickyNote } from "lucide-react";
 import { format } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
@@ -87,6 +88,15 @@ export function NoteBody({
       />
 
       <div className="space-y-2 text-xs">
+        <BriefDescriptionField
+          key={note.id}
+          value={note.briefDescription}
+          onChange={(briefDescription) =>
+            void dispatch(
+              updateNote({ id: note.id, note: { briefDescription } }),
+            )
+          }
+        />
         <ProjectDetailRow
           project={project}
           onOpenClick={() => openProject(project.id)}
