@@ -126,6 +126,7 @@ const everythingElse = [
   'Project kanban boards with your own columns',
   'Separate spaces for work and personal',
   'Today view, weekly timeline and calendar',
+  'Read-only events from CalDAV and iCal calendars',
   'Stash for what you are focused on right now',
   'Desktop apps for Linux, macOS and Windows',
   'Global quick add shortcut',
@@ -407,7 +408,7 @@ const everythingElse = [
               <!-- Caption -->
               <div class="relative h-5 flex-1 overflow-hidden">
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="0" style="opacity:1;transform:translateY(0)">
-                  <span class="font-medium text-slate-200">Weekly timeline</span>: See the full week, drag tasks between any day
+                  <span class="font-medium text-slate-200">Weekly timeline</span>: See the full week, drag tasks between any day, scroll on to any other week
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="1" style="opacity:0;transform:translateY(8px)">
                   <span class="font-medium text-slate-200">Weekly calendar</span>: Give tasks a time and duration when the day needs more structure
@@ -557,8 +558,8 @@ const everythingElse = [
             </p>
             <p class="text-[17px] leading-relaxed text-slate-400">
               Will Be Done keeps the whole week visible. Every day is a column, so you can see what is realistic and
-              drag work between days as plans change. Missed tasks stay where you can see them instead of piling up as
-              overdue.
+              drag work between days as plans change. Scroll sideways and the timeline keeps going into past and
+              future weeks. Missed tasks stay where you can see them instead of piling up as overdue.
             </p>
           </div>
 
@@ -856,9 +857,14 @@ const everythingElse = [
                   Week, Month and a two-week Plan view. Drag a task from a project onto an hour to schedule it, drag the
                   block to move it, and pull its bottom edge to change how long it takes.
                 </p>
-                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                <p class="mb-4 max-w-md text-[15px] leading-relaxed text-slate-400">
                   Time stays optional. A task without one sits in the all-day row, so you can still plan by the day
                   and add hours only where they matter.
+                </p>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Connect a CalDAV account such as iCloud, Fastmail or Nextcloud, or paste an iCal link from Google
+                  Calendar or Outlook, and your meetings appear next to your tasks. Events are read-only and stay
+                  available offline.
                 </p>
               </div>
               <div class="why-feature-media order-2">
