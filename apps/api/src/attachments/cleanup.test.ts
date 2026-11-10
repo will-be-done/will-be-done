@@ -81,6 +81,8 @@ describe("attachment storage cleanup", () => {
       "deleted-recently": now,
       "unsynced-old": now - UNSYNCED_ATTACHMENT_GRACE_MS - 1,
       "unsynced-new": now - 1,
+      // A server restored from a week-old backup has no row for it yet.
+      "unsynced-since-restore": now - 7 * 24 * 60 * 60 * 1000,
     };
     for (const [id, modifiedAt] of Object.entries(files)) {
       await Effect.runPromise(storage.put(spaceId, id, Buffer.from(id)));
@@ -100,6 +102,7 @@ describe("attachment storage cleanup", () => {
       "deleted-recently",
       "live",
       "unsynced-new",
+      "unsynced-since-restore",
     ]);
   });
 });

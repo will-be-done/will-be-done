@@ -7,9 +7,13 @@ import { AttachmentStorage } from "./storage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A deleted file stays long enough for undo and offline replicas that still
-// hold the row to settle; bytes whose row never synced get a day to arrive.
+// hold the row to settle.
 export const DELETED_ATTACHMENT_GRACE_MS = 7 * DAY_MS;
-export const UNSYNCED_ATTACHMENT_GRACE_MS = DAY_MS;
+// Bytes without a row are usually a failed upload, but a server restored from
+// a backup also has no rows for files added since. Those rows return as
+// clients reconnect, and the bytes are never uploaded again, so they must
+// outlast the restore.
+export const UNSYNCED_ATTACHMENT_GRACE_MS = 30 * DAY_MS;
 const BATCH_SIZE = 200;
 
 export const sweepSpaceAttachments = (

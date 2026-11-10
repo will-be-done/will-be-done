@@ -74,6 +74,7 @@ env:
 #
 volumes:
   - "will_be_done_storage:/var/lib/will-be-done/db"
+  - "will_be_done_attachments:/var/lib/will-be-done/attachments"
 
 # Bridge fingerprinted assets, like JS and CSS, between versions to avoid
 # hitting 404 on in-flight requests. Combines all files from new and old

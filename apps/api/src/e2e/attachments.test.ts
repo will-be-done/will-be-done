@@ -197,3 +197,16 @@ test("inline references list the file under the item", async () => {
     attachment.id,
   ]);
 });
+
+test("rejects unauthenticated uploads before reading their body", async () => {
+  // An unsupported body type would fail parsing with 415 if parsing came first.
+  const response = await fetch(
+    `${process.env.WBD_API_BASE_URL}/api/v1/spaces/space/attachments/file/content`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/x-unsupported" },
+      body: "bytes",
+    },
+  );
+  expect(response.status).toBe(401);
+});

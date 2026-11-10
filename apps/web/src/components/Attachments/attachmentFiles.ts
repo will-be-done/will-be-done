@@ -100,7 +100,9 @@ export async function openAttachment(
   transfers: ReturnType<typeof useAttachmentTransfers>,
   attachment: Attachment,
 ) {
-  if (!INLINE_TYPES.test(attachment.mimeType)) {
+  // The desktop shell hands new windows to the system browser, which cannot
+  // read this page's blob URLs.
+  if (!INLINE_TYPES.test(attachment.mimeType) || window.desktopApi) {
     await downloadAttachment(transfers, attachment);
     return;
   }

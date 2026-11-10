@@ -37,6 +37,7 @@ import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
 import {
   deleteItemAttachmentLinks,
+  deleteItemAttachmentLinksAndOrphans,
   ensureInlineAttachmentLinks,
   itemAttachmentLinksOfParents,
   moveItemAttachments,
@@ -540,6 +541,8 @@ export const deleteTasksByIds = action({
   name: "deleteTasksByIds",
   args: { ids: v.array(v.string()) },
   handler: function* deleteTasksByIds({ ids }) {
+    // Nothing goes to the trash here, so files only these tasks used go too.
+    yield* deleteItemAttachmentLinksAndOrphans(taskType, ids);
     yield* deleteTasks({ ids });
   },
 });

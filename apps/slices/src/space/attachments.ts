@@ -10,6 +10,7 @@ import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
 import { changeId, changesTable, isDeletedChange } from "../common/changes";
 import { parseHlc } from "../common/hlc";
+import { genUUIDV5Many } from "../traits";
 import {
   attachmentIdsInMarkdown,
   removeRichTextDocAttachments,
@@ -536,16 +537,27 @@ export function* moveItemAttachments(
   );
 }
 
-// Generated tasks list the same files as their template.
+// Generated tasks list the same files as their template. Replicas that
+// generate the same task must create the same links, so the IDs are derived.
 export function* copyItemAttachments(
   from: { parentType: AttachmentParentType; parentId: string },
   to: { parentType: AttachmentParentType; parentId: string },
 ) {
   const links = yield* itemAttachmentLinks(from);
-  yield* linkAttachments(
-    to.parentType,
-    to.parentId,
-    links.map((link) => link.attachmentId),
+  if (links.length === 0) return;
+  const ids = yield* genUUIDV5Many(
+    itemAttachmentType,
+    links.map((link) => `${to.parentType}:${to.parentId}:${link.attachmentId}`),
+  );
+  const now = Date.now();
+  yield* upsert(
+    itemAttachmentsTable,
+    links.map((link, index) => ({
+      ...link,
+      ...to,
+      id: ids[index]!,
+      createdAt: now,
+    })),
   );
 }
 

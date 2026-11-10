@@ -62,6 +62,12 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       effect.pipe(Effect.provideService(AttachmentStorage, storage)),
     );
 
+  // Bodies are buffered whole, so a caller must be known before one is read.
+  server.addHook("onRequest", async (request, reply) => {
+    if (request.method !== "POST" && request.method !== "PUT") return;
+    if (!(await authenticateRequest(request))) return unauthorized(reply);
+  });
+
   server.addContentTypeParser(
     "application/octet-stream",
     { parseAs: "buffer", bodyLimit: MAX_ATTACHMENT_SIZE },

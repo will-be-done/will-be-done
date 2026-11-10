@@ -42,11 +42,19 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
 The server never deletes bytes on a request. A daily sweep
 (`apps/api/src/attachments/cleanup.ts`) deletes bytes whose row has been
 tombstoned for 7 days, so undo and offline replicas that still hold the row can
-settle. It also deletes bytes whose row never arrived after a day. Use the
-tombstone's clock, not file age, for deleted rows: a file uploaded long ago and
-deleted today must survive the grace period.
+settle. Use the tombstone's clock, not file age, for deleted rows: a file
+uploaded long ago and deleted today must survive the grace period.
 
-Local storage is per machine. Several server instances need S3 storage.
+It also deletes bytes whose row never arrived, but only after 30 days. A server
+restored from a backup has no rows for files added since the backup, and
+clients resend those rows as they reconnect
+([sync.md](sync.md#required-server-backup-recovery-guarantee)). They never
+resend bytes they have already uploaded, so a shorter grace period would lose
+those files for good. Attachment storage must also be at least as recent as the
+database: restoring storage to an older state loses files the same way.
+
+Local storage is per machine and must be on a persistent volume. Several server
+instances, or machines with ephemeral disks, need S3 storage.
 
 ## Transfers
 
@@ -61,9 +69,11 @@ after each completed sync:
 - A pending file uploads. A 404 means its row has not synced yet; it retries
   after the next sync, not on a timer.
 - Uploaded bytes without a row are deleted at startup. Pending bytes without a
-  row are kept: another tab may not have persisted the new row yet.
+  row are deleted only when the row has a tombstone; otherwise another tab may
+  not have persisted the new row yet. The pass runs once per session, so
+  undoing a removal still finds the bytes.
 - Running out of browser storage stops downloads for the session. Files then
-  stay on the server and open on demand.
+  stay on the server, and opening one fetches it without storing it.
 
 ## Serving bytes
 
@@ -75,7 +85,10 @@ list before opening a blob URL, which would otherwise run on the app's origin.
 ## Backups
 
 A space export is a zip of `backup.json` and `attachments/<id>`. Restoring it
-re-uploads the bytes, since the target server may not have them. Scheduled
+re-uploads the bytes, since the target server may not have them. The archive
+is written one file at a time and read through its central directory
+(`zipArchive.ts`), so neither direction holds the whole space in memory. It has
+no Zip64 support, which caps an export at 4 GB. Scheduled
 server backups mirror local attachment storage to the backup bucket, append-only
 so older database backups still find their files. With S3 attachment storage,
 the bucket's own durability is the backup.

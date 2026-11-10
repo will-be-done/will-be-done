@@ -25,6 +25,7 @@ import {
   useAttachmentUrl,
 } from "@/components/Attachments/attachmentFiles";
 import { AttachmentPreview } from "@/components/Attachments/AttachmentPreview";
+import { pastedFiles } from "./filePaste";
 
 export type AttachFiles = (files: File[]) => Promise<Attachment[]>;
 
@@ -313,7 +314,7 @@ export const AttachmentPaste = Extension.create<{
         key: new PluginKey("attachmentPaste"),
         props: {
           handlePaste: (view, event) => {
-            const files = filesOf(event.clipboardData);
+            const files = pastedFiles(event.clipboardData);
             if (files.length === 0) return false;
             event.preventDefault();
             void attachFiles(files).then((added) =>

@@ -40,6 +40,7 @@ import { emptyTrash, restoreTrashedTasks } from "./trash";
 import { generateTasksForTemplate } from "./taskTemplates";
 import { getSpaceBackup, loadSpaceBackup } from "./backup";
 import { insertItemCopies } from "./selection";
+import { deleteItemsByIds } from "./items";
 
 const action = createAction();
 const selector = createSelector();
@@ -345,6 +346,63 @@ describe("attachments", () => {
       args: { attachmentIds: ["f1"] },
     }).f1;
     expect(usages).toHaveLength(generated.length + 1);
+  });
+
+  test("replicas generating the same task create the same links", () => {
+    const generate = () => {
+      const db = createDB();
+      syncDispatch(db, insertTemplate({}));
+      addFile(db, "f1");
+      syncDispatch(
+        db,
+        attachToItem({
+          attachmentId: "f1",
+          parentType: "template",
+          parentId: "template",
+        }),
+      );
+      syncDispatch(
+        db,
+        generateTasksForTemplate({
+          templateId: "template",
+          toDate: Date.UTC(2026, 0, 3),
+        }),
+      );
+      return read(db)
+        .links.filter((link) => link.parentType === taskType)
+        .map((link) => link.id)
+        .sort();
+    };
+
+    const ids = generate();
+    expect(ids.length).toBeGreaterThan(0);
+    expect(generate()).toEqual(ids);
+  });
+
+  test("deleting items for good deletes the files only they used", () => {
+    const db = createDB();
+    addFile(db, "f1", "t1");
+    addFile(db, "f2", "t1");
+    syncDispatch(
+      db,
+      attachToItem({
+        attachmentId: "f2",
+        parentType: taskType,
+        parentId: "t2",
+      }),
+    );
+    addFile(db, "f3", "t2");
+    const note = syncDispatch(db, convertTaskToNote({ taskId: "t2" }));
+
+    syncDispatch(db, deleteItemsByIds({ ids: ["t1"] }));
+    expect(
+      read(db)
+        .attachments.map(({ id }) => id)
+        .sort(),
+    ).toEqual(["f2", "f3"]);
+
+    syncDispatch(db, deleteItemsByIds({ ids: [note!.id] }));
+    expect(read(db).attachments).toEqual([]);
   });
 
   test("backups carry files and their links", () => {

@@ -1,6 +1,9 @@
 import type { HyperDB } from "@will-be-done/hyperdb";
 import {
   allAttachments,
+  attachmentById,
+  attachmentRowStates,
+  attachmentsByIds,
   type Attachment,
   type AttachmentParentType,
   createAttachment,
@@ -48,6 +51,8 @@ export type AttachmentTransferStatus = {
   uploading: TransferProgress;
   downloading: TransferProgress;
   error: string | null;
+  // Downloads stopped for the session; files open from the server instead.
+  storageFull: boolean;
 };
 
 const idleProgress: TransferProgress = {
@@ -59,6 +64,7 @@ export const idleTransferStatus: AttachmentTransferStatus = {
   uploading: idleProgress,
   downloading: idleProgress,
   error: null,
+  storageFull: false,
 };
 
 type Kind = "upload" | "download";
@@ -132,7 +138,7 @@ export type AttachmentTransfers = {
   // Missing bytes jump to the front of the queue.
   readonly getBlob: (
     id: string,
-  ) => Effect.Effect<Blob | undefined, BlobStoreError>;
+  ) => Effect.Effect<Blob | undefined, TransferError | DatabaseError>;
   // For exports: this device's copy, or the server's when it has none.
   readonly readBlob: (
     attachment: Attachment,
@@ -142,6 +148,10 @@ export type AttachmentTransfers = {
     id: string,
     blob: Blob,
   ) => Effect.Effect<void, BlobStoreError>;
+  // Drops local bytes of files that have no row, after a failed restore.
+  readonly discardUnlistedBlobs: (
+    ids: readonly string[],
+  ) => Effect.Effect<void, BlobStoreError | DatabaseError>;
   // Synchronous, for React subscriptions.
   readonly subscribeBlob: (id: string, listener: () => void) => () => void;
 };
@@ -249,6 +259,27 @@ export const makeAttachmentTransfers = ({
       retryAt.delete(id);
       Queue.offerUnsafe(wakes, undefined);
     };
+
+    // Has the leading tab transfer this file next.
+    const requestDownload = (id: string) => {
+      if (isLeader()) want(id);
+      else channel.post({ type: "want", id });
+    };
+
+    // The server's copy, or nothing while no device has uploaded it.
+    const remoteBlob = (attachment: Attachment) =>
+      send(HttpClientRequest.get(url(attachment.id))).pipe(
+        Effect.flatMap((response) => response.arrayBuffer),
+        Effect.catchTag("HttpClientError", (cause) =>
+          Effect.fail(new AttachmentNetworkError({ cause })),
+        ),
+        Effect.map((bytes) => new Blob([bytes], { type: attachment.mimeType })),
+        Effect.catchTag("AttachmentHttpError", (failure) =>
+          failure.status === 404
+            ? Effect.succeed(undefined)
+            : Effect.fail(failure),
+        ),
+      );
 
     const upload = (job: Job) =>
       Effect.gen(function* () {
@@ -394,12 +425,19 @@ export const makeAttachmentTransfers = ({
         }
       }
       // Uploaded bytes without a row belong to a deleted file. Pending ones
-      // may be a new file whose row another tab has not persisted yet.
+      // go only once their row is known to be deleted: without a tombstone
+      // they may be a new file whose row another tab has not persisted yet.
+      // Once per session, so undoing a removal still finds the bytes.
       if (!cleanedOrphans) {
         cleanedOrphans = true;
         const live = new Set(rows.map(({ id }) => id));
-        for (const id of stored) {
-          if (!live.has(id) && !pending.has(id)) {
+        const unlisted = [...stored].filter((id) => !live.has(id));
+        const states = yield* database.select({
+          selector: attachmentRowStates,
+          args: { ids: unlisted.filter((id) => pending.has(id)) },
+        });
+        for (const id of unlisted) {
+          if (!pending.has(id) || states[id]?.state === "deleted") {
             yield* store.delete(id);
           }
         }
@@ -453,6 +491,7 @@ export const makeAttachmentTransfers = ({
             uploading: progress("upload"),
             downloading: progress("download"),
             error,
+            storageFull,
           });
           broadcastStatus();
           yield* Effect.sleep(STATUS_THROTTLE_MS);
@@ -480,56 +519,71 @@ export const makeAttachmentTransfers = ({
               new Uint8Array(bytes),
             );
             yield* store.put(id, file, { uploaded: !syncEnabled });
-            const { attachment } = yield* database.dispatch(
-              createAttachment({
-                attachment: {
-                  id,
-                  name: file.name || "file",
-                  mimeType: file.type || "application/octet-stream",
-                  size: file.size,
-                  sha256,
-                },
-                ...(parent ? { parent } : {}),
-              }),
-            );
+            const { attachment } = yield* database
+              .dispatch(
+                createAttachment({
+                  attachment: {
+                    id,
+                    name: file.name || "file",
+                    mimeType: file.type || "application/octet-stream",
+                    size: file.size,
+                    sha256,
+                  },
+                  ...(parent ? { parent } : {}),
+                }),
+              )
+              // Bytes without a row would never upload or be cleaned up.
+              .pipe(Effect.onError(() => Effect.ignore(store.delete(id))));
             notify(id);
             kick();
             return attachment;
           }),
         ),
       getBlob: (id) =>
-        store.get(id).pipe(
-          Effect.tap((blob) =>
-            Effect.sync(() => {
-              if (blob || !syncEnabled) return;
-              if (isLeader()) want(id);
-              else channel.post({ type: "want", id });
-            }),
-          ),
+        provide(
+          Effect.gen(function* () {
+            const local = yield* store.get(id);
+            if (local || !syncEnabled) return local;
+            if (status.get().storageFull) {
+              const attachment = yield* database.select({
+                selector: attachmentById,
+                args: { id },
+              });
+              return attachment ? yield* remoteBlob(attachment) : undefined;
+            }
+            requestDownload(id);
+            return undefined;
+          }),
         ),
       readBlob: (attachment) =>
         provide(
           Effect.gen(function* () {
             const local = yield* store.get(attachment.id);
             if (local || !syncEnabled) return local;
-            return yield* send(HttpClientRequest.get(url(attachment.id))).pipe(
-              Effect.flatMap((response) => response.arrayBuffer),
-              Effect.catchTag("HttpClientError", (cause) =>
-                Effect.fail(new AttachmentNetworkError({ cause })),
-              ),
-              Effect.map(
-                (bytes) => new Blob([bytes], { type: attachment.mimeType }),
-              ),
-              Effect.catchTag("AttachmentHttpError", () =>
-                Effect.succeed(undefined),
-              ),
-            );
+            return yield* remoteBlob(attachment);
           }),
         ),
       importBlob: (id, blob) =>
-        store
-          .put(id, blob, { uploaded: !syncEnabled })
-          .pipe(Effect.tap(() => Effect.sync(() => notify(id)))),
+        store.put(id, blob, { uploaded: !syncEnabled }).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              notify(id);
+              if (syncEnabled) requestDownload(id);
+            }),
+          ),
+        ),
+      discardUnlistedBlobs: (ids) =>
+        Effect.gen(function* () {
+          const listed = new Set(
+            (yield* database.select({
+              selector: attachmentsByIds,
+              args: { ids: [...ids] },
+            })).map((attachment) => attachment.id),
+          );
+          for (const id of ids) {
+            if (!listed.has(id)) yield* store.delete(id);
+          }
+        }),
       subscribeBlob: (id, listener) => {
         const set = listeners.get(id) ?? new Set();
         set.add(listener);

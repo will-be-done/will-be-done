@@ -14,6 +14,7 @@ import {
 } from "@will-be-done/slices/space";
 import { Effect, Exit, Layer, Scope } from "effect";
 import { Digest } from "effect/crypto";
+import { changeId, changesTable } from "@will-be-done/slices/common";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   makeTestLogger,
@@ -25,7 +26,10 @@ import {
 import { State } from "@/utils/State";
 import { Database } from "../database";
 import { initialSyncStatus, type SyncStatus } from "../syncStatus";
-import type { AttachmentBlobStore } from "./blobStore";
+import {
+  AttachmentStorageFullError,
+  type AttachmentBlobStore,
+} from "./blobStore";
 import { makeAttachmentTransfers } from "./transfers";
 
 const file = (id: string): Attachment => ({
@@ -38,11 +42,25 @@ const file = (id: string): Attachment => ({
   createdAt: 0,
 });
 
+const tombstone = "0000000000000001-00000000-client";
+
 const seed = createAction()({
   name: "seedTransfersTest",
   args: {},
   handler: function* () {
     yield* insert(attachmentsTable, [file("remote"), file("local")]);
+    yield* insert(changesTable, [
+      {
+        id: changeId(attachmentsTable.tableName, "removed"),
+        entityId: "removed",
+        tableName: attachmentsTable.tableName,
+        createdAt: tombstone,
+        updatedAt: tombstone,
+        deletedAt: tombstone,
+        clientId: "client",
+        changes: {},
+      },
+    ]);
   },
 });
 
@@ -63,12 +81,21 @@ class FakeStore implements AttachmentBlobStore {
 
   get = (id: string) => Effect.sync(() => this.blobs.get(id));
 
+  // Fails writes as a device without free space would.
+  full = false;
+
   put = (id: string, blob: Blob, { uploaded }: { uploaded: boolean }) =>
-    Effect.sync(() => {
+    Effect.suspend(() => {
+      if (this.full) {
+        return Effect.fail(
+          new AttachmentStorageFullError({ cause: new Error("quota") }),
+        );
+      }
       this.blobs.set(id, blob);
       if (uploaded) this.pending.delete(id);
       else this.pending.add(id);
       this.emit(`put:${id}`);
+      return Effect.void;
     });
 
   markUploaded = (id: string) =>
@@ -98,63 +125,73 @@ afterEach(async () => {
   }
 });
 
+type Respond = (url: string, init: RequestInit) => Promise<Response>;
+
+function start(store: FakeStore, respond: Respond) {
+  const db = new DB(new BptreeInmemDriver());
+  execSync(db.loadTables([attachmentsTable, changesTable]));
+  syncDispatch(db, seed({}));
+  const syncStatus = new State<SyncStatus>(initialSyncStatus);
+  const logger = makeTestLogger();
+  const scope = Scope.makeUnsafe();
+  scopes.push(scope);
+  const transfers = Effect.runPromise(
+    makeAttachmentTransfers({
+      dbName: "db",
+      spaceId: "space",
+      syncEnabled: true,
+      syncStatus,
+      store,
+    }).pipe(
+      Scope.provide(scope),
+      Effect.provide(
+        Layer.mergeAll(
+          Database.layer(new SubscribableDB(db)),
+          makeTestTabs().layer,
+          makeTestPage().layer,
+          testAuthSession(":", "token"),
+          testHttpClient(() => respond),
+          Digest.layerWebCrypto,
+          logger.layer,
+        ),
+      ),
+    ),
+  );
+  return { transfers, syncStatus, logger };
+}
+
+const contentUrl = (id: string) =>
+  `http://localhost/api/v1/spaces/space/attachments/${id}/content`;
+
 describe("attachment transfers", () => {
   it("downloads missing files, uploads pending ones, and drops deleted ones", async () => {
-    const db = new DB(new BptreeInmemDriver());
-    execSync(db.loadTables([attachmentsTable]));
-    syncDispatch(db, seed({}));
     const store = new FakeStore();
     Effect.runSync(
       Effect.all([
         store.put("local", new Blob(["local"]), { uploaded: false }),
         store.put("deleted", new Blob(["gone"]), { uploaded: true }),
         store.put("unsynced", new Blob(["new"]), { uploaded: false }),
+        // Added and removed again before it could upload.
+        store.put("removed", new Blob(["undone"]), { uploaded: false }),
       ]),
     );
 
-    const syncStatus = new State<SyncStatus>(initialSyncStatus);
     const uploads: RequestInit[] = [];
-    const logger = makeTestLogger();
-    const scope = Scope.makeUnsafe();
-    scopes.push(scope);
-
     const deleted = store.done("delete:deleted");
+    const removed = store.done("delete:removed");
     const downloaded = store.done("put:remote");
-    await Effect.runPromise(
-      makeAttachmentTransfers({
-        dbName: "db",
-        spaceId: "space",
-        syncEnabled: true,
-        syncStatus,
-        store,
-      }).pipe(
-        Scope.provide(scope),
-        Effect.provide(
-          Layer.mergeAll(
-            Database.layer(new SubscribableDB(db)),
-            makeTestTabs().layer,
-            makeTestPage().layer,
-            testAuthSession(":", "token"),
-            testHttpClient(() => async (url, init) => {
-              if (init.method === "PUT") {
-                uploads.push(init);
-                // The row reaches the server with the next sync.
-                return new Response(null, {
-                  status: uploads.length === 1 ? 404 : 204,
-                });
-              }
-              expect(url).toBe(
-                "http://localhost/api/v1/spaces/space/attachments/remote/content",
-              );
-              return new Response("remote", { status: 200 });
-            }),
-            Digest.layerWebCrypto,
-            logger.layer,
-          ),
-        ),
-      ),
-    );
-    await Promise.all([deleted, downloaded]);
+    const { syncStatus, logger } = start(store, async (url, init) => {
+      if (init.method === "PUT") {
+        uploads.push(init);
+        // The row reaches the server with the next sync.
+        return new Response(null, {
+          status: uploads.length === 1 ? 404 : 204,
+        });
+      }
+      expect(url).toBe(contentUrl("remote"));
+      return new Response("remote", { status: 200 });
+    });
+    await Promise.all([deleted, removed, downloaded]);
 
     expect(await store.blobs.get("remote")?.text()).toBe("remote");
     expect(store.pending.has("remote")).toBe(false);
@@ -171,5 +208,23 @@ describe("attachment transfers", () => {
       "Bearer token",
     );
     expect(logger.errors()).toEqual([]);
+  });
+
+  it("opens files from the server once the device is out of storage", async () => {
+    const store = new FakeStore();
+    store.full = true;
+
+    const { transfers } = start(store, async (url) =>
+      url === contentUrl("remote")
+        ? new Response("remote", { status: 200 })
+        : new Response(null, { status: 404 }),
+    );
+    const { status, getBlob } = await transfers;
+    await Effect.runPromise(status.waitFor(({ storageFull }) => storageFull));
+
+    const blob = await Effect.runPromise(getBlob("remote"));
+    expect(await blob?.text()).toBe("remote");
+    expect(blob?.type).toBe("text/plain");
+    expect(store.blobs.has("remote")).toBe(false);
   });
 });
