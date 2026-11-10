@@ -4,6 +4,7 @@ import type {
   Attachment,
   AttachmentParentType,
 } from "@will-be-done/slices/space";
+import { Cause, Effect, Option, Predicate } from "effect";
 import { toast } from "sonner";
 import { attachmentTransfersByDB } from "@/store/attachments/transfers";
 
@@ -34,15 +35,22 @@ export function useAttachmentUrl(id: string | undefined) {
     if (!transfers || !id) return;
     let cancelled = false;
     let url: string | undefined;
-    const load = async () => {
-      const blob = await transfers.getBlob(id);
-      if (cancelled || !blob) return;
-      if (url) URL.revokeObjectURL(url);
-      url = URL.createObjectURL(blob);
-      setState({ id, url });
-    };
-    void load();
-    const unsubscribe = transfers.subscribeBlob(id, () => void load());
+    const load = () =>
+      void Effect.runPromise(
+        transfers.getBlob(id).pipe(
+          Effect.map((blob) => {
+            if (cancelled || !blob) return;
+            if (url) URL.revokeObjectURL(url);
+            url = URL.createObjectURL(blob);
+            setState({ id, url });
+          }),
+          Effect.catchCause((cause) =>
+            Effect.logError(`Could not read attachment ${id}`, cause),
+          ),
+        ),
+      );
+    load();
+    const unsubscribe = transfers.subscribeBlob(id, load);
     return () => {
       cancelled = true;
       unsubscribe();
@@ -57,7 +65,13 @@ async function attachmentBlob(
   transfers: ReturnType<typeof useAttachmentTransfers>,
   attachment: Attachment,
 ) {
-  const blob = await transfers?.getBlob(attachment.id);
+  const blob = transfers
+    ? await Effect.runPromise(
+        transfers
+          .getBlob(attachment.id)
+          .pipe(Effect.orElseSucceed(() => undefined)),
+      )
+    : undefined;
   if (!blob) toast(`${attachment.name} is still downloading`);
   return blob;
 }
@@ -105,19 +119,27 @@ export function useAttachFiles(
   return useCallback(
     async (files: File[]) => {
       if (!transfers) return [];
-      const added: Attachment[] = [];
-      for (const file of files) {
-        try {
-          added.push(await transfers.add(file, { parentType, parentId }));
-        } catch (error) {
-          toast(
-            error instanceof Error
-              ? error.message
-              : `Couldn't attach ${file.name}`,
-          );
-        }
-      }
-      return added;
+      const added = await Effect.runPromise(
+        Effect.forEach(files, (file) =>
+          transfers.add(file, { parentType, parentId }).pipe(
+            Effect.tapCause((cause) =>
+              Effect.sync(() => {
+                const error = Option.getOrUndefined(
+                  Cause.findErrorOption(cause),
+                );
+                if (error?._tag === "AttachmentTooLargeError") {
+                  toast(error.message);
+                  return;
+                }
+                toast(`Couldn't attach ${file.name}`);
+                console.error(`Couldn't attach ${file.name}`, cause);
+              }),
+            ),
+            Effect.catchCause(() => Effect.succeed(undefined)),
+          ),
+        ),
+      );
+      return added.filter(Predicate.isNotUndefined);
     },
     [parentId, parentType, transfers],
   );

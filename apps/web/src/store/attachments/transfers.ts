@@ -25,9 +25,18 @@ import {
   type TabLeadership,
 } from "@/services/browser";
 import { State } from "@/utils/State";
-import { Database } from "../database";
+import { Database, type DatabaseError } from "../database";
 import type { SyncStatus } from "../syncStatus";
 import type { AttachmentBlobStore, BlobStoreError } from "./blobStore";
+
+// Asks the browser not to evict downloaded files under storage pressure.
+const persistStorage = Effect.suspend(() => {
+  const persist = globalThis.navigator?.storage?.persist;
+  if (!persist) return Effect.void;
+  return Effect.tryPromise(() => persist.call(navigator.storage)).pipe(
+    Effect.ignore,
+  );
+});
 
 export type TransferProgress = {
   files: number;
@@ -74,10 +83,24 @@ class AttachmentNetworkError extends Data.TaggedError(
   "AttachmentNetworkError",
 )<{ readonly cause: unknown }> {}
 
+export class AttachmentTooLargeError extends Data.TaggedError(
+  "AttachmentTooLargeError",
+)<{ readonly message: string }> {}
+
+export class AttachmentFileReadError extends Data.TaggedError(
+  "AttachmentFileReadError",
+)<{ readonly cause: unknown }> {}
+
 type TransferError =
   | AttachmentHttpError
   | AttachmentNetworkError
   | BlobStoreError;
+
+export type AttachmentAddError =
+  | AttachmentTooLargeError
+  | AttachmentFileReadError
+  | BlobStoreError
+  | DatabaseError;
 
 export type AttachmentTransferServices =
   | Database
@@ -99,18 +122,27 @@ const send = (request: HttpClientRequest.HttpClientRequest) =>
     return response;
   });
 
+// Its effects already carry the store's services.
 export type AttachmentTransfers = {
   readonly status: State<AttachmentTransferStatus>;
   readonly add: (
     file: File,
     parent?: { parentType: AttachmentParentType; parentId: string },
-  ) => Promise<Attachment>;
+  ) => Effect.Effect<Attachment, AttachmentAddError>;
   // Missing bytes jump to the front of the queue.
-  readonly getBlob: (id: string) => Promise<Blob | undefined>;
+  readonly getBlob: (
+    id: string,
+  ) => Effect.Effect<Blob | undefined, BlobStoreError>;
   // For exports: this device's copy, or the server's when it has none.
-  readonly readBlob: (attachment: Attachment) => Promise<Blob | undefined>;
+  readonly readBlob: (
+    attachment: Attachment,
+  ) => Effect.Effect<Blob | undefined, TransferError>;
   // For restores: the bytes upload again, since the server may not have them.
-  readonly importBlob: (id: string, blob: Blob) => Promise<void>;
+  readonly importBlob: (
+    id: string,
+    blob: Blob,
+  ) => Effect.Effect<void, BlobStoreError>;
+  // Synchronous, for React subscriptions.
   readonly subscribeBlob: (id: string, listener: () => void) => () => void;
 };
 
@@ -141,7 +173,7 @@ export const makeAttachmentTransfers = ({
 > =>
   Effect.gen(function* () {
     const services = yield* Effect.context<AttachmentTransferServices>();
-    const run = Effect.runPromiseWith(services);
+    const provide = Effect.provideContext(services);
     const database = yield* Database;
     const tabs = yield* TabChannels;
     const channel = yield* tabs.channel<Message>(`attachments-${dbName}`);
@@ -390,23 +422,22 @@ export const makeAttachmentTransfers = ({
 
     if (leadership) {
       channel.post({ type: "request-status" });
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          syncStatus.subscribe(({ phase }) => {
-            if (phase !== "synced") return;
-            awaitingSync.clear();
-            kick();
-          }),
-        ),
-        (unsubscribe) => Effect.sync(unsubscribe),
-      );
+      // Each completed sync may have delivered rows that uploads waited for.
+      yield* Effect.gen(function* () {
+        while (true) {
+          yield* syncStatus.waitFor(({ phase }) => phase === "synced");
+          awaitingSync.clear();
+          kick();
+          yield* syncStatus.waitFor(({ phase }) => phase !== "synced");
+        }
+      }).pipe(Effect.forkScoped({ startImmediately: true }));
       yield* (yield* PageEvents).listen("window", "online", () => {
         retryAt.clear();
         kick();
       });
       yield* Effect.gen(function* () {
         yield* leadership.awaitLeadership;
-        void navigator.storage?.persist?.();
+        yield* persistStorage;
         Queue.offerUnsafe(wakes, undefined);
         while (true) {
           yield* Queue.take(wakes);
@@ -431,16 +462,22 @@ export const makeAttachmentTransfers = ({
 
     return {
       status,
-      add: async (file, parent) => {
-        if (file.size > MAX_ATTACHMENT_SIZE) {
-          throw new Error(`${file.name} is larger than 50 MB`);
-        }
-        return run(
+      add: (file, parent) =>
+        provide(
           Effect.gen(function* () {
+            if (file.size > MAX_ATTACHMENT_SIZE) {
+              return yield* new AttachmentTooLargeError({
+                message: `${file.name} is larger than 50 MB`,
+              });
+            }
             const id = crypto.randomUUID();
+            const bytes = yield* Effect.tryPromise({
+              try: () => file.arrayBuffer(),
+              catch: (cause) => new AttachmentFileReadError({ cause }),
+            });
             const sha256 = yield* (yield* Digest.Digest).digestHex(
               Digest.sha256,
-              new Uint8Array(yield* Effect.promise(() => file.arrayBuffer())),
+              new Uint8Array(bytes),
             );
             yield* store.put(id, file, { uploaded: !syncEnabled });
             const { attachment } = yield* database.dispatch(
@@ -459,27 +496,27 @@ export const makeAttachmentTransfers = ({
             kick();
             return attachment;
           }),
-        );
-      },
+        ),
       getBlob: (id) =>
-        run(
-          store.get(id).pipe(
-            Effect.tap((blob) =>
-              Effect.sync(() => {
-                if (blob || !syncEnabled) return;
-                if (isLeader()) want(id);
-                else channel.post({ type: "want", id });
-              }),
-            ),
+        store.get(id).pipe(
+          Effect.tap((blob) =>
+            Effect.sync(() => {
+              if (blob || !syncEnabled) return;
+              if (isLeader()) want(id);
+              else channel.post({ type: "want", id });
+            }),
           ),
         ),
       readBlob: (attachment) =>
-        run(
+        provide(
           Effect.gen(function* () {
             const local = yield* store.get(attachment.id);
             if (local || !syncEnabled) return local;
             return yield* send(HttpClientRequest.get(url(attachment.id))).pipe(
               Effect.flatMap((response) => response.arrayBuffer),
+              Effect.catchTag("HttpClientError", (cause) =>
+                Effect.fail(new AttachmentNetworkError({ cause })),
+              ),
               Effect.map(
                 (bytes) => new Blob([bytes], { type: attachment.mimeType }),
               ),
@@ -490,11 +527,9 @@ export const makeAttachmentTransfers = ({
           }),
         ),
       importBlob: (id, blob) =>
-        run(
-          store
-            .put(id, blob, { uploaded: !syncEnabled })
-            .pipe(Effect.tap(() => Effect.sync(() => notify(id)))),
-        ),
+        store
+          .put(id, blob, { uploaded: !syncEnabled })
+          .pipe(Effect.tap(() => Effect.sync(() => notify(id)))),
       subscribeBlob: (id, listener) => {
         const set = listeners.get(id) ?? new Set();
         set.add(listener);

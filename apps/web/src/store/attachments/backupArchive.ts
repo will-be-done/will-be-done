@@ -1,69 +1,143 @@
 import { strFromU8, strToU8, unzip, zip, type Zippable } from "fflate";
-import type { SubscribableDB } from "@will-be-done/hyperdb";
-import { asyncDispatch } from "@will-be-done/hyperdb";
 import { getSpaceBackup, type Backup } from "@will-be-done/slices/space";
+import { Data, Effect } from "effect";
+import { Database, DatabaseError } from "../database";
 import { restoreSpaceBackup } from "../undo";
 import { attachmentTransfersByDB } from "./transfers";
 
 const BACKUP_FILE = "backup.json";
 const FILES_DIR = "attachments/";
+const FILE_CONCURRENCY = 4;
+
+// The file is not a backup this app wrote.
+export class InvalidBackupError extends Data.TaggedError("InvalidBackupError")<{
+  readonly cause: unknown;
+}> {}
+
+export class BackupArchiveError extends Data.TaggedError("BackupArchiveError")<{
+  readonly cause: unknown;
+}> {}
+
+const zipEntries = (entries: Zippable) =>
+  Effect.callback<Uint8Array, BackupArchiveError>((resume) => {
+    const terminate = zip(entries, (cause, data) =>
+      resume(
+        cause
+          ? Effect.fail(new BackupArchiveError({ cause }))
+          : Effect.succeed(data),
+      ),
+    );
+    return Effect.sync(terminate);
+  });
+
+const unzipEntries = (bytes: Uint8Array) =>
+  Effect.callback<Record<string, Uint8Array>, InvalidBackupError>((resume) => {
+    const terminate = unzip(bytes, (cause, entries) =>
+      resume(
+        cause
+          ? Effect.fail(new InvalidBackupError({ cause }))
+          : Effect.succeed(entries),
+      ),
+    );
+    return Effect.sync(terminate);
+  });
+
+const parseBackup = (json: string) =>
+  Effect.try({
+    try: () => JSON.parse(json) as Backup,
+    catch: (cause) => new InvalidBackupError({ cause }),
+  });
+
+const readFile = <A>(read: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: read,
+    catch: (cause) => new InvalidBackupError({ cause }),
+  });
 
 // A space backup is a zip of its data and its files, so restoring it on
-// another server or device needs nothing else.
-export async function createBackupArchive(db: SubscribableDB) {
-  const backup = (await asyncDispatch(db, getSpaceBackup({}))) as Backup;
-  const transfers = attachmentTransfersByDB.get(db);
+// another server or device needs nothing else. Files this device cannot read
+// are left out and listed as missing.
+export const createBackupArchive = Effect.gen(function* () {
+  const database = yield* Database;
+  const backup = (yield* database.dispatch(getSpaceBackup({}))) as Backup;
+  const transfers = attachmentTransfersByDB.get(database.hyperDB);
+  const files = yield* Effect.forEach(
+    backup.attachments ?? [],
+    (attachment) =>
+      Effect.gen(function* () {
+        const blob = transfers
+          ? yield* transfers.readBlob({ type: "attachment", ...attachment })
+          : undefined;
+        if (!blob) return { attachment, bytes: undefined };
+        const bytes = yield* Effect.promise(() => blob.arrayBuffer());
+        return { attachment, bytes: new Uint8Array(bytes) };
+      }).pipe(
+        Effect.catchCause((cause) =>
+          Effect.as(
+            Effect.logError(`Could not back up ${attachment.name}`, cause),
+            { attachment, bytes: undefined },
+          ),
+        ),
+      ),
+    { concurrency: FILE_CONCURRENCY },
+  );
   const entries: Zippable = {
     [BACKUP_FILE]: strToU8(JSON.stringify(backup, null, 2)),
   };
   const missing: string[] = [];
-  for (const attachment of backup.attachments ?? []) {
-    const blob = await transfers?.readBlob({
-      type: "attachment",
-      ...attachment,
-    });
-    if (!blob) {
-      missing.push(attachment.name);
+  for (const file of files) {
+    if (!file.bytes) {
+      missing.push(file.attachment.name);
       continue;
     }
     // Most files are compressed already.
-    entries[`${FILES_DIR}${attachment.id}`] = [
-      new Uint8Array(await blob.arrayBuffer()),
-      { level: 0 },
-    ];
+    entries[`${FILES_DIR}${file.attachment.id}`] = [file.bytes, { level: 0 }];
   }
-  const data = await new Promise<Uint8Array>((resolve, reject) =>
-    zip(entries, (error, result) => (error ? reject(error) : resolve(result))),
-  );
+  const data = yield* zipEntries(entries);
   return {
     archive: new Blob([data as BlobPart], { type: "application/zip" }),
     missing,
   };
-}
+});
 
-export async function restoreBackupFile(db: SubscribableDB, file: File) {
-  if (!file.name.endsWith(".zip")) {
-    await restoreSpaceBackup(db, JSON.parse(await file.text()) as Backup);
-    return;
-  }
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const entries = await new Promise<Record<string, Uint8Array>>(
-    (resolve, reject) =>
-      unzip(bytes, (error, result) =>
-        error ? reject(error) : resolve(result),
-      ),
-  );
-  const json = entries[BACKUP_FILE];
-  if (!json) throw new Error("The archive has no backup.json");
-  const backup = JSON.parse(strFromU8(json)) as Backup;
-  const transfers = attachmentTransfersByDB.get(db);
-  for (const attachment of backup.attachments ?? []) {
-    const content = entries[`${FILES_DIR}${attachment.id}`];
-    if (!content) continue;
-    await transfers?.importBlob(
-      attachment.id,
-      new Blob([content as BlobPart], { type: attachment.mimeType }),
-    );
-  }
-  await restoreSpaceBackup(db, backup);
-}
+// A .json file is an older backup without files.
+export const restoreBackupFile = (file: File) =>
+  Effect.gen(function* () {
+    const database = yield* Database;
+    let backup: Backup;
+    if (file.name.endsWith(".zip")) {
+      const bytes = yield* readFile(() => file.arrayBuffer());
+      const entries = yield* unzipEntries(new Uint8Array(bytes));
+      const json = entries[BACKUP_FILE];
+      if (!json) {
+        return yield* new InvalidBackupError({
+          cause: new Error(`The archive has no ${BACKUP_FILE}`),
+        });
+      }
+      backup = yield* parseBackup(strFromU8(json));
+      const transfers = attachmentTransfersByDB.get(database.hyperDB);
+      if (transfers) {
+        yield* Effect.forEach(
+          backup.attachments ?? [],
+          (attachment) => {
+            const content = entries[`${FILES_DIR}${attachment.id}`];
+            return content
+              ? transfers.importBlob(
+                  attachment.id,
+                  new Blob([content as BlobPart], {
+                    type: attachment.mimeType,
+                  }),
+                )
+              : Effect.void;
+          },
+          { concurrency: FILE_CONCURRENCY, discard: true },
+        );
+      }
+    } else {
+      backup = yield* parseBackup(yield* readFile(() => file.text()));
+    }
+    yield* Effect.tryPromise({
+      try: () => restoreSpaceBackup(database.hyperDB, backup),
+      catch: (cause) => new DatabaseError({ cause }),
+    });
+  });

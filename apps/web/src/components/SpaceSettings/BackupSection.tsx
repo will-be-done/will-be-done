@@ -3,10 +3,13 @@ import { useDB } from "@will-be-done/hyperdb/react";
 import { toast } from "sonner";
 import { Download, Upload } from "lucide-react";
 import { format } from "date-fns";
+import { Effect } from "effect";
 import {
   createBackupArchive,
+  InvalidBackupError,
   restoreBackupFile,
 } from "@/store/attachments/backupArchive";
+import { Database } from "@/store/database";
 import {
   ReplaceWarning,
   SettingsGroup,
@@ -22,12 +25,14 @@ export function BackupSection() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const runWithDB = <A, E>(effect: Effect.Effect<A, E, Database>) =>
+    Effect.runPromise(effect.pipe(Effect.provide(Database.layer(db))));
 
   const handleExport = () => {
     void (async () => {
       setExporting(true);
       try {
-        const { archive, missing } = await createBackupArchive(db);
+        const { archive, missing } = await runWithDB(createBackupArchive);
         const url = URL.createObjectURL(archive);
         const a = document.createElement("a");
         const dateStr = format(new Date(), "yyyy-MM-dd");
@@ -67,11 +72,14 @@ export function BackupSection() {
       setImportSuccess(false);
 
       try {
-        await restoreBackupFile(db, file);
+        await runWithDB(restoreBackupFile(file));
         setImportSuccess(true);
-      } catch {
+      } catch (error) {
+        console.error("Backup restore failed", error);
         setImportError(
-          "Failed to read the backup. Make sure it's a .zip or .json backup.",
+          error instanceof InvalidBackupError
+            ? "Failed to read the backup. Make sure it's a .zip or .json backup."
+            : "Couldn't restore the backup.",
         );
       } finally {
         setImporting(false);
