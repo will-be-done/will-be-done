@@ -32,6 +32,7 @@ import { updateNote } from "./notes";
 import { syncItemRichText } from "./richTextItems";
 import {
   copyItemAttachments,
+  moveItemAttachments,
   deleteItemAttachmentLinksAndOrphans,
   ensureInlineAttachmentLinks,
 } from "./attachments";
@@ -590,7 +591,7 @@ export const createTaskTemplateFromTask = action({
       toParentId: newId,
       toParentType: taskTemplateType,
     });
-    yield* copyItemAttachments(
+    yield* moveItemAttachments(
       { parentType: taskType, parentId: task.id },
       { parentType: taskTemplateType, parentId: newId },
     );

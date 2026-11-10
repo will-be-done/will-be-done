@@ -26,6 +26,12 @@ import {
 } from "@/components/Attachments/attachmentFiles";
 import { AttachmentPreview } from "@/components/Attachments/AttachmentPreview";
 import { pastedFiles } from "./filePaste";
+import {
+  pendingInserts,
+  pendingInsertsPlugin,
+  type PendingMeta,
+  type Range,
+} from "./pendingInserts";
 
 export type AttachFiles = (files: File[]) => Promise<Attachment[]>;
 
@@ -276,21 +282,45 @@ export const AttachmentNode = Node.create<AttachmentNodeOptions>({
 
 const insertAttachments = (
   view: EditorView,
+  key: symbol,
   attachments: Attachment[],
-  pos?: number,
 ) => {
+  // The file stays in the item's list when the editor closed meanwhile.
+  if (view.isDestroyed) return;
+  const range = pendingInserts.getState(view.state)?.get(key);
+  let tr = view.state.tr.setMeta(pendingInserts, {
+    remove: key,
+  } satisfies PendingMeta);
   const type = view.state.schema.nodes[ATTACHMENT_NODE];
-  if (!type || attachments.length === 0) return;
-  const nodes = attachments.map((attachment) =>
-    type.create({ src: attachmentUrl(attachment.id), alt: attachment.name }),
-  );
-  let tr = view.state.tr;
-  if (pos !== undefined) {
-    tr = tr.insert(Math.min(pos, tr.doc.content.size), nodes);
-  } else {
-    for (const node of nodes) tr = tr.replaceSelectionWith(node, false);
+  if (range && type && attachments.length > 0) {
+    tr = tr.replaceWith(
+      range.from,
+      range.to,
+      attachments.map((attachment) =>
+        type.create({
+          src: attachmentUrl(attachment.id),
+          alt: attachment.name,
+        }),
+      ),
+    );
+    tr = tr.scrollIntoView();
   }
-  view.dispatch(tr.scrollIntoView());
+  view.dispatch(tr);
+};
+
+const attachAt = (
+  view: EditorView,
+  attachFiles: AttachFiles,
+  files: File[],
+  range: Range,
+) => {
+  const key = Symbol();
+  view.dispatch(
+    view.state.tr.setMeta(pendingInserts, {
+      add: [key, range],
+    } satisfies PendingMeta),
+  );
+  void attachFiles(files).then((added) => insertAttachments(view, key, added));
 };
 
 const filesOf = (data: DataTransfer | null) =>
@@ -310,6 +340,7 @@ export const AttachmentPaste = Extension.create<{
     const { attachFiles } = this.options;
     if (!attachFiles) return [];
     return [
+      pendingInsertsPlugin,
       new Plugin({
         key: new PluginKey("attachmentPaste"),
         props: {
@@ -317,22 +348,18 @@ export const AttachmentPaste = Extension.create<{
             const files = pastedFiles(event.clipboardData);
             if (files.length === 0) return false;
             event.preventDefault();
-            void attachFiles(files).then((added) =>
-              insertAttachments(view, added),
-            );
+            const { from, to } = view.state.selection;
+            attachAt(view, attachFiles, files, { from, to });
             return true;
           },
           handleDrop: (view, event, _slice, moved) => {
             const files = filesOf(event.dataTransfer);
             if (moved || files.length === 0) return false;
             event.preventDefault();
-            const pos = view.posAtCoords({
-              left: event.clientX,
-              top: event.clientY,
-            })?.pos;
-            void attachFiles(files).then((added) =>
-              insertAttachments(view, added, pos),
-            );
+            const pos =
+              view.posAtCoords({ left: event.clientX, top: event.clientY })
+                ?.pos ?? view.state.selection.from;
+            attachAt(view, attachFiles, files, { from: pos, to: pos });
             return true;
           },
         },

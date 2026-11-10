@@ -562,33 +562,21 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
   const result = trashSnapshot.normalize(parsed);
   if (result.ok && !result.omitted) {
     if ("note" in result.value) {
-      const { note, mindmapNodes, itemAttachments } = result.value;
+      const { note, mindmapNodes } = result.value;
       if (
         note.id === id &&
-        (mindmapNodes ?? []).every((node) => node.noteId === id) &&
-        (itemAttachments ?? []).every(
-          (link) => link.parentType === noteType && link.parentId === id,
-        )
+        (mindmapNodes ?? []).every((node) => node.noteId === id)
       ) {
         return result.value;
       }
       console.warn(`Invalid trash snapshot omitted for note ${id}`);
       return undefined;
     }
-    const {
-      task,
-      checklistItems,
-      dailyEntry,
-      stashEntry,
-      mindmapNodes,
-      itemAttachments,
-    } = result.value;
+    const { task, checklistItems, dailyEntry, stashEntry, mindmapNodes } =
+      result.value;
     const belongsToTask =
       task.id === id &&
       (mindmapNodes ?? []).every((node) => node.taskId === id) &&
-      (itemAttachments ?? []).every(
-        (link) => link.parentType === taskType && link.parentId === id,
-      ) &&
       checklistItems.every(
         (item) => item.parentType === taskType && item.parentId === id,
       ) &&
@@ -873,10 +861,14 @@ const getNewModels = action({
         .map(({ id }) => id),
     );
     const trashedTasks: TrashedTaskRow[] = [];
+    const trashedParents: string[] = [];
     for (const row of backup.trashedTasks || []) {
       if (liveItemIds.has(row.id)) continue;
       const snapshot = parseTrashSnapshot(row);
       if (!snapshot) continue;
+      trashedParents.push(
+        `${"note" in snapshot ? noteType : taskType}:${row.id}`,
+      );
       if ("note" in snapshot) {
         trashedTasks.push({
           type: trashedTaskType,
@@ -927,8 +919,9 @@ const getNewModels = action({
       (attachment) => ({ type: attachmentType, ...attachment }),
     );
     const attachmentIds = new Set(attachments.map(({ id }) => id));
-    const parentIds = new Set(
-      models
+    // Items in the trash keep their links too.
+    const parentIds = new Set([
+      ...models
         .filter(
           (model) =>
             model.type === taskType ||
@@ -936,7 +929,8 @@ const getNewModels = action({
             model.type === taskTemplateType,
         )
         .map(({ type, id }) => `${type}:${id}`),
-    );
+      ...trashedParents,
+    ]);
     const itemAttachments: ItemAttachment[] = [];
     for (const link of backup.itemAttachments || []) {
       if (

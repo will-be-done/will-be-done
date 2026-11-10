@@ -299,7 +299,6 @@ describe("attachments", () => {
     addFile(db, "f1", "t1");
 
     syncDispatch(db, trashTasks({ ids: ["t1"] }));
-    expect(read(db).links).toEqual([]);
     expect(
       selectSync(db, {
         selector: attachmentUsages,
@@ -315,6 +314,28 @@ describe("attachments", () => {
     syncDispatch(db, trashTasks({ ids: ["t1"] }));
     syncDispatch(db, emptyTrash({}));
     expect(read(db).attachments).toEqual([]);
+    expect(read(db).links).toEqual([]);
+  });
+
+  test("deleting a file removes it from items in the trash", () => {
+    const db = createDB();
+    addFile(db, "f1", "t1");
+    syncDispatch(
+      db,
+      updateTask({
+        id: "t1",
+        task: { content: "Start ![x](wbd-attachment:f1) end" },
+      }),
+    );
+    syncDispatch(db, trashTasks({ ids: ["t1"] }));
+
+    syncDispatch(db, deleteAttachments({ ids: ["f1"] }));
+    syncDispatch(db, restoreTrashedTasks({ ids: ["t1"] }));
+
+    expect(read(db).tasks.find((t) => t.id === "t1")?.content).toBe(
+      "Start  end",
+    );
+    expect(listOf(db, "t1")).toEqual([]);
   });
 
   test("generated tasks list their template's files", () => {
@@ -348,7 +369,7 @@ describe("attachments", () => {
     expect(usages).toHaveLength(generated.length + 1);
   });
 
-  test("replicas generating the same task create the same links", () => {
+  test("replicas linking the same file to an item create the same link", () => {
     const generate = () => {
       const db = createDB();
       syncDispatch(db, insertTemplate({}));
@@ -367,6 +388,10 @@ describe("attachments", () => {
           templateId: "template",
           toDate: Date.UTC(2026, 0, 3),
         }),
+      );
+      syncDispatch(
+        db,
+        updateTask({ id: "t1", task: { content: "![f1](wbd-attachment:f1)" } }),
       );
       return read(db)
         .links.filter((link) => link.parentType === taskType)
@@ -408,12 +433,20 @@ describe("attachments", () => {
   test("backups carry files and their links", () => {
     const db = createDB();
     addFile(db, "f1", "t1");
+    addFile(db, "f2", "t2");
+    syncDispatch(db, trashTasks({ ids: ["t2"] }));
     const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
 
     const restored = createDB();
     syncDispatch(restored, loadSpaceBackup({ backup }));
+    syncDispatch(restored, restoreTrashedTasks({ ids: ["t2"] }));
 
-    expect(read(restored).attachments.map((a) => a.id)).toEqual(["f1"]);
+    expect(
+      read(restored)
+        .attachments.map((a) => a.id)
+        .sort(),
+    ).toEqual(["f1", "f2"]);
     expect(listOf(restored, "t1")).toEqual(["f1"]);
+    expect(listOf(restored, "t2")).toEqual(["f2"]);
   });
 });

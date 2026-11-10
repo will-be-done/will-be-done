@@ -36,10 +36,8 @@ import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
 import {
-  deleteItemAttachmentLinks,
   deleteItemAttachmentLinksAndOrphans,
   ensureInlineAttachmentLinks,
-  itemAttachmentLinksOfParents,
   moveItemAttachments,
 } from "./attachments";
 import {
@@ -217,7 +215,6 @@ export const deleteTasks = action({
       parentType: taskType,
     });
     yield* deleteRows(tasksTable, ids);
-    yield* deleteItemAttachmentLinks(taskType, ids);
     yield* deleteDailyEntriesByTaskIds({ taskIds: ids });
     yield* deleteStashEntriesByTaskIds({ taskIds: ids });
     yield* detachMindmapNodesOfItems({ ids });
@@ -245,10 +242,6 @@ export const trashTasks = action({
       (yield* stashEntriesByTaskIds({ taskIds })).map((e) => [e.taskId, e]),
     );
     const mindmapNodes = yield* mindmapNodesByTaskIds({ taskIds });
-    const attachmentLinks = yield* itemAttachmentLinksOfParents(
-      taskType,
-      taskIds,
-    );
     const trashedAt = Date.now();
 
     const trashed = tasks.map(
@@ -264,9 +257,6 @@ export const trashTasks = action({
           dailyEntry: dailyEntries.get(task.id) ?? null,
           stashEntry: stashEntries.get(task.id) ?? null,
           mindmapNodes: mindmapNodes.filter((node) => node.taskId === task.id),
-          itemAttachments: attachmentLinks.filter(
-            (link) => link.parentId === task.id,
-          ),
         } satisfies TrashSnapshot),
       }),
     );

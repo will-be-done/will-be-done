@@ -112,8 +112,13 @@ export const restoreBackupFile = (file: File) =>
             zip.get(`${FILES_DIR}${attachment.id}`, attachment.mimeType),
           );
           if (!content) return;
-          imported.push(attachment.id);
-          yield* transfers.importBlob(attachment.id, content);
+          if (yield* transfers.importBlob(attachment, content)) {
+            imported.push(attachment.id);
+          } else {
+            yield* Effect.logWarning(
+              `Skipped ${attachment.name}: damaged in the backup or already on this device`,
+            );
+          }
         }),
       { concurrency: IMPORT_CONCURRENCY, discard: true },
     ).pipe(

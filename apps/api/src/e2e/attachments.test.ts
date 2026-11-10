@@ -210,3 +210,19 @@ test("rejects unauthenticated uploads before reading their body", async () => {
   );
   expect(response.status).toBe(401);
 });
+
+test("rejects uploads over 50 MB with a documented error", async () => {
+  const { space, options } = await createTaskFixture(
+    await createAuthorization(),
+  );
+
+  const response = await createAttachment(
+    space.id,
+    new Blob([new Uint8Array(50 * 1024 * 1024 + 1)]),
+    { name: "big.bin", mimeType: "application/octet-stream" },
+    options,
+  );
+
+  expect(response.status).toBe(413);
+  expect(response.data).toMatchObject({ code: "BAD_REQUEST" });
+});

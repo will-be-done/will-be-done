@@ -144,10 +144,11 @@ export type AttachmentTransfers = {
     attachment: Attachment,
   ) => Effect.Effect<Blob | undefined, TransferError>;
   // For restores: the bytes upload again, since the server may not have them.
+  // Skips bytes that do not match the row or would replace a local copy.
   readonly importBlob: (
-    id: string,
+    attachment: Pick<Attachment, "id" | "size" | "sha256">,
     blob: Blob,
-  ) => Effect.Effect<void, BlobStoreError>;
+  ) => Effect.Effect<boolean, BlobStoreError | AttachmentFileReadError>;
   // Drops local bytes of files that have no row, after a failed restore.
   readonly discardUnlistedBlobs: (
     ids: readonly string[],
@@ -563,14 +564,24 @@ export const makeAttachmentTransfers = ({
             return yield* remoteBlob(attachment);
           }),
         ),
-      importBlob: (id, blob) =>
-        store.put(id, blob, { uploaded: !syncEnabled }).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              notify(id);
-              if (syncEnabled) requestDownload(id);
-            }),
-          ),
+      importBlob: ({ id, size, sha256 }, blob) =>
+        provide(
+          Effect.gen(function* () {
+            if (blob.size !== size || (yield* store.get(id))) return false;
+            const bytes = yield* Effect.tryPromise({
+              try: () => blob.arrayBuffer(),
+              catch: (cause) => new AttachmentFileReadError({ cause }),
+            });
+            const digest = yield* (yield* Digest.Digest).digestHex(
+              Digest.sha256,
+              new Uint8Array(bytes),
+            );
+            if (digest !== sha256) return false;
+            yield* store.put(id, blob, { uploaded: !syncEnabled });
+            notify(id);
+            if (syncEnabled) requestDownload(id);
+            return true;
+          }),
         ),
       discardUnlistedBlobs: (ids) =>
         Effect.gen(function* () {

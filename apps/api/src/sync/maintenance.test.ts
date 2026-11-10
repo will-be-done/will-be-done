@@ -13,6 +13,8 @@ import {
 import {
   TRASH_RETENTION_MS,
   trashedTasksTable,
+  itemAttachmentsTable,
+  attachmentsTable,
   trashedTaskType,
 } from "@will-be-done/slices/space";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
@@ -114,7 +116,15 @@ describe("sync v4 maintenance", () => {
 
   test("purges expired trash in space databases", async () => {
     const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
-    execSync(db.loadTables([...serverSyncTables, trashedTasksTable]));
+    // Purging deletes the links and files of the purged items.
+    execSync(
+      db.loadTables([
+        ...serverSyncTables,
+        trashedTasksTable,
+        itemAttachmentsTable,
+        attachmentsTable,
+      ]),
+    );
     const trashedAt = Date.now() - TRASH_RETENTION_MS;
     syncDispatch(
       db,

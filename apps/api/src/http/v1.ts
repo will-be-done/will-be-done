@@ -56,6 +56,17 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
         message: error.message,
       });
     }
+    // Raised by the body parser, before any route handler runs.
+    if (
+      error instanceof Error &&
+      "statusCode" in error &&
+      error.statusCode === 413
+    ) {
+      return reply.code(413).send({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    }
     throw error;
   });
 

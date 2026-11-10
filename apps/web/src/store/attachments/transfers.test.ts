@@ -227,4 +227,38 @@ describe("attachment transfers", () => {
     expect(blob?.type).toBe("text/plain");
     expect(store.blobs.has("remote")).toBe(false);
   });
+
+  it("imports only intact files it does not have", async () => {
+    const store = new FakeStore();
+    Effect.runSync(store.put("kept", new Blob(["kept"]), { uploaded: false }));
+    const { transfers } = start(
+      store,
+      async () => new Response(null, { status: 404 }),
+    );
+    const { importBlob } = await transfers;
+    const sha256 = async (text: string) =>
+      Array.from(
+        new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
+        ),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+    const restore = async (id: string, expected: string, content: string) =>
+      Effect.runPromise(
+        importBlob(
+          { id, size: expected.length, sha256: await sha256(expected) },
+          new Blob([content]),
+        ),
+      );
+
+    expect(await restore("kept", "kept", "evil")).toBe(false);
+    expect(await restore("damaged", "good", "bad!")).toBe(false);
+    expect(await restore("truncated", "good", "goo")).toBe(false);
+    expect(await restore("good", "good", "good")).toBe(true);
+
+    expect(await store.blobs.get("kept")?.text()).toBe("kept");
+    expect(store.blobs.has("damaged")).toBe(false);
+    expect(store.blobs.has("truncated")).toBe(false);
+    expect(await store.blobs.get("good")?.text()).toBe("good");
+  });
 });

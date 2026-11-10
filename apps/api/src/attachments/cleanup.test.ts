@@ -16,9 +16,11 @@ import {
   attachmentType,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
+import { dbsTable } from "../slices/tables";
 import {
   DELETED_ATTACHMENT_GRACE_MS,
   sweepSpaceAttachments,
+  sweepStoredAttachments,
   UNSYNCED_ATTACHMENT_GRACE_MS,
 } from "./cleanup";
 import { Effect } from "effect";
@@ -104,5 +106,32 @@ describe("attachment storage cleanup", () => {
       "unsynced-new",
       "unsynced-since-restore",
     ]);
+  });
+
+  test("leaves spaces this server has no database for", async () => {
+    root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
+    const storage = makeLocalAttachmentStorage(root);
+    await Effect.runPromise(
+      storage.put("unknown-space", "old", Buffer.from("old")),
+    );
+    const time = new Date(now - 365 * UNSYNCED_ATTACHMENT_GRACE_MS);
+    await utimes(path.join(root, "unknown-space", "old"), time, time);
+    const mainDB = new DB(new BptreeInmemDriver());
+    execSync(mainDB.loadTables([dbsTable]));
+
+    await Effect.runPromise(
+      // Opening a missing database yields an empty one.
+      sweepStoredAttachments(mainDB, async () => {
+        const db = new DB(new BptreeInmemDriver());
+        execSync(
+          db.loadTables([...registeredSpaceSyncableTables, changesTable]),
+        );
+        return db;
+      }).pipe(Effect.provideService(AttachmentStorage, storage)),
+    );
+
+    expect(await Effect.runPromise(storage.list("unknown-space"))).toHaveLength(
+      1,
+    );
   });
 });

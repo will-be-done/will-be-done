@@ -31,9 +31,14 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
   then deletes the file if nothing else lists it. **Deleting a file** removes
   every link and inline reference. Inline references are deleted from the Yjs
   doc directly, not by rewriting text, so concurrent typing survives.
-- **Trash.** Trashing an item moves its links into the trash snapshot and leaves
-  the file. A file listed only by trashed items stays until the trash entry is
-  purged, so restoring brings it back. Purging deletes files left unlisted.
+- **Trash.** A trashed item keeps its links, so finding where a file is used
+  or whether it is orphaned is an indexed read, never a scan of trash
+  snapshots. A link whose item is missing belongs to a trashed item. Purging
+  deletes the links and files left unlisted. Deleting a file also strips its
+  references from trash snapshots, or restoring would bring them back.
+- **Link IDs** derive from the item and the file, so replicas that link the
+  same file to the same item (inline references, generated tasks) converge on
+  one row.
 - **Conversions** replace an item's ID, so they move links before deleting the
   old row; deleting first would make the file look unused.
 
@@ -52,6 +57,8 @@ clients resend those rows as they reconnect
 resend bytes they have already uploaded, so a shorter grace period would lose
 those files for good. Attachment storage must also be at least as recent as the
 database: restoring storage to an older state loses files the same way.
+Spaces without a database record in the main DB are skipped: opening a missing
+space database creates an empty one, against which every file looks unknown.
 
 Local storage is per machine and must be on a persistent volume. Several server
 instances, or machines with ephemeral disks, need S3 storage.
@@ -85,7 +92,9 @@ list before opening a blob URL, which would otherwise run on the app's origin.
 ## Backups
 
 A space export is a zip of `backup.json` and `attachments/<id>`. Restoring it
-re-uploads the bytes, since the target server may not have them. The archive
+re-uploads the bytes, since the target server may not have them. A file is
+imported only when its size and SHA-256 match its row and the device has no
+copy yet, so a damaged archive cannot replace good bytes. The archive
 is written one file at a time and read through its central directory
 (`zipArchive.ts`), so neither direction holds the whole space in memory. It has
 no Zip64 support, which caps an export at 4 GB. Scheduled

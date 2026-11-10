@@ -61,8 +61,13 @@ export const makeLocalAttachmentStorage = (root: string): AttachmentStore => {
         await mkdir(path.dirname(target), { recursive: true });
         // Readers never see a partially written file.
         const temp = `${target}.${crypto.randomUUID()}.tmp`;
-        await writeFile(temp, body);
-        await rename(temp, target);
+        try {
+          await writeFile(temp, body);
+          await rename(temp, target);
+        } catch (error) {
+          await rm(temp, { force: true });
+          throw error;
+        }
       }),
     get: (spaceId, id) =>
       attempt("get", async () => {

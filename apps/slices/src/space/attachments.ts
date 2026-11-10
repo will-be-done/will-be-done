@@ -193,25 +193,6 @@ function* linksOfAttachments(attachmentIds: readonly string[]) {
   );
 }
 
-// Trash is bounded by its retention period, so scanning it stays small.
-function* trashedAttachmentParents() {
-  const parents = new Map<string, { parentType: string; parentId: string }[]>();
-  for (const row of yield* selectFrom(trashedTasksTable, "byIds")) {
-    let snapshot: TrashSnapshot;
-    try {
-      snapshot = JSON.parse(row.snapshot) as TrashSnapshot;
-    } catch {
-      continue;
-    }
-    for (const link of snapshot.itemAttachments ?? []) {
-      const list = parents.get(link.attachmentId) ?? [];
-      list.push({ parentType: link.parentType, parentId: link.parentId });
-      parents.set(link.attachmentId, list);
-    }
-  }
-  return parents;
-}
-
 export type AttachmentUsage = {
   parentType: AttachmentParentType;
   parentId: string;
@@ -219,7 +200,8 @@ export type AttachmentUsage = {
   trashed: boolean;
 };
 
-// Where each attachment on a page is listed, live items first.
+// Where each attachment on a page is listed. A link whose item is gone
+// belongs to an item in the trash: links stay until the trash is emptied.
 export const attachmentUsages = selector({
   name: "attachmentUsages",
   args: { attachmentIds: v.array(v.string()) },
@@ -246,26 +228,19 @@ export const attachmentUsages = selector({
       for (const row of rows) titles.set(`${type}:${row.id}`, row.title);
     }
 
-    const trashed = yield* trashedAttachmentParents();
     const result: Record<string, AttachmentUsage[]> = {};
     for (const id of attachmentIds) result[id] = [];
     for (const link of links) {
+      const title = titles.get(`${link.parentType}:${link.parentId}`);
       result[link.attachmentId]?.push({
         parentType: link.parentType,
         parentId: link.parentId,
-        title: titles.get(`${link.parentType}:${link.parentId}`) ?? "",
-        trashed: false,
+        title: title ?? "",
+        trashed: title === undefined,
       });
     }
-    for (const id of attachmentIds) {
-      for (const parent of trashed.get(id) ?? []) {
-        result[id]!.push({
-          parentType: parent.parentType as AttachmentParentType,
-          parentId: parent.parentId,
-          title: "",
-          trashed: true,
-        });
-      }
+    for (const usages of Object.values(result)) {
+      usages.sort((a, b) => Number(a.trashed) - Number(b.trashed));
     }
     return result;
   },
@@ -283,6 +258,18 @@ function* parentExists(parentType: AttachmentParentType, parentId: string) {
     .first());
 }
 
+// One link per item and file, so replicas that link the same file to the same
+// item create the same row instead of listing the file twice.
+function* withLinkIds<T extends Omit<ItemAttachment, "id">>(links: T[]) {
+  const ids = yield* genUUIDV5Many(
+    itemAttachmentType,
+    links.map(
+      (link) => `${link.parentType}:${link.parentId}:${link.attachmentId}`,
+    ),
+  );
+  return links.map((link, index) => ({ ...link, id: ids[index]! }));
+}
+
 function* linkAttachments(
   parentType: AttachmentParentType,
   parentId: string,
@@ -296,14 +283,13 @@ function* linkAttachments(
   const existing = new Set(
     (yield* attachmentsByIds({ ids: missing })).map((file) => file.id),
   );
-  const created: ItemAttachment[] = [];
+  const unlinked: Omit<ItemAttachment, "id">[] = [];
   let orderToken = links[links.length - 1]?.orderToken ?? null;
   for (const attachmentId of missing) {
     if (!existing.has(attachmentId)) continue;
     orderToken = generateJitteredKeyBetween(orderToken, null);
-    created.push({
+    unlinked.push({
       type: itemAttachmentType,
-      id: uuidv7(),
       attachmentId,
       parentType,
       parentId,
@@ -311,7 +297,8 @@ function* linkAttachments(
       createdAt: Date.now(),
     });
   }
-  if (created.length > 0) yield* insert(itemAttachmentsTable, created);
+  const created = yield* withLinkIds(unlinked);
+  if (created.length > 0) yield* upsert(itemAttachmentsTable, created);
   return created;
 }
 
@@ -440,15 +427,7 @@ function* removeInlineReferences(
   parentId: string,
   attachmentIds: readonly string[],
 ) {
-  if (parentType === noteType) {
-    const next = withoutInlineReferences(
-      yield* selectFrom(notesTable, "byId")
-        .where((q) => q.eq("id", parentId))
-        .first(),
-      attachmentIds,
-    );
-    if (next) yield* upsert(notesTable, [next]);
-  } else if (parentType === taskTemplateType) {
+  if (parentType === taskTemplateType) {
     const next = withoutInlineReferences(
       yield* selectFrom(taskTemplatesTable, "byId")
         .where((q) => q.eq("id", parentId))
@@ -456,29 +435,57 @@ function* removeInlineReferences(
       attachmentIds,
     );
     if (next) yield* upsert(taskTemplatesTable, [next]);
+    return;
+  }
+  if (parentType === noteType) {
+    const note = yield* selectFrom(notesTable, "byId")
+      .where((q) => q.eq("id", parentId))
+      .first();
+    if (note) {
+      const next = withoutInlineReferences(note, attachmentIds);
+      if (next) yield* upsert(notesTable, [next]);
+      return;
+    }
   } else {
-    const next = withoutInlineReferences(
-      yield* selectFrom(tasksTable, "byId")
-        .where((q) => q.eq("id", parentId))
-        .first(),
-      attachmentIds,
-    );
-    if (next) yield* upsert(tasksTable, [next]);
+    const task = yield* selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", parentId))
+      .first();
+    if (task) {
+      const next = withoutInlineReferences(task, attachmentIds);
+      if (next) yield* upsert(tasksTable, [next]);
+      return;
+    }
+  }
+
+  // Restoring the item from the trash must not bring the references back.
+  const trashed = yield* selectFrom(trashedTasksTable, "byId")
+    .where((q) => q.eq("id", parentId))
+    .first();
+  if (!trashed) return;
+  const snapshot = JSON.parse(trashed.snapshot) as TrashSnapshot;
+  let next: TrashSnapshot | undefined;
+  if ("note" in snapshot) {
+    const note = withoutInlineReferences(snapshot.note, attachmentIds);
+    if (note) next = { ...snapshot, note };
+  } else {
+    const task = withoutInlineReferences(snapshot.task, attachmentIds);
+    if (task) next = { ...snapshot, task };
+  }
+  if (next) {
+    yield* upsert(trashedTasksTable, [
+      { ...trashed, snapshot: JSON.stringify(next) },
+    ]);
   }
 }
 
-// Deletes files nothing lists any more. A file listed by an item in the trash
-// stays, so restoring the item brings it back.
+// Deletes files nothing lists any more. Items in the trash still list theirs.
 function* deleteOrphanedAttachments(attachmentIds: readonly string[]) {
   const ids = [...new Set(attachmentIds)];
   if (ids.length === 0) return;
   const linked = new Set(
     (yield* linksOfAttachments(ids)).map((link) => link.attachmentId),
   );
-  const unlinked = ids.filter((id) => !linked.has(id));
-  if (unlinked.length === 0) return;
-  const trashed = yield* trashedAttachmentParents();
-  const orphans = unlinked.filter((id) => !trashed.has(id));
+  const orphans = ids.filter((id) => !linked.has(id));
   if (orphans.length > 0) yield* deleteRows(attachmentsTable, orphans);
 }
 
@@ -531,33 +538,31 @@ export function* moveItemAttachments(
 ) {
   const links = yield* itemAttachmentLinks(from);
   if (links.length === 0) return;
+  yield* deleteRows(
+    itemAttachmentsTable,
+    links.map((link) => link.id),
+  );
   yield* upsert(
     itemAttachmentsTable,
-    links.map((link) => ({ ...link, ...to })),
+    yield* withLinkIds(
+      links.map(({ id: _id, ...link }) => ({ ...link, ...to })),
+    ),
   );
 }
 
-// Generated tasks list the same files as their template. Replicas that
-// generate the same task must create the same links, so the IDs are derived.
+// Generated tasks list the same files as their template.
 export function* copyItemAttachments(
   from: { parentType: AttachmentParentType; parentId: string },
   to: { parentType: AttachmentParentType; parentId: string },
 ) {
   const links = yield* itemAttachmentLinks(from);
   if (links.length === 0) return;
-  const ids = yield* genUUIDV5Many(
-    itemAttachmentType,
-    links.map((link) => `${to.parentType}:${to.parentId}:${link.attachmentId}`),
-  );
   const now = Date.now();
   yield* upsert(
     itemAttachmentsTable,
-    links.map((link, index) => ({
-      ...link,
-      ...to,
-      id: ids[index]!,
-      createdAt: now,
-    })),
+    yield* withLinkIds(
+      links.map(({ id: _id, ...link }) => ({ ...link, ...to, createdAt: now })),
+    ),
   );
 }
 
@@ -585,14 +590,14 @@ export function* copyAttachmentsToItemCopies(
     pairs.map((pair) => [`${pair.parentType}:${pair.originalId}`, pair.copyId]),
   );
   const now = Date.now();
-  yield* insert(
+  yield* upsert(
     itemAttachmentsTable,
-    links.flatMap((link) => {
-      const parentId = copyIds.get(`${link.parentType}:${link.parentId}`);
-      return parentId
-        ? [{ ...link, id: uuidv7(), parentId, createdAt: now }]
-        : [];
-    }),
+    yield* withLinkIds(
+      links.flatMap(({ id: _id, ...link }) => {
+        const parentId = copyIds.get(`${link.parentType}:${link.parentId}`);
+        return parentId ? [{ ...link, parentId, createdAt: now }] : [];
+      }),
+    ),
   );
 }
 
@@ -606,52 +611,15 @@ export function* itemAttachmentLinksOfParents(
   );
 }
 
-// Returns the removed links so a trash snapshot can keep them.
-export function* deleteItemAttachmentLinks(
-  parentType: AttachmentParentType,
-  parentIds: readonly string[],
-) {
-  const links = yield* itemAttachmentLinksOfParents(parentType, parentIds);
-  if (links.length > 0) {
-    yield* deleteRows(
-      itemAttachmentsTable,
-      links.map((link) => link.id),
-    );
-  }
-  return links;
-}
-
 export function* deleteItemAttachmentLinksAndOrphans(
   parentType: AttachmentParentType,
   parentIds: readonly string[],
 ) {
-  const links = yield* deleteItemAttachmentLinks(parentType, parentIds);
-  yield* deleteOrphanedAttachments(links.map((link) => link.attachmentId));
-}
-
-export function* restoreItemAttachmentLinks(links: readonly ItemAttachment[]) {
+  const links = yield* itemAttachmentLinksOfParents(parentType, parentIds);
   if (links.length === 0) return;
-  const existing = new Set(
-    (yield* attachmentsByIds({
-      ids: [...new Set(links.map((link) => link.attachmentId))],
-    })).map((file) => file.id),
+  yield* deleteRows(
+    itemAttachmentsTable,
+    links.map((link) => link.id),
   );
-  const restored = links.filter((link) => existing.has(link.attachmentId));
-  if (restored.length > 0) yield* insert(itemAttachmentsTable, restored);
-}
-
-// Called after trash rows are purged with the snapshots they held.
-export function* deleteAttachmentsOfPurgedSnapshots(
-  snapshots: readonly string[],
-) {
-  const ids: string[] = [];
-  for (const raw of snapshots) {
-    try {
-      const snapshot = JSON.parse(raw) as TrashSnapshot;
-      ids.push(...(snapshot.itemAttachments ?? []).map((l) => l.attachmentId));
-    } catch {
-      continue;
-    }
-  }
-  yield* deleteOrphanedAttachments(ids);
+  yield* deleteOrphanedAttachments(links.map((link) => link.attachmentId));
 }

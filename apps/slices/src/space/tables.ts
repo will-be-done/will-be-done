@@ -423,14 +423,11 @@ export const taskTrashSnapshot = v.object({
   stashEntry: v.union(stashEntriesTable.v(), v.null()),
   // Absent in snapshots taken before mindmaps existed.
   mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
-  // Absent in snapshots taken before attachments existed.
-  itemAttachments: v.optional(v.array(itemAttachmentsTable.v())),
 });
 export type TaskTrashSnapshot = Infer<typeof taskTrashSnapshot>;
 export const noteTrashSnapshot = v.object({
   note: notesTable.v(),
   mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
-  itemAttachments: v.optional(v.array(itemAttachmentsTable.v())),
 });
 export type NoteTrashSnapshot = Infer<typeof noteTrashSnapshot>;
 export const trashSnapshot = v.union(taskTrashSnapshot, noteTrashSnapshot);

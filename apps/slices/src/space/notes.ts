@@ -23,9 +23,7 @@ import {
 } from "./mindmaps";
 import { syncItemRichText } from "./richTextItems";
 import {
-  deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
-  itemAttachmentLinksOfParents,
   moveItemAttachments,
 } from "./attachments";
 import { generateKeyPositionedBetween } from "./utils";
@@ -120,7 +118,6 @@ export const deleteNotes = action({
   args: { ids: v.array(v.string()) },
   handler: function* deleteNotes({ ids }) {
     yield* deleteRows(notesTable, ids);
-    yield* deleteItemAttachmentLinks(noteType, ids);
     yield* detachMindmapNodesOfItems({ ids });
   },
 });
@@ -137,10 +134,6 @@ export const trashNotes = action({
 
     const noteIds = notes.map((note) => note.id);
     const mindmapNodes = yield* mindmapNodesByNoteIds({ noteIds });
-    const attachmentLinks = yield* itemAttachmentLinksOfParents(
-      noteType,
-      noteIds,
-    );
     const trashedAt = Date.now();
     const trashed = notes.map(
       (note): TrashedTaskRow => ({
@@ -150,9 +143,6 @@ export const trashNotes = action({
         snapshot: JSON.stringify({
           note,
           mindmapNodes: mindmapNodes.filter((node) => node.noteId === note.id),
-          itemAttachments: attachmentLinks.filter(
-            (link) => link.parentId === note.id,
-          ),
         } satisfies TrashSnapshot),
       }),
     );

@@ -2,7 +2,8 @@ import { selectAsync, type HyperDB } from "@will-be-done/hyperdb";
 import { attachmentRowStates } from "@will-be-done/slices/space";
 import { Clock, Effect, Schedule } from "effect";
 import { spaceDBConfig } from "../db/configs";
-import { getHyperDB } from "../db/db";
+import { getHyperDB, getMainHyperDB } from "../db/db";
+import { getDbById } from "../slices/dbSlice";
 import { AttachmentStorage } from "./storage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -48,34 +49,47 @@ export const sweepSpaceAttachments = (
     return removed;
   });
 
-// One space failing does not stop the others.
-const sweepAttachments = Effect.gen(function* () {
-  const now = yield* Clock.currentTimeMillis;
-  for (const spaceId of yield* (yield* AttachmentStorage).listSpaces) {
-    yield* Effect.gen(function* () {
-      const { db } = yield* Effect.promise(() =>
-        getHyperDB(spaceDBConfig(spaceId)),
-      );
-      const removed = yield* sweepSpaceAttachments(spaceId, db, now);
-      if (removed.length > 0) {
-        yield* Effect.log(
-          `[Attachments] Removed ${removed.length} unused files from space ${spaceId}`,
+// One space failing does not stop the others. Opening a database creates it,
+// and against an empty one every file looks unknown, so only spaces this
+// server knows are swept.
+export const sweepStoredAttachments = (
+  mainDB: HyperDB,
+  openSpaceDB = async (spaceId: string): Promise<HyperDB> =>
+    (await getHyperDB(spaceDBConfig(spaceId))).db,
+) =>
+  Effect.gen(function* () {
+    const now = yield* Clock.currentTimeMillis;
+    for (const spaceId of yield* (yield* AttachmentStorage).listSpaces) {
+      yield* Effect.gen(function* () {
+        const known = yield* Effect.promise(() =>
+          selectAsync(mainDB, {
+            selector: getDbById,
+            args: { id: spaceId, type: "space" },
+          }),
         );
-      }
-    }).pipe(
-      Effect.catchCause((cause) =>
-        Effect.logError(
-          `[Attachments] Cleanup failed for space ${spaceId}`,
-          cause,
+        if (!known) return;
+        const db = yield* Effect.promise(() => openSpaceDB(spaceId));
+        const removed = yield* sweepSpaceAttachments(spaceId, db, now);
+        if (removed.length > 0) {
+          yield* Effect.log(
+            `[Attachments] Removed ${removed.length} unused files from space ${spaceId}`,
+          );
+        }
+      }).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logError(
+            `[Attachments] Cleanup failed for space ${spaceId}`,
+            cause,
+          ),
         ),
-      ),
-    );
-  }
-});
+      );
+    }
+  });
 
 // Daily while its scope is open. The first run waits a random part of an
 // hour, so restarts of several instances spread out.
-export const attachmentCleanup = sweepAttachments.pipe(
+export const attachmentCleanup = Effect.promise(() => getMainHyperDB()).pipe(
+  Effect.flatMap((mainDB) => sweepStoredAttachments(mainDB)),
   Effect.catchCause((cause) =>
     Effect.logError("[Attachments] Cleanup failed", cause),
   ),

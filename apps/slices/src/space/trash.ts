@@ -3,18 +3,17 @@ import { action, selector } from "../builders";
 import { inboxProjectSectionId, projectSectionById } from "./projectSections";
 import { taskTemplateById } from "./taskTemplates";
 import { mindmapById } from "./mindmaps";
-import {
-  deleteAttachmentsOfPurgedSnapshots,
-  restoreItemAttachmentLinks,
-} from "./attachments";
+import { deleteItemAttachmentLinksAndOrphans } from "./attachments";
 import {
   checklistItemsTable,
   dailyEntriesTable,
   type MindmapNode,
   mindmapNodesTable,
   notesTable,
+  noteType,
   stashEntriesTable,
   tasksTable,
+  taskType,
   trashedTasksTable,
   type TrashedTask,
   type TrashedTaskRow,
@@ -71,7 +70,6 @@ export const restoreTrashedTasks = action({
           },
         ]);
         yield* restoreMindmapNodes(row.mindmapNodes ?? []);
-        yield* restoreItemAttachmentLinks(row.itemAttachments ?? []);
         continue;
       }
 
@@ -81,7 +79,6 @@ export const restoreTrashedTasks = action({
         dailyEntry,
         stashEntry,
         mindmapNodes = [],
-        itemAttachments = [],
       } = row;
       const section = yield* projectSectionById({ id: task.projectSectionId });
       const template = task.templateId
@@ -102,7 +99,6 @@ export const restoreTrashedTasks = action({
       if (dailyEntry) yield* insert(dailyEntriesTable, [dailyEntry]);
       if (stashEntry) yield* insert(stashEntriesTable, [stashEntry]);
       yield* restoreMindmapNodes(mindmapNodes);
-      yield* restoreItemAttachmentLinks(itemAttachments);
     }
 
     yield* deleteRows(
@@ -112,13 +108,13 @@ export const restoreTrashedTasks = action({
   },
 });
 
+// Trashed items keep their file links until they are purged.
 function* purgeTrashRows(rows: TrashedTaskRow[]) {
   if (rows.length === 0) return;
-  yield* deleteRows(
-    trashedTasksTable,
-    rows.map((row) => row.id),
-  );
-  yield* deleteAttachmentsOfPurgedSnapshots(rows.map((row) => row.snapshot));
+  const ids = rows.map((row) => row.id);
+  yield* deleteRows(trashedTasksTable, ids);
+  yield* deleteItemAttachmentLinksAndOrphans(taskType, ids);
+  yield* deleteItemAttachmentLinksAndOrphans(noteType, ids);
 }
 
 export const deleteTrashedTasks = action({

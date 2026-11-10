@@ -359,15 +359,28 @@ export class BackupManager {
       await this.s3Client.listFiles(ATTACHMENT_BACKUP_PREFIX),
     );
     let copied = 0;
+    let failed = 0;
     for (const spaceId of await Effect.runPromise(storage.listSpaces)) {
       for (const file of await Effect.runPromise(storage.list(spaceId))) {
         const key = `${ATTACHMENT_BACKUP_PREFIX}${spaceId}/${file.id}`;
         if (mirrored.has(key)) continue;
-        await this.s3Client.uploadFile(path.join(root, spaceId, file.id), key);
-        copied++;
+        // The next run retries a file that failed; cleanup may also have
+        // deleted it since it was listed.
+        try {
+          await this.s3Client.uploadFile(
+            path.join(root, spaceId, file.id),
+            key,
+          );
+          copied++;
+        } catch (error) {
+          failed++;
+          console.error(`[Backup] Failed to copy attachment ${key}:`, error);
+        }
       }
     }
-    console.log(`[Backup] Copied ${copied} new attachment files`);
+    console.log(
+      `[Backup] Copied ${copied} new attachment files${failed > 0 ? `, ${failed} failed` : ""}`,
+    );
   }
 
   private getAllDatabaseFiles(): string[] {
