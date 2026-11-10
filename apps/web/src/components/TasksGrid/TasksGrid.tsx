@@ -176,7 +176,7 @@ export const TasksColumn = ({
       data-column-model-type={columnModelType}
       ref={columnRef}
       className={cn(
-        "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group",
+        "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group group/column",
         isOver &&
           !isHidden &&
           !dropEdge &&
@@ -221,7 +221,7 @@ export const TasksColumn = ({
             "group-focus-visible:ring-2 group-focus-visible:ring-accent",
             {
               "ring-2 ring-accent":
-                (isOver || isPlaceholderFocused) && isHidden,
+                (isOver && isHidden) || isPlaceholderFocused,
             },
           )}
           onClick={onHideClick}
@@ -252,7 +252,7 @@ export const TasksColumn = ({
           onBlur={() => setIsPlaceholderFocused(false)}
           onKeyDown={(e) => {
             const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
-            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+            if (noModifiers && ["KeyO", "KeyA", "KeyI"].includes(e.code)) {
               e.preventDefault();
               onAddClick();
             }

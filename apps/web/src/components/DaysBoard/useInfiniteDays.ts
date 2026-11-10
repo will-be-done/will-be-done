@@ -186,9 +186,10 @@ class InfiniteDays {
       to === this.rendered.to &&
       base === this.rendered.base
     ) {
-      return;
+      return false;
     }
     this.callbacks.onRenderedChange({ from, to, base });
+    return true;
   }
 
   private jump(day: number) {
@@ -197,13 +198,19 @@ class InfiniteDays {
     const visible = Math.ceil(
       (this.scroller?.clientWidth ?? window.innerWidth) / DAY_WIDTH,
     );
-    this.setRendered(day - this.overscan, day + visible + this.overscan);
+    // Already rendered: no commit follows to align it.
+    if (!this.setRendered(day - this.overscan, day + visible + this.overscan)) {
+      this.committed(this.rendered);
+    }
   }
 
   private update = () => {
     const scroller = this.scroller;
     const row = this.row;
-    if (!scroller || !row || this.alignDay !== null) return;
+    // With no width no day is visible, which would read as scrolled past them.
+    if (!scroller || !row || this.alignDay !== null || !scroller.clientWidth) {
+      return;
+    }
 
     // Days may have resized since the last layout check; re-anchoring before
     // compensating would lose that shift.

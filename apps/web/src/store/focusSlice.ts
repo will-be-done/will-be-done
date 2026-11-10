@@ -153,9 +153,10 @@ export const scrollFocusedIntoView = (el: HTMLElement) => {
   el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
   // Side by side, a column scrolls in whole, so its header shows with the
   // item. This later scroll takes over the horizontal one above.
-  el.closest(
-    '[data-focus-region-direction="row"] [data-focus-column]',
-  )?.scrollIntoView({
+  const column = el.closest("[data-focus-column]");
+  const region = column?.closest("[data-focus-region-direction]");
+  if (region?.getAttribute("data-focus-region-direction") !== "row") return;
+  column?.scrollIntoView({
     behavior: "smooth",
     block: "nearest",
     inline: "nearest",

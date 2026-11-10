@@ -79,7 +79,8 @@ export const InfiniteScrollbar = ({
 
   const hold = () => {
     const drag = dragRef.current;
-    if (!drag || drag.overshoot === 0) {
+    // Unmounted mid-hold: no pointer event will end it.
+    if (!drag || drag.overshoot === 0 || !trackRef.current) {
       if (drag) drag.frame = null;
       return;
     }
@@ -161,8 +162,7 @@ export const InfiniteScrollbar = ({
         aria-valuenow={50}
         onPointerDown={handleThumbPointerDown}
         onPointerMove={handleThumbPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
         className={cn(
           "absolute inset-y-0 rounded-full border-2 border-transparent bg-clip-padding",
           offset === null

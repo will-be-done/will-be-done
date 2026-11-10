@@ -6,13 +6,11 @@ import {
   startOfDay,
   startOfWeek,
 } from "date-fns";
-import { preloadSelectorAsync } from "@will-be-done/hyperdb";
 import {
   useAsyncDispatch,
-  useDB,
+  useAsyncSelector,
   useSelectAsync,
 } from "@will-be-done/hyperdb/react";
-import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   createManyDailyListsIfNotPresent,
   createTaskInList,
@@ -136,15 +134,16 @@ const ColumnView = memo(function ColumnView({
   const currentDate = useCurrentDMY();
   const isToday = currentDate === dailyList.date;
 
-  const { data: itemsForDisplay = [] } = useAsyncSelector({
+  const { data: itemsForDisplay = [], isPending } = useAsyncSelector({
     selector: dailyEntryChildrenForDisplay,
     args: { dailyListId: dailyList.id },
   });
 
-  const { data: doneItemsForDisplay = [] } = useAsyncSelector({
-    selector: doneDailyEntryChildrenForDisplay,
-    args: { dailyListId: dailyList.id },
-  });
+  const { data: doneItemsForDisplay = [], isPending: isDonePending } =
+    useAsyncSelector({
+      selector: doneDailyEntryChildrenForDisplay,
+      args: { dailyListId: dailyList.id },
+    });
 
   // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
 
@@ -169,6 +168,10 @@ const ColumnView = memo(function ColumnView({
     onTaskAdd(dailyList);
   };
 
+  // Mounts complete instead of rendering empty and filling in.
+  if (isPending || isDonePending)
+    return <DayColumnMock date={dailyList.date} />;
+
   return (
     <TasksColumn
       isHidden={isHidden}
@@ -192,7 +195,8 @@ const ColumnView = memo(function ColumnView({
           <button
             type="button"
             onClick={handleAddClick}
-            className="group/empty flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-content-tinted/15 py-8 transition-colors hover:border-content-tinted/30"
+            // Lit while keys focus the day, through its column's placeholder.
+            className="group/empty flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-content-tinted/15 py-8 transition-colors hover:border-content-tinted/30 group-has-[[data-focus-placeholder]:focus]/column:border-accent"
           >
             <span className="text-sm text-content-tinted/50 transition-colors group-hover/empty:text-content-tinted">
               Nothing planned
@@ -251,47 +255,6 @@ const ColumnView = memo(function ColumnView({
 
 const noDailyLists: DailyList[] = [];
 const noExternalEvents: DayExternalEvent[] = [];
-
-const noReadyIds: ReadonlySet<string> = new Set();
-
-// DailyLists whose tasks are loaded, so their columns mount complete instead of
-// rendering empty and filling in.
-const useLoadedDailyLists = (dailyLists: DailyList[]) => {
-  const db = useDB();
-  const [loadedIds, setLoadedIds] = useState(noReadyIds);
-
-  useEffect(() => {
-    const pending = dailyLists.filter((list) => !loadedIds.has(list.id));
-    if (pending.length === 0) return;
-
-    let isCancelled = false;
-    void Promise.all(
-      pending.flatMap((list) => [
-        preloadSelectorAsync(db, {
-          selector: dailyEntryChildrenForDisplay,
-          args: { dailyListId: list.id },
-        }),
-        preloadSelectorAsync(db, {
-          selector: doneDailyEntryChildrenForDisplay,
-          args: { dailyListId: list.id },
-        }),
-      ]),
-    ).then(() => {
-      if (isCancelled) return;
-      setLoadedIds((previous) => {
-        const next = new Set(previous);
-        for (const list of pending) next.add(list.id);
-        return next;
-      });
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [db, dailyLists, loadedIds]);
-
-  return loadedIds;
-};
 
 const DaysTimeline = ({
   startDate,
@@ -356,7 +319,6 @@ const DaysTimeline = ({
     () => new Map(dailyLists.map((dailyList) => [dailyList.date, dailyList])),
     [dailyLists],
   );
-  const readyDailyListIds = useLoadedDailyLists(dailyLists);
   const occurrencesOf = useUpcomingOccurrences(windowDates);
   const externalEventsByDate = useExternalEvents(windowDates);
 
@@ -402,8 +364,6 @@ const DaysTimeline = ({
                 {days.map((day) => {
                   const date = getDMY(addDays(startDate, day));
                   const dailyList = dailyListsByDate.get(date);
-                  const isReady =
-                    !!dailyList && readyDailyListIds.has(dailyList.id);
 
                   return (
                     <div
@@ -412,10 +372,12 @@ const DaysTimeline = ({
                       ref={observeDay}
                       // Days scrolled off to the left sit behind the open
                       // stash, so h from the first visible day reaches it.
-                      inert={isStashOpen && day < firstVisible}
+                      data-focus-skip={
+                        (isStashOpen && day < firstVisible) || undefined
+                      }
                       className="h-full w-min shrink-0"
                     >
-                      {isReady ? (
+                      {dailyList ? (
                         <ColumnView
                           dailyList={dailyList}
                           occurrences={occurrencesOf(date)}

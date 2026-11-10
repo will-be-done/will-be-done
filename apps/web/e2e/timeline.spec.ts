@@ -16,6 +16,7 @@ import {
   projectSidebarLink,
   projectTaskItem,
   signupUser,
+  stashPanel,
   dailyTaskItem,
   uniqueE2EName,
   waitForSyncedText,
@@ -307,13 +308,66 @@ test("moves focus and tasks by keyboard across days past the screen edge", async
 
   // With the stash closed, a task on the first day moves to the day before.
   const title = uniqueE2EName("E2E task moved by keyboard");
-  await addTaskByEmptyDay(page, addDays(monday, -5), title);
+  await page.keyboard.press("KeyI");
+  await page.getByLabel("Edit task title").fill(title);
+  await page.keyboard.press("Enter");
+  await expect(dayColumn(page, addDays(monday, -5))).toContainText(title);
   await dailyTaskItem(page, title).click();
   await page.keyboard.press("Control+KeyH");
   await expect(dayColumn(page, addDays(monday, -6))).toContainText(title);
   await expectFirstDay(page, addDays(monday, -6));
   await page.keyboard.press("Control+KeyL");
   await expect(dayColumn(page, addDays(monday, -5))).toContainText(title);
+});
+
+test("keeps a task focused while the open stash covers its day", async ({
+  page,
+}) => {
+  await openTimeline(page);
+  const title = uniqueE2EName("E2E task behind the stash");
+  await addTaskByEmptyDay(page, monday, title);
+  const task = dailyTaskItem(page, title);
+  await task.click();
+  await page.keyboard.press("Backslash");
+  await expect(stashPanel(page)).toHaveAttribute("aria-hidden", "false");
+
+  await scrollByDays(page, 1);
+  await expectFirstDay(page, addDays(monday, 1));
+  await expect(task).toBeFocused();
+
+  const tuesday = dayColumn(page, addDays(monday, 1)).locator(
+    "[data-focus-placeholder]",
+  );
+  await page.keyboard.press("KeyL");
+  await expect(tuesday).toBeFocused();
+  // The covered day is passed over on the way back.
+  await page.keyboard.press("KeyH");
+  await expect(
+    stashPanel(page).locator("[data-focus-placeholder]"),
+  ).toBeFocused();
+});
+
+test("follows the scroll again after the days were squeezed to no width", async ({
+  page,
+}) => {
+  await openTimeline(page);
+  // The widest stash leaves a narrow window no room for days.
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "stash-size",
+      JSON.stringify({ state: { width: 720 }, version: 0 }),
+    ),
+  );
+  await page.reload();
+  await expect(dayColumn(page, monday)).toBeVisible();
+  await page.keyboard.press("Backslash");
+  await page.setViewportSize({ width: 700, height: 720 });
+  await expect.poll(() => timelineWidth(page)).toBe(0);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(() => timelineWidth(page)).toBeGreaterThan(0);
+  await scrollByDays(page, 30);
+  await expectFirstDay(page, addDays(monday, 30));
 });
 
 test.describe("across calendar edges", () => {

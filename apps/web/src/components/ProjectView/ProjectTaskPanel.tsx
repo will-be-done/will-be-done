@@ -307,7 +307,7 @@ const SectionSection = ({
           onBlur={() => setIsPlaceholderFocused(false)}
           onKeyDown={(e) => {
             const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
-            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+            if (noModifiers && ["KeyO", "KeyA", "KeyI"].includes(e.code)) {
               e.preventDefault();
               handleAddTask();
             }
