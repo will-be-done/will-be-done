@@ -61,6 +61,7 @@ const testTable = defineTable("testItems", {
   type: v.string(),
   id: v.string(),
   title: v.string(),
+  content: v.optional(v.string()),
   orderToken: v.string(),
   createdAt: v.number(),
 });
@@ -565,9 +566,165 @@ describe("local change tracking", () => {
 
     expect(getChange(db, row.id)?.changes.title).toBe("0000000002-0001-local");
   });
+
+  it("merges first edits of a row that predates its change record", () => {
+    const legacyRow = {
+      type: "task",
+      id: "legacy-row",
+      title: "legacy",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    const firstEdit = (
+      edit: Partial<typeof legacyRow>,
+      clientId: string,
+      clock: string,
+    ) => {
+      const db = createDB();
+      syncDispatch(
+        db,
+        action({
+          name: "legacyFirstEdit",
+          args: {},
+          handler: function* () {
+            yield* insert(testTable, [legacyRow]);
+            yield* upsert(testTable, [{ ...legacyRow, ...edit }]);
+            yield* insertChangeFromUpdate({
+              tableDef: testTable,
+              oldRow: legacyRow,
+              newRow: { ...legacyRow, ...edit },
+              clientId,
+              nextClock: clock,
+            });
+          },
+        })({}),
+      );
+      return [
+        {
+          tableName: "testItems",
+          data: [
+            {
+              row: getRow(db, legacyRow.id) as never,
+              change: getChange(db, legacyRow.id)!,
+            },
+          ],
+        },
+      ] satisfies ChangesetArrayType;
+    };
+    const renamed = firstEdit(
+      { title: "renamed" },
+      "phone",
+      "0000000010-0001-phone",
+    );
+    const moved = firstEdit(
+      { orderToken: "b" },
+      "laptop",
+      "0000000020-0001-laptop",
+    );
+
+    for (const order of [
+      [renamed, moved],
+      [moved, renamed],
+    ]) {
+      const server = createDB();
+      order.forEach((input, index) =>
+        syncDispatch(
+          server,
+          mergeChanges({
+            input,
+            nextClock: `0000000030-000${index}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        ),
+      );
+      expect(getRow(server, legacyRow.id)).toEqual({
+        ...legacyRow,
+        title: "renamed",
+        orderToken: "b",
+      });
+    }
+  });
+
+  it("merges differing legacy rows the same way in either order", () => {
+    const legacy = (title: string) => ({
+      type: "task",
+      id: "legacy-divergent",
+      title,
+      orderToken: "a",
+      createdAt: 100,
+    });
+    const firstEdit = (
+      row: ReturnType<typeof legacy>,
+      edit: Partial<ReturnType<typeof legacy>> & { content?: string },
+      clientId: string,
+      clock: string,
+    ) => {
+      const db = createDB();
+      syncDispatch(
+        db,
+        action({
+          name: "legacyDivergentEdit",
+          args: {},
+          handler: function* () {
+            yield* insert(testTable, [row]);
+            yield* upsert(testTable, [{ ...row, ...edit }]);
+            yield* insertChangeFromUpdate({
+              tableDef: testTable,
+              oldRow: row,
+              newRow: { ...row, ...edit },
+              clientId,
+              nextClock: clock,
+            });
+          },
+        })({}),
+      );
+      return {
+        row: getRow(db, row.id) as never,
+        change: getChange(db, row.id)!,
+      };
+    };
+    const phone = firstEdit(
+      legacy("phone"),
+      { orderToken: "b" },
+      "phone",
+      "0000000010-0001-phone",
+    );
+    const laptop = firstEdit(
+      legacy("laptop"),
+      { content: "notes" },
+      "laptop",
+      "0000000020-0001-laptop",
+    );
+
+    const results = [
+      [phone, laptop],
+      [laptop, phone],
+    ].map((uploads) => {
+      const server = createDB();
+      uploads.forEach((upload, index) =>
+        syncDispatch(
+          server,
+          mergeChanges({
+            input: [{ tableName: "testItems", data: [upload] }],
+            nextClock: `0000000030-000${index}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        ),
+      );
+      return getRow(server, "legacy-divergent");
+    });
+    expect(results[1]).toEqual(results[0]);
+    expect(results[0]).toEqual({
+      ...legacy("phone"),
+      orderToken: "b",
+      content: "notes",
+    });
+  });
 });
 
-describe("first-creator-wins merge", () => {
+describe("rival creation merge", () => {
   it("basic: earlier creator's title preserved when later creator merges in", () => {
     resetClock();
     const db = createDB();
@@ -606,7 +763,7 @@ describe("first-creator-wins merge", () => {
 
     const row = getRow(db, entityId);
     expect(row).toBeDefined();
-    expect(row!.title).toBe("client1-title"); // first creator wins
+    expect(row!.title).toBe("client1-title"); // earliest default wins
   });
 
   it("symmetry: incoming earlier creator wins over local later creator", () => {
@@ -646,10 +803,10 @@ describe("first-creator-wins merge", () => {
 
     const row = getRow(db, entityId);
     expect(row).toBeDefined();
-    expect(row!.title).toBe("client1-title"); // first creator wins even when incoming
+    expect(row!.title).toBe("client1-title"); // even when it arrives later
   });
 
-  it("first creator wins against later updates from the other client", () => {
+  it("the later creator's edit beats the earlier creator's default", () => {
     resetClock();
     const db = createDB();
     const entityId = "entity-3";
@@ -713,7 +870,84 @@ describe("first-creator-wins merge", () => {
 
     const row = getRow(db, entityId);
     expect(row).toBeDefined();
-    expect(row!.title).toBe("client1-title"); // first creator still wins
+    expect(row!.title).toBe("client2-updated-title");
+    expect(row!.orderToken).toBe("a");
+    const change = getChange(db, entityId)!;
+    expect(change.createdAt).toBe("0000000010-0001-client1");
+    expect(change.rivalCreations).toEqual(["0000000020-0001-client2"]);
+    expect(change.changes.orderToken).toBe("0000000010-0001-client1");
+  });
+
+  it("keeps a field only the later creator set", () => {
+    const db = createDB();
+    const entityId = "rival-only-field";
+    const firstCreated = "0000000010-0001-client1";
+    const row = {
+      type: "task",
+      id: entityId,
+      title: "first",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    localCreate(db, row, firstCreated, "client1");
+    const laterCreation = makeIncomingCreate(
+      entityId,
+      "later",
+      "0000000020-0001-client2",
+    );
+    const later = laterCreation[0]!.data[0]!;
+    later.row = { ...later.row!, content: "notes" };
+    later.change.changes.content = "0000000030-0001-client2";
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: laterCreation,
+        nextClock: "0000000040-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+
+    expect(getRow(db, entityId)).toEqual({ ...row, content: "notes" });
+    expect(getChange(db, entityId)?.createdAt).toBe(firstCreated);
+    expect(getChange(db, entityId)?.changes.content).toBe(
+      "0000000030-0001-client2",
+    );
+  });
+
+  it("keeps both creators' edits in either arrival order", () => {
+    const entityId = "rival-edits";
+    const creation = (title: string, clock: string) =>
+      makeIncomingCreate(entityId, title, clock)[0]!.data[0]!;
+    const phone = creation("phone", "0000000010-0001-phone");
+    phone.row = { ...phone.row!, orderToken: "b" };
+    phone.change.changes.orderToken = "0000000015-0001-phone";
+    const laptop = creation("laptop", "0000000020-0001-laptop");
+    laptop.row = { ...laptop.row!, content: "laptop notes" };
+    laptop.change.changes.content = "0000000090-0001-laptop";
+
+    for (const uploads of [
+      [phone, laptop],
+      [laptop, phone],
+    ]) {
+      const server = createDB();
+      uploads.forEach((upload, index) =>
+        syncDispatch(
+          server,
+          mergeChanges({
+            input: [{ tableName: "testItems", data: [upload] }],
+            nextClock: `0000000100-000${index}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        ),
+      );
+      expect(getRow(server, entityId)).toEqual({
+        ...phone.row,
+        content: "laptop notes",
+      });
+    }
   });
 
   it("delete still wins regardless of creation order", () => {
@@ -1095,7 +1329,7 @@ describe("first-creator-wins merge", () => {
     });
   });
 
-  it("normal update sync is not blocked by FCW guard (same createdAt)", () => {
+  it("merges updates of one creation by field (same createdAt)", () => {
     resetClock();
     const db = createDB();
     const entityId = "entity-6";
@@ -1854,6 +2088,8 @@ describe("idempotent merge retries", () => {
               changes: {
                 ...currentChange.changes,
                 title: currentTitleClock,
+                // Cleared optional field: clocked, but absent from the row.
+                content: currentTitleClock,
               },
             },
           ]);
@@ -1893,6 +2129,56 @@ describe("idempotent merge retries", () => {
 
     expect(getRow(db, entityId)).toEqual(row);
     expect(getChange(db, entityId)).toEqual(changeBeforeMerge);
+  });
+
+  it("ignores a live change that arrives without its row", () => {
+    const db = createDB();
+    const row = {
+      type: "task",
+      id: "rowless-update",
+      title: "kept",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    localCreate(db, row, "0000000010-0001-local");
+    const changeBefore = getChange(db, row.id)!;
+    const rowless = (entityId: string): ChangesetArrayType => [
+      {
+        tableName: "testItems",
+        data: [
+          {
+            change: {
+              ...changeBefore,
+              id: changeId("testItems", entityId),
+              entityId,
+              clientId: "remote",
+              updatedAt: "0000000020-0001-remote",
+              changes: {
+                ...changeBefore.changes,
+                title: "0000000020-0001-remote",
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    for (const entityId of [row.id, "rowless-unknown"]) {
+      syncDispatch(
+        db,
+        mergeChanges({
+          input: rowless(entityId),
+          nextClock: "0000000030-0001-server",
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredTables,
+        }),
+      );
+    }
+
+    expect(getRow(db, row.id)).toEqual(row);
+    expect(getChange(db, row.id)).toEqual(changeBefore);
+    expect(getRow(db, "rowless-unknown")).toBeUndefined();
+    expect(getChange(db, "rowless-unknown")).toBeUndefined();
   });
 });
 

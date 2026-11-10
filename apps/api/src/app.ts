@@ -1,13 +1,13 @@
-import type { DB } from "@will-be-done/hyperdb";
 import { Context, Effect, Layer } from "effect";
 import { createBackendAnalytics, type BackendAnalytics } from "./analytics";
 import { createAppRouter } from "./appRouter";
 import { attachmentCleanup } from "./attachments/cleanup";
 import { getAttachmentStorage } from "./attachments/storage";
+import { Calendars, calendarSyncLoop } from "./calendars/scheduler";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
-import { closeDatabases, getMainHyperDB } from "./db/db";
+import { MainDatabase } from "./db/mainDatabase";
 import { parseEmailConfig } from "./email/config";
 import {
   createAccountEmailService,
@@ -21,6 +21,8 @@ import { captureException } from "./instrument";
 import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
 import { subscriptionManager } from "./subscriptionManager";
+
+export { MainDatabase };
 
 const BACKUP_WORKER_SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -57,18 +59,6 @@ const SyncNotificationsLive = Layer.effectDiscard(
 const AttachmentStorageCheck = Layer.effectDiscard(
   Effect.asVoid(Effect.try(getAttachmentStorage)),
 );
-
-export class MainDatabase extends Context.Service<MainDatabase, DB>()(
-  "@will-be-done/api/MainDatabase",
-) {
-  // Closing also closes every user and space database opened since.
-  static readonly layer = Layer.effect(
-    MainDatabase,
-    Effect.acquireRelease(Effect.promise(getMainHyperDB), () =>
-      Effect.promise(closeDatabases),
-    ),
-  );
-}
 
 export class Analytics extends Context.Service<Analytics, BackendAnalytics>()(
   "@will-be-done/api/Analytics",
@@ -134,6 +124,7 @@ export class ApiServer extends Context.Service<
       const analytics = yield* Analytics;
       const accountEmail = yield* AccountEmail;
       const google = yield* Google;
+      const calendars = yield* Calendars;
       const server = yield* Effect.acquireRelease(
         Effect.sync(() =>
           createServer({
@@ -144,6 +135,7 @@ export class ApiServer extends Context.Service<
               captchaConfig: getCaptchaConfig(),
               accountEmail: accountEmail?.service,
               analytics,
+              calendars,
             }),
             mainDB,
             rateLimit: {
@@ -177,6 +169,19 @@ const EmailWorkerLive = Layer.effectDiscard(
     yield* Effect.acquireRelease(
       Effect.sync(() => accountEmail.worker.start()),
       () => Effect.promise(() => accountEmail.worker.stop()),
+    );
+  }),
+);
+
+// Refreshes calendar sources only while the server accepts requests.
+const CalendarSyncLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    yield* ApiServer;
+    const calendars = yield* Calendars;
+    if (!calendars) return;
+    yield* calendarSyncLoop.pipe(
+      Effect.provideContext(calendars),
+      Effect.forkScoped,
     );
   }),
 );
@@ -277,9 +282,12 @@ export const AppLive = Layer.mergeAll(
   EmailWorkerLive,
   BackupWorkerLive,
   AttachmentCleanupLive,
+  CalendarSyncLive,
 ).pipe(
   Layer.provideMerge(ApiServer.layer),
-  Layer.provideMerge(Layer.mergeAll(AccountEmail.layer, Google.layer)),
+  Layer.provideMerge(
+    Layer.mergeAll(AccountEmail.layer, Google.layer, Calendars.layer),
+  ),
   Layer.provideMerge(Analytics.layer),
   Layer.provideMerge(MainDatabase.layer),
   Layer.provideMerge(SyncNotificationsLive),

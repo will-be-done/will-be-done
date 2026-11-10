@@ -2,9 +2,16 @@ import { useState, useRef } from "react";
 import { useDB } from "@will-be-done/hyperdb/react";
 import { parseTickTickCSV } from "@will-be-done/slices/space";
 import { restoreSpaceBackup } from "@/store/undo";
-import { Upload, Download, AlertTriangle, CheckCircle } from "lucide-react";
+import { Upload, Download } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";
 import { captureWebAnalytics } from "@/lib/analytics";
+import {
+  ReplaceWarning,
+  SettingsGroup,
+  SettingsRow,
+  SuccessNote,
+  settingsButtonClass,
+} from "./SettingsUI";
 
 export function ImportSection() {
   const db = useDB();
@@ -112,38 +119,30 @@ export function ImportSection() {
   };
 
   return (
-    <div className="flex flex-col gap-3 px-5 py-5">
-      {/* TickTick card */}
-      <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 p-4">
-        <div>
-          <button
-            onClick={() => tickTickInputRef.current?.click()}
-            disabled={tickTickImporting}
-            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            <Upload className="h-3.5 w-3.5 flex-shrink-0" />
-            {tickTickImporting ? "Importing…" : "Upload CSV"}
-          </button>
-          <h3 className="text-[13px] font-semibold text-content">
-            Import from TickTick
-          </h3>
-          <p className="text-[12px] text-content-tinted leading-relaxed mt-1">
+    <SettingsGroup title="Other apps">
+      <SettingsRow
+        title="TickTick"
+        description={
+          <>
             Upload a CSV file exported from TickTick.
-          </p>
-          <div className="flex items-center gap-1.5 mt-2.5 text-[11px] text-amber-400/80">
-            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-            <span>Replaces all existing data in this space</span>
-          </div>
-          {tickTickError && (
-            <p className="mt-2 text-[11px] text-red-400">{tickTickError}</p>
-          )}
-          {tickTickSuccess && (
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-green-400">
-              <CheckCircle className="h-3 w-3 flex-shrink-0" />
-              <span>Imported successfully</span>
-            </div>
-          )}
-        </div>
+            <ReplaceWarning />
+            {tickTickError && (
+              <p className="mt-2 text-[12px] text-red-400">{tickTickError}</p>
+            )}
+            {tickTickSuccess && (
+              <SuccessNote>Imported successfully</SuccessNote>
+            )}
+          </>
+        }
+      >
+        <button
+          onClick={() => tickTickInputRef.current?.click()}
+          disabled={tickTickImporting}
+          className={settingsButtonClass}
+        >
+          <Upload className="h-3.5 w-3.5 flex-shrink-0" />
+          {tickTickImporting ? "Importing…" : "Upload CSV"}
+        </button>
         <input
           ref={tickTickInputRef}
           type="file"
@@ -152,59 +151,47 @@ export function ImportSection() {
           className="hidden"
           onChange={handleTickTickImport}
         />
-      </div>
-
-      {/* Todoist card */}
-      <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 p-4">
-        <h3 className="text-[13px] font-semibold text-content">
-          Import from Todoist
-        </h3>
-        <p className="text-[12px] text-content-tinted leading-relaxed mt-1">
-          Connect using your Todoist API token. Find it in{" "}
-          <a
-            href="https://app.todoist.com/app/settings/integrations/developer"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-content/70 underline underline-offset-2 hover:text-content transition-colors"
-          >
-            Integrations → Developer
-          </a>
-          .
-        </p>
-        <div className="flex items-center gap-1.5 mt-2.5 text-[11px] text-amber-400/80">
-          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-          <span>Replaces all existing data in this space</span>
-        </div>
-
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            type="password"
-            value={todoistToken}
-            onChange={(e) => setTodoistToken(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleTodoistImport()}
-            placeholder="Paste your API token…"
-            className="flex-1 min-w-0 rounded-lg bg-white/[0.05] px-3 py-2 text-[12px] text-content placeholder:text-content-tinted/40 ring-1 ring-white/10 outline-none focus:ring-white/20 transition-all"
-          />
-          <button
-            onClick={handleTodoistImport}
-            disabled={todoistImporting || !todoistToken.trim()}
-            className="flex flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            <Download className="h-3.5 w-3.5 flex-shrink-0" />
-            {todoistImporting ? "Importing…" : "Import"}
-          </button>
-        </div>
-
-        {todoistError && (
-          <p className="mt-2 text-[11px] text-red-400">{todoistError}</p>
-        )}
-        {todoistSuccess && (
-          <div className="flex items-center gap-1.5 mt-2 text-[11px] text-green-400">
-            <CheckCircle className="h-3 w-3 flex-shrink-0" />
-            <span>Imported successfully</span>
-          </div>
-        )}
-      </div>
-    </div>
+      </SettingsRow>
+      <SettingsRow
+        title="Todoist"
+        description={
+          <>
+            Connect using your Todoist API token. Find it in{" "}
+            <a
+              href="https://app.todoist.com/app/settings/integrations/developer"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-content/70 underline underline-offset-2 transition-colors hover:text-content"
+            >
+              Integrations → Developer
+            </a>
+            .
+            <ReplaceWarning />
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="password"
+                value={todoistToken}
+                onChange={(e) => setTodoistToken(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleTodoistImport()}
+                placeholder="Paste your API token…"
+                className="min-w-0 flex-1 rounded-lg bg-white/[0.05] px-3 py-2 text-[13px] text-content outline-none ring-1 ring-white/10 transition-all placeholder:text-content-tinted/40 focus:ring-white/20"
+              />
+              <button
+                onClick={handleTodoistImport}
+                disabled={todoistImporting || !todoistToken.trim()}
+                className={settingsButtonClass}
+              >
+                <Download className="h-3.5 w-3.5 flex-shrink-0" />
+                {todoistImporting ? "Importing…" : "Import"}
+              </button>
+            </div>
+            {todoistError && (
+              <p className="mt-2 text-[12px] text-red-400">{todoistError}</p>
+            )}
+            {todoistSuccess && <SuccessNote>Imported successfully</SuccessNote>}
+          </>
+        }
+      />
+    </SettingsGroup>
   );
 }

@@ -1420,7 +1420,7 @@ test("revoked sessions cannot receive further subscription notifications", async
   const stream = await caller.onChangesAvailable({
     dbId: user.userId,
     dbType: "user",
-    syncVersion: 6,
+    syncVersion: 8,
   });
   const iterator = stream[Symbol.asyncIterator]();
   try {

@@ -7,9 +7,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useOnline } from "@/hooks/useOnline";
 import {
   initialSyncStatus,
-  syncStatusByDB,
+  syncByDB,
   type SyncPhase,
 } from "@/store/syncStatus";
 import {
@@ -94,10 +95,14 @@ function SyncingDot() {
 
 export function SyncIndicator() {
   const db = useDB();
-  const store = syncStatusByDB.get(db);
+  const store = syncByDB.get(db);
   const status = useSyncExternalStore(
-    (listener) => store?.subscribe(listener) ?? (() => {}),
-    () => store?.get() ?? initialSyncStatus,
+    (listener) => store?.status.subscribe(listener) ?? (() => {}),
+    () => store?.status.get() ?? initialSyncStatus,
+  );
+  const leader = useSyncExternalStore(
+    (listener) => store?.leader.subscribe(listener) ?? (() => {}),
+    () => store?.leader.get() ?? false,
   );
   const transfers = attachmentTransfersByDB.get(db);
   const transferStatus = useSyncExternalStore(
@@ -108,23 +113,13 @@ export function SyncIndicator() {
     subscribeSyncUpdateRequired,
     getSyncUpdateRequired,
   );
-  const [online, setOnline] = useState(() => navigator.onLine);
+  const online = useOnline();
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(Date.now);
   const changeOpen = (nextOpen: boolean) => {
     setNow(Date.now());
     setOpen(nextOpen);
   };
-
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -158,6 +153,7 @@ export function SyncIndicator() {
           data-sync-state={
             disconnected ? "disconnected" : syncing ? "syncing" : "synced"
           }
+          data-sync-role={leader ? "leader" : "follower"}
           onClick={(event) => {
             event.preventDefault();
             changeOpen(true);
@@ -245,6 +241,11 @@ export function SyncIndicator() {
             <span className="mt-0.5 block">Not yet in this session</span>
           )}
         </div>
+        <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-content-tinted">
+          {leader
+            ? "This tab syncs for all open tabs."
+            : "Another open tab syncs for this one."}
+        </p>
       </TooltipContent>
     </Tooltip>
   );

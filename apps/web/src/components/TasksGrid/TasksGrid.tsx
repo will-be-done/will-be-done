@@ -22,6 +22,8 @@ import {
 import { AnyModelType } from "@will-be-done/slices/space";
 import { PlusIcon } from "@/components/ui/icons.tsx";
 import { buildFocusKey } from "@/store/focusSlice.ts";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useHorizontalDragAutoScroll } from "./useHorizontalDragAutoScroll.ts";
 
 export const TasksColumnGrid = ({
   columnsCount,
@@ -36,21 +38,27 @@ export const TasksColumnGrid = ({
   paddingLeft?: number;
   isFocusRegion?: boolean;
 }) => {
+  const scrollableRef = useRef<HTMLDivElement>(null);
+  useHorizontalDragAutoScroll(scrollableRef);
+
   return (
     <div
       data-focus-region-direction={isFocusRegion ? "row" : undefined}
       className="relative max-h-full h-full overflow-x-clip"
     >
       {floatingColumn}
-      <div
-        className="max-h-full h-full overflow-x-auto"
+      {/* Columns scroll themselves; the board only scrolls sideways. */}
+      <ScrollArea
+        ref={scrollableRef}
+        rootClassName="h-full"
+        className="overflow-y-hidden"
         style={{
           paddingLeft: paddingLeft ? `${paddingLeft}px` : undefined,
           transition: "padding-left 200ms ease-out",
         }}
       >
         <div
-          className="grid max-h-full h-full"
+          className="grid max-h-full h-full min-w-max"
           style={{
             gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
             gridTemplateRows: `1fr`,
@@ -58,7 +66,7 @@ export const TasksColumnGrid = ({
         >
           {children}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -168,7 +176,7 @@ export const TasksColumn = ({
       data-column-model-type={columnModelType}
       ref={columnRef}
       className={cn(
-        "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group",
+        "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group group/column",
         isOver &&
           !isHidden &&
           !dropEdge &&
@@ -213,7 +221,7 @@ export const TasksColumn = ({
             "group-focus-visible:ring-2 group-focus-visible:ring-accent",
             {
               "ring-2 ring-accent":
-                (isOver || isPlaceholderFocused) && isHidden,
+                (isOver && isHidden) || isPlaceholderFocused,
             },
           )}
           onClick={onHideClick}
@@ -221,15 +229,15 @@ export const TasksColumn = ({
           {header}
         </button>
       </div>
-      <div
-        className={cn("w-full min-h-0 flex-1 overflow-y-auto", {
+      <ScrollArea
+        rootClassName={cn("w-full min-w-0 min-h-0 flex-1", {
           hidden: isHidden,
         })}
         ref={scrollableRef}
         tabIndex={-1}
       >
         <div className={cn("flex flex-col gap-4 w-full px-1")}>{children}</div>
-      </div>
+      </ScrollArea>
       {onAddClick && (
         <div
           data-focus-placeholder
@@ -244,7 +252,7 @@ export const TasksColumn = ({
           onBlur={() => setIsPlaceholderFocused(false)}
           onKeyDown={(e) => {
             const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
-            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+            if (noModifiers && ["KeyO", "KeyA", "KeyI"].includes(e.code)) {
               e.preventDefault();
               onAddClick();
             }

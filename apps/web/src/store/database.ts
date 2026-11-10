@@ -27,9 +27,21 @@ const attempt = <A>(run: () => Promise<A>) =>
     catch: (cause) => new DatabaseError({ cause }),
   });
 
+export type DispatchOptions = {
+  readonly skipSync?: boolean;
+  // Marks a merge of changes received from another tab, so the write is not
+  // published back to the tabs.
+  readonly fromOtherTab?: boolean;
+};
+
 const make = <DB extends HyperDB>(hyperDB: DB) => {
-  const target = (skipSync: boolean | undefined) =>
-    skipSync ? hyperDB.withTraits({ type: "skip-sync" }) : hyperDB;
+  const target = (options: DispatchOptions | undefined) => {
+    const traits = [
+      ...(options?.skipSync ? [{ type: "skip-sync" }] : []),
+      ...(options?.fromOtherTab ? [{ type: "cross-tab" }] : []),
+    ];
+    return traits.length > 0 ? hyperDB.withTraits(...traits) : hyperDB;
+  };
   return {
     // For HyperDB APIs that are not promises: hooks, undo, subscriptions.
     hyperDB,
@@ -37,9 +49,9 @@ const make = <DB extends HyperDB>(hyperDB: DB) => {
     // interrupted. `skipSync` writes produce no change records to upload.
     dispatch: <A>(
       action: Action<A>,
-      options?: { readonly skipSync?: boolean },
+      options?: DispatchOptions,
     ): Effect.Effect<A, DatabaseError> =>
-      attempt(() => asyncDispatch(target(options?.skipSync), action)).pipe(
+      attempt(() => asyncDispatch(target(options), action)).pipe(
         Effect.uninterruptible,
       ),
     // withoutUndo only covers work that starts synchronously, so every action

@@ -4,6 +4,8 @@ import type { CalendarEvent } from "./calendarModel";
 import {
   type CalendarDrag,
   type DragCommit,
+  holdTouchScroll,
+  longPressMs,
   startCalendarDrag,
   useCalendarDrag,
 } from "./calendarDrag";
@@ -24,6 +26,23 @@ const event = (key: string): CalendarEvent => ({
 
 const pointer = (type: string, clientX: number, clientY: number) =>
   Object.assign(new Event(type, { cancelable: true }), { clientX, clientY });
+
+const pointerDown = (pointerType = "mouse") =>
+  ({
+    pointerType,
+    button: 0,
+    clientX: 0,
+    clientY: 0,
+    stopPropagation: () => {},
+    currentTarget: { closest: () => null },
+  }) as unknown as React.PointerEvent;
+
+// A touchmove on the card, which keeps receiving its touch's events.
+const touchMove = (card: EventTarget) => {
+  const move = new Event("touchmove", { cancelable: true });
+  card.dispatchEvent(move);
+  return move.defaultPrevented;
+};
 
 // Drags a card by 20px and drops it.
 function dragCard(card: CalendarEvent, commit: DragCommit) {
@@ -69,5 +88,35 @@ describe("calendar drag", () => {
 
     expect(committed).toEqual(["a", "b"]);
     expect(useCalendarDrag.getState().drag?.event.key).toBe("b");
+  });
+
+  it("starts a touch drag after a long press and holds the page still", () => {
+    const card = new EventTarget();
+    holdTouchScroll(card as HTMLElement);
+    const commit = vi.fn();
+
+    startCalendarDrag(pointerDown("touch"), event("a"), "move", commit);
+    expect(touchMove(card)).toBe(false);
+    vi.advanceTimersByTime(longPressMs);
+    expect(touchMove(card)).toBe(true);
+    window.dispatchEvent(pointer("pointermove", 20, 20));
+    window.dispatchEvent(pointer("pointerup", 20, 20));
+
+    expect(commit).toHaveBeenCalledOnce();
+    expect(touchMove(card)).toBe(false);
+  });
+
+  it("leaves a touch that moves before the long press to scroll", () => {
+    const card = new EventTarget();
+    holdTouchScroll(card as HTMLElement);
+    const commit = vi.fn();
+
+    startCalendarDrag(pointerDown("touch"), event("a"), "move", commit);
+    window.dispatchEvent(pointer("pointermove", 0, 20));
+    vi.advanceTimersByTime(longPressMs);
+    expect(touchMove(card)).toBe(false);
+    window.dispatchEvent(pointer("pointerup", 0, 20));
+
+    expect(commit).not.toHaveBeenCalled();
   });
 });

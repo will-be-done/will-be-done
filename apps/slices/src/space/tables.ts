@@ -80,8 +80,7 @@ export const taskTemplatesTable = defineTable("task_templates", {
   durationMinutes: v.optional(v.union(v.number(), v.null())),
 })
   .index("byIds", ["id"])
-  .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"])
-  .index("byLastGeneratedAt", ["lastGeneratedAt"]);
+  .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"]);
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 registerRichTextFields(taskTemplatesTable.tableName, itemRichTextFields);
 export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;
@@ -368,6 +367,55 @@ export const trashedTasksTable = defineTable("trashed_tasks", {
 registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
 
 export type TrashedTaskRow = ExtractSchema<typeof trashedTasksTable>;
+
+// External calendar tables are written only by the server's calendar fetcher.
+export const externalCalendarType = "externalCalendar";
+export const externalCalendarsTable = defineTable("external_calendars", {
+  type: v.literal(externalCalendarType),
+  id: v.string(),
+  sourceId: v.string(),
+  name: v.string(),
+  color: v.union(v.string(), v.null()),
+  // JSON-encoded lowercased addresses of the account, to find its replies to
+  // invitations. Synced rows carry only primitive values.
+  ownerEmails: v.string(),
+}).index("byIds", ["id"]);
+registerSpaceSyncableTable(externalCalendarsTable, externalCalendarType, {
+  serverOwned: true,
+});
+export type ExternalCalendar = ExtractSchema<typeof externalCalendarsTable>;
+
+export const externalEventType = "externalEvent";
+// One row per event series, identified by its UID within the calendar;
+// occurrences are expanded on read.
+export const externalEventsTable = defineTable("external_events", {
+  type: v.literal(externalEventType),
+  id: v.string(),
+  calendarId: v.string(),
+  // CalDAV resource href, or the event UID for ICS feeds.
+  resource: v.string(),
+  // CalDAV resource ETag; null for ICS feeds.
+  etag: v.union(v.string(), v.null()),
+  // VCALENDAR with the UID's VEVENTs and the VTIMEZONEs they reference.
+  ics: v.string(),
+  // UTC ms bounds of all occurrences, padded so floating and all-day times
+  // stay inside them in any timezone. seriesEnd is MAX_SAFE_INTEGER when the
+  // series never ends.
+  seriesStart: v.number(),
+  seriesEnd: v.number(),
+  // "short" when the bounds span at most SHORT_SERIES_MS, so a range read can
+  // seek short series by start and scan only the few long ones by end.
+  span: v.union(v.literal("short"), v.literal("long")),
+})
+  .index("byIds", ["id"])
+  .index("byCalendarResource", ["calendarId", "resource"])
+  .index("bySeriesStart", ["seriesStart", "id"])
+  .index("bySpanEnd", ["span", "seriesEnd", "id"]);
+registerSpaceSyncableTable(externalEventsTable, externalEventType, {
+  serverOwned: true,
+});
+export type ExternalEvent = ExtractSchema<typeof externalEventsTable>;
+
 export const taskTrashSnapshot = v.object({
   task: tasksTable.v(),
   checklistItems: v.array(checklistItemsTable.v()),
@@ -455,6 +503,8 @@ export type AnyTable =
   | typeof stashEntriesTable
   | typeof checklistItemsTable
   | typeof trashedTasksTable
+  | typeof externalCalendarsTable
+  | typeof externalEventsTable
   | typeof mindmapsTable
   | typeof mindmapNodesTable
   | typeof attachmentsTable

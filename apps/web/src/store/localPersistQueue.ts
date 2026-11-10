@@ -128,16 +128,20 @@ export const makeLocalPersistQueue = ({
     yield* Effect.acquireRelease(
       Effect.sync(() =>
         database.hyperDB.subscribe((ops, traits) => {
-          if (traits.some((t) => t.type === "skip-sync")) {
+          // A merge of another tab's changes is already known to every tab.
+          // Applied server downloads are `skip-sync` too, but other tabs
+          // only learn about them from this publication.
+          if (traits.some((t) => t.type === "cross-tab")) {
             return;
           }
+          const local = !traits.some((t) => t.type === "skip-sync");
 
           const changeset = createChangesetFromOps(ops);
           if (changeset.length === 0) return;
 
           const publish = () => {
             postChanges({ changeset });
-            onPersisted();
+            if (local) onPersisted();
           };
           // Other tabs and the syncer must only see changes that are durable.
           // When nothing is waiting to be written this publishes synchronously.

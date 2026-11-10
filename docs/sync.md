@@ -5,13 +5,17 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 6, carried over the v4 transport routes. Version 5
+The current sync version is 8, carried over the v4 transport routes. Version 5
 added restore clocks; a v4 client would treat a restored entity as still deleted.
-Version 6 added inline attachment nodes in descriptions; a v5 client derives
-Markdown without them and would sync that text. The server rejects older
-versions and the client must update. v3 upload and download procedures must not
-be reintroduced as an alternate path. Attachment bytes never travel over sync;
-see [attachments.md](attachments.md).
+Version 6 added the server-owned external calendar tables, which a v5 client
+cannot apply. Version 7 added the creation clock set (`rivalCreations`), which a
+v6 client would drop while still merging rival creations by first creator. The
+server rejects older clients and they must update. A new synced table always
+needs a version bump for the same reason. Version 8 added the attachment
+tables and inline attachment nodes in titles and descriptions; a v7 client
+derives Markdown without the nodes and would sync that text. v3 upload and
+download procedures must not be reintroduced as an alternate path. Attachment
+bytes never travel over sync; see [attachments.md](attachments.md).
 
 ## Required Server-Backup Recovery Guarantee
 
@@ -104,9 +108,11 @@ Revision/feed writes occur in the same database transaction as the associated
 an atomic server operation; it must not treat an individual internal feed
 revision as a separately visible domain transaction.
 
-The `skip-sync` database trait has one narrow meaning: suppress generation of a
-new local `changes` record from a domain-table hook. It does not suppress feed
-publication when a merge explicitly writes a canonical `changes` record.
+The `skip-sync` database trait suppresses generation of a new local `changes`
+record from a domain-table hook. Such a write is not a local edit, so it also
+does not wake the upload after it persists. It does not suppress feed
+publication when a merge explicitly writes a canonical `changes` record, nor
+cross-tab publication (see Cross-window visibility).
 
 WebSocket authentication is revalidated before protected operations and before
 each notification is yielded. Revoking an account token prevents an existing
@@ -115,17 +121,24 @@ This check does not change sync clocks or cursors.
 
 The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
-authority.
+authority. A rejected subscription (a space the server does not know yet)
+wakes nothing and is re-established only after the next session completes, so
+a server that keeps rejecting it is retried at most once per session. Every
+started subscription, including one resent after a reconnect, wakes a session
+for changes made before the server registered it.
 
 Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
 after the originating tab has persisted its changes. UI subscribers observe
 atomic memory commits before persistence completes. The publication queue
 waits for runtime durability before broadcasting or waking sync, and sync
 operations wait for durability before advancing transport or acknowledging a
-download. A receiving tab merges
-them with `skip-sync`, which prevents a duplicate local change-log entry (see
-Cross-window visibility). The broadcast is not authoritative and does not
-replace persisted sync state.
+download. Which writes are published, and how a receiving tab merges them
+without echoes, is described in Cross-window visibility. The broadcast is not
+authoritative and does not replace persisted sync state.
+
+The WebSocket authenticates with the token in its URL, so storing a new token
+resets it. A subscription that completes, such as one closed by that reset, is
+re-established after the next session like a rejected one.
 
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
@@ -210,7 +223,12 @@ reload or lost response.
 ### Cross-window visibility
 
 Browser windows sharing one persistent database publish committed local
-changesets over the versioned BroadcastChannel. A receiving window observes the
+changesets over the versioned BroadcastChannel. The leader's applied server
+downloads are published the same way: every durable transaction that writes
+`changes` records reaches the other tabs, except a merge that itself came from
+another tab (the `cross-tab` trait), which would only echo. Each tab keeps its
+own in-memory copy of the database, so without this publication a follower
+would show server changes only after a reload. A receiving window observes the
 incoming clocks and runs the normal idempotent merge with `skip-sync`, so this
 coordination path cannot create another local change record or an upload echo.
 
@@ -354,8 +372,30 @@ must never expose a partially applied logical sync response.
   client ID would duplicate on merge. Whole-text writes such as API updates
   edit the doc (`richTextItems.ts`) rather than replacing it. See
   [rich-text.md](rich-text.md) for the reasons and traps.
-- Concurrent creation of the same ID uses deterministic first-creator-wins
-  behavior before field merging.
+- Two devices can create the same ID independently, such as a recurring task
+  instance, a daily list, or the inbox. Each creation clocks its fields with
+  its creation HLC, and the change record keeps every creation HLC seen for the
+  entity: the earliest as `createdAt`, the rest as `rivalCreations`. A field
+  clock in that set is a creation default; any other clock is a user edit. Per
+  field, an edit beats a default whatever the clocks, the later of two edits
+  wins, and of two defaults the earliest creation wins. The set only grows and
+  an edit clock can never join it, so every device classifies a clock the same
+  way and the merge stays independent of arrival order.
+- A row that predates its change record gets a synthesized creation on its
+  first local edit or delete: every column is clocked with one fixed
+  epoch-zero HLC shared by all devices. First edits on two devices then belong
+  to the same creation and merge per field, and the server receives a clock
+  for every column instead of only the edited ones. Records synthesized before
+  this rule carry the first edit's clock as `createdAt`, so those first edits
+  rank as creation defaults and lose to the epoch-zero default when a device
+  that never received the record edits the row. No migration rewrites them;
+  the exposure is limited to rows that predate the change log. A record that
+  clocks only some of its row's columns merges as if the rest carried the
+  epoch-zero clock, so the merged record covers every column.
+- A live change that arrives without its row is ignored rather than rejected.
+  It has field clocks but no values, and rejecting it would fail the sender's
+  upload on every retry. When the server has the entity, the uploader receives
+  its canonical state back as a correction.
 - An entity is deleted when its deletion HLC is newer than its restore HLC.
   Both clocks merge by maximum, so a later delete beats an earlier restore and
   a later restore beats an earlier delete in any arrival order.
@@ -381,6 +421,13 @@ must never expose a partially applied logical sync response.
   user-deletable, and replacement imports preserve existing DailyLists while
   upserting the canonical lists contained in the backup. Backup omission must
   never create a DailyList tombstone.
+- Server-owned tables (`external_calendars`, `external_events`) have the
+  server's calendar fetcher as their only writer; clients have no action that
+  writes them. The server still merges uploaded rows for them, because server
+  backup recovery resends canonical rows clients received, and the next fetch
+  corrects anything stale. Backup load and export skip them, so a restore
+  cannot tombstone every event. The fetcher writes only rows whose content
+  changed, so an unchanged refresh adds nothing to the feed.
 - Dependency-bearing table types are committed in a stable order: parents and
   lists first, tasks/templates next, then checklist and entry/projection rows.
 - Receipt metadata such as a newly generated `updatedAt` must not by itself
@@ -542,4 +589,7 @@ suppression, canonical conflict correction, duplicate chunk/commit retries,
 atomic parent-and-projection application, server backup rollback, client backup
 rollback, HLC wall-clock rollback, fast and slow client-clock calibration,
 future-skew rejection, tombstones and restores in every arrival order, and
-staged-download recovery.
+staged-download recovery. The merge properties (order independence, batch
+equivalence, replay idempotency, and value/clock pairing) are checked against
+generated multi-replica histories in
+[`changes.property.test.ts`](../apps/slices/src/common/changes.property.test.ts).

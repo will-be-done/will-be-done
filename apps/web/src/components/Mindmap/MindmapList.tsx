@@ -15,6 +15,7 @@ import { NavBar } from "@/components/NavBar/NavBar";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { useUndoToast } from "@/store/undo";
 import { mindmapTitle, useCreateMindmap } from "./useCreateMindmap.ts";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const rowButtonClass =
   "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-content-tinted transition-colors hover:bg-white/10 hover:text-content";
@@ -104,7 +105,7 @@ export const MindmapList = () => {
       <header className="flex h-14 shrink-0 items-start [app-region:no-drag]">
         <NavBar spaceId={spaceId} />
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <ScrollArea rootClassName="min-h-0 flex-1">
         <div className="mx-auto max-w-lg px-4 pt-5 pb-8">
           <div className="mb-6 flex items-end gap-3">
             <h1 className="flex-1 text-3xl font-bold leading-tight text-content">
@@ -135,7 +136,7 @@ export const MindmapList = () => {
             </ul>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };

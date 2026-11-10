@@ -42,6 +42,7 @@ import {
   type DndModelData,
 } from "@/lib/dnd/models";
 import { CalendarDays, GanttChart, Network } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const CalendarIcon = () => (
   <svg
@@ -365,7 +366,11 @@ export const AppSidebar = () => {
         </div>
       </SidebarHeader>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 flex flex-col py-1 gap-1">
+      {/* The right margin keeps the scrollbar clear of the sidebar rail. */}
+      <ScrollArea
+        rootClassName="flex-1 min-h-0 mr-2"
+        className="flex flex-col gap-1 pl-2 pt-1 pb-3"
+      >
         {projects
           .filter(({ project }) => !project.isInbox)
           .map(({ project, notDoneCount, overdueCount }) => (
@@ -376,7 +381,7 @@ export const AppSidebar = () => {
               overdueCount={overdueCount}
             />
           ))}
-      </div>
+      </ScrollArea>
 
       <div className="flex items-center justify-between px-4 pb-3 pt-2 border-t border-ring/40">
         <button

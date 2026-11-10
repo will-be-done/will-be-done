@@ -1,6 +1,7 @@
 import { deflateSync } from "node:zlib";
 import { expect, test } from "playwright/test";
 import {
+  closeSpaceSettings,
   createSpace,
   createTodayTask,
   openSpace,
@@ -140,15 +141,14 @@ test("attaches, pastes, syncs, and lists files", async ({
   });
   await page.screenshot({ path: testInfo.outputPath("task-details.png") });
 
-  const settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Files" }).click();
+  const settings = await openSpaceSettings(page, "Files");
   const rows = settings.getByTestId("attachment-row");
   await expect(rows).toHaveCount(3);
   await expect(
     rows.first().getByRole("link", { name: taskTitle }),
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("settings-files.png") });
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
 
   // Another device downloads the files from the server.
   const other = await browser.newPage({

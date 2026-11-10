@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
-import { format, parse } from "date-fns";
+import { format, parse, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -30,6 +30,8 @@ import {
 } from "./calendarModel";
 import { type DragCommit, useCalendarDrag } from "./calendarDrag";
 import { useCalendarEvents } from "./useCalendarEvents";
+import { useExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
+import { RefreshCalendarsButton } from "@/components/ExternalEvents/RefreshCalendarsButton.tsx";
 import {
   type DayActions,
   MonthCell,
@@ -41,6 +43,7 @@ import { useExternalTaskDrop } from "./useExternalTaskDrop";
 import { focusCardOnceShown, useCalendarKeys } from "./useCalendarKeys";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
 import { WithStash } from "@/components/Stash/WithStash.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { openQuickAdd } from "@/components/QuickAdd/quickAddStore";
 
 const viewLabels: Record<CalendarView, string> = {
@@ -74,7 +77,15 @@ export const CalendarPage = ({
   });
 
   const days = useMemo(() => visibleDates(view, anchor), [view, anchor]);
+  const visibleDays = useMemo(
+    () => ({
+      from: startOfDay(days[0]!).getTime(),
+      to: startOfDay(days[days.length - 1]!).getTime(),
+    }),
+    [days],
+  );
   const eventsByDate = useCalendarEvents(days);
+  const externalByDate = useExternalEvents(days);
 
   const onCommit: DragCommit = useCallback(
     ({ event, mode, target, durationMinutes }) => {
@@ -180,7 +191,7 @@ export const CalendarPage = ({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   useExternalTaskDrop(bodyRef, onCommit);
-  useCalendarKeys({ view, days, eventsByDate, onCreate });
+  useCalendarKeys({ view, days, eventsByDate, externalByDate, onCreate });
 
   return (
     <div className="flex h-full w-full">
@@ -188,7 +199,7 @@ export const CalendarPage = ({
         topClassName="flex min-h-0 flex-col"
         projectLink={ProjectLink}
         selectedProjectId={projectId === "inbox" ? inboxId : projectId}
-        selectedDate={anchor}
+        timelineDays={visibleDays}
       >
         {/* The nav sits flush in the top-left corner, like on the projects
             and timeline pages, so it does not jump when switching views.
@@ -204,8 +215,9 @@ export const CalendarPage = ({
             </span>
           </h1>
 
-          <div className="mt-2 ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2 [app-region:no-drag]">
-            <div className="flex items-center">
+          {/* Phones center the controls on their own lines below the title. */}
+          <div className="mt-2 ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2 [app-region:no-drag] max-sm:w-full max-sm:justify-center">
+            <div className="flex items-center max-sm:w-full max-sm:justify-center">
               <Link
                 {...linkTo(shiftAnchor(view, anchor, -1))}
                 className={navButtonClass}
@@ -242,16 +254,23 @@ export const CalendarPage = ({
               ))}
             </div>
 
-            <TooltipProvider>
-              <SyncIndicator />
-            </TooltipProvider>
+            <div className="flex items-center gap-x-1">
+              <RefreshCalendarsButton
+                spaceId={spaceId}
+                className={navButtonClass}
+              />
+              <TooltipProvider>
+                <SyncIndicator />
+              </TooltipProvider>
+            </div>
           </div>
         </header>
 
         <WithStash reserveButton>
-          <div
+          <ScrollArea
             ref={bodyRef}
-            className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
+            rootClassName="min-h-0 flex-1"
+            className="flex px-4 pb-4"
           >
             {/* Seven day columns stay readable; narrow windows scroll sideways. */}
             <div
@@ -271,6 +290,7 @@ export const CalendarPage = ({
                   >
                     {days.map((day) => {
                       const events = eventsByDate.get(urlDate(day)) ?? [];
+                      const external = externalByDate.get(urlDate(day)) ?? [];
                       return view === "month" ? (
                         <MonthCell
                           key={day.getTime()}
@@ -278,6 +298,7 @@ export const CalendarPage = ({
                           anchor={anchor}
                           today={today}
                           events={events}
+                          external={external}
                           actions={actions}
                         />
                       ) : (
@@ -286,6 +307,7 @@ export const CalendarPage = ({
                           day={day}
                           today={today}
                           events={events}
+                          external={external}
                           actions={actions}
                         />
                       );
@@ -297,11 +319,12 @@ export const CalendarPage = ({
                   days={days}
                   today={today}
                   eventsByDate={eventsByDate}
+                  externalByDate={externalByDate}
                   actions={actions}
                 />
               )}
             </div>
-          </div>
+          </ScrollArea>
         </WithStash>
       </ProjectsSplit>
 

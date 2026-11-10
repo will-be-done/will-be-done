@@ -12,11 +12,13 @@ setInterval(() => {
 export const useCurrentDMY = () => {
   const [date, setDate] = useState(() => getDMY(new Date()));
 
-  useEffect(() => {
-    dateState.subscribe((value) => {
-      setDate(getDMY(value));
-    });
-  }, []);
+  useEffect(
+    () =>
+      dateState.subscribe((value) => {
+        setDate(getDMY(value));
+      }),
+    [],
+  );
 
   return date;
 };
@@ -24,11 +26,13 @@ export const useCurrentDMY = () => {
 export const useCurrentDate = () => {
   const [date, setDate] = useState(() => new Date());
 
-  useEffect(() => {
-    dateState.subscribe((value) => {
-      setDate(value);
-    });
-  }, []);
+  useEffect(
+    () =>
+      dateState.subscribe((value) => {
+        setDate(value);
+      }),
+    [],
+  );
 
   return date;
 };

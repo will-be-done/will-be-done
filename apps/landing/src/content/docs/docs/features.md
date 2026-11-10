@@ -54,15 +54,22 @@ Project and section names are plain text.
 
 ## Weekly timeline and Today
 
-The timeline shows days side by side. Each day contains an ordered task list.
-Scheduling assigns a day. A start time and duration are optional; see
-[Calendar](#calendar).
+The timeline shows days side by side, opening on Monday of the current week.
+Each day contains an ordered task list. Scheduling assigns a day. A start time
+and duration are optional; see [Calendar](#calendar).
+
+Scroll sideways to move through days in either direction without end. The
+arrows next to the date move one day, **Today** returns to the current week,
+and clicking the date picks any day. Click a day's name to fold it away.
 
 A scheduled task still belongs to its project section. Its appearance on the
 timeline refers to the same task, so edits and completion apply in both views.
 
 Drag a task onto a day to schedule it. Drag its scheduled appearance to another
 day to reschedule it. Reorder tasks within a day to change their order there.
+Hold a dragged task near the left or right edge to scroll to days further away.
+In the projects panel, tasks scheduled on a day currently on screen have a
+dashed outline.
 The Today view shows the current day's list.
 
 An unfinished task keeps its scheduled day. It does not automatically move to
@@ -76,8 +83,35 @@ shows two weeks at a time.
 A task can have a start time and a duration. In Day and Week views, timed
 tasks appear as blocks on an hourly grid and tasks without a time sit in the
 all-day row. Drag a block to change its day or time, or drag its bottom edge to
-change its duration. Drag a task from a project section onto the calendar to
-schedule it. Set or clear the time and duration from the task details panel.
+change its duration. On a touch screen, press and hold a block briefly before
+dragging it. Drag a task from a project section onto the calendar to schedule
+it. Set or clear the time and duration from the task details panel.
+
+## Calendar events
+
+Connect your calendars to see their events next to your tasks. Open **Space
+settings → Calendars** and add either:
+
+- a **CalDAV account**: the server address, your username, and an app
+  password. For iCloud use `caldav.icloud.com` with an app-specific password;
+  Fastmail and Nextcloud work the same way. Untick calendars you don't want to
+  see.
+- a **calendar link**: an `.ics` or `webcal://` subscription address, such as
+  Google Calendar's "Secret address in iCal format" or a published Outlook
+  calendar.
+
+Events appear in the Calendar views, at the top of each day on the timeline,
+and in Today. Timed events show in your device's time zone, and repeating
+events show on every day they occur. Click an event to see its description,
+guests, and a **Join meeting** button for Zoom, Meet, Teams and similar links.
+
+Invitations you declined are hidden. Events you haven't answered or marked as
+maybe are striped, and events marked as free are shown as an outline. Events
+are read-only: change them in the calendar app they come from. The server
+refreshes them every 15 minutes, and **Refresh** in settings fetches them right
+away. Past events are kept for one month by default; choose 2 weeks up to
+**All events** under each calendar in settings. Upcoming events are always
+included. Once synced, they are available offline. Removing a calendar removes its events from every device.
 
 ## Mindmaps
 

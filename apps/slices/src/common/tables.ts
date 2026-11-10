@@ -9,6 +9,9 @@ export const changesTable = defineTable("changes", {
   deletedAt: v.union(v.string(), v.null()),
   // Absent until the entity is restored after a deletion.
   restoredAt: v.optional(v.string()),
+  // Creation clocks of other devices that created the same ID, sorted. Absent
+  // when only one creation was seen.
+  rivalCreations: v.optional(v.array(v.string())),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
 }).index("byUpdatedAtId", ["updatedAt", "id"]);

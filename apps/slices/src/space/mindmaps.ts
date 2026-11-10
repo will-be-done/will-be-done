@@ -298,6 +298,20 @@ export const mindmapsWithTitles = selector({
   },
 });
 
+// In the order of ids, skipping deleted maps.
+export const mindmapsWithTitlesByIds = selector({
+  name: "mindmapsWithTitlesByIds",
+  args: { ids: v.array(v.string()) },
+  handler: function* mindmapsWithTitlesByIds({ ids }) {
+    if (ids.length === 0) return [];
+    const mindmaps = (yield* selectFrom(mindmapsTable, "byId").where((q) =>
+      ids.map((id) => q.eq("id", id)),
+    )) as Mindmap[];
+    const byId = new Map(mindmaps.map((mindmap) => [mindmap.id, mindmap]));
+    return yield* withDisplayTitles(ids.flatMap((id) => byId.get(id) ?? []));
+  },
+});
+
 export const mindmapNodeById = selector({
   name: "mindmapNodeById",
   args: { id: v.string() },

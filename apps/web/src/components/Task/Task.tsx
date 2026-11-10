@@ -93,6 +93,7 @@ import {
   buildFocusKey,
   useFocusStore,
   parseColumnKey,
+  scrollFocusedIntoView,
 } from "@/store/focusSlice.ts";
 
 import { useCurrentDate } from "../DaysBoard/hooks";
@@ -487,12 +488,8 @@ export const PreloadedTaskComp = ({
             `[data-focusable-key="${focusableItemKey}"]`,
           );
           if (el) {
-            el.focus();
-            el.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-              inline: "center",
-            });
+            el.focus({ preventScroll: true });
+            scrollFocusedIntoView(el);
           }
         }, 0);
       })();
@@ -585,12 +582,8 @@ export const PreloadedTaskComp = ({
             `[data-focusable-key="${focusableItemKey}"]`,
           );
           if (el) {
-            el.focus();
-            el.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-              inline: "center",
-            });
+            el.focus({ preventScroll: true });
+            scrollFocusedIntoView(el);
           }
         }, 0);
       })();

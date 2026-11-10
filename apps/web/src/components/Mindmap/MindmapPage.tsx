@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from "react";
-import { startOfDay } from "date-fns";
+import { useCallback, useEffect, useMemo } from "react";
+import { addDays, startOfDay } from "date-fns";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   useAsyncDispatch,
@@ -37,6 +37,7 @@ import {
   useCreateMindmap,
   useCreatingMindmaps,
 } from "./useCreateMindmap.ts";
+import { useRecentMindmaps } from "./recentMindmaps.ts";
 
 export const MindmapPage = ({
   mindmapId,
@@ -52,7 +53,11 @@ export const MindmapPage = ({
   const deleteWithUndo = useUndoToast();
   const navigate = useNavigate();
   const { createAndOpen, preload } = useCreateMindmap();
-  const today = useMemo(() => startOfDay(new Date()), []);
+  const markOpened = useRecentMindmaps((s) => s.markOpened);
+  const nextWeek = useMemo(() => {
+    const today = startOfDay(new Date());
+    return { from: today.getTime(), to: addDays(today, 6).getTime() };
+  }, []);
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -70,6 +75,10 @@ export const MindmapPage = ({
       branches: [],
       floating: [],
     });
+  const exists = tree != null;
+  useEffect(() => {
+    if (exists) markOpened(spaceId, mindmapId);
+  }, [exists, markOpened, spaceId, mindmapId]);
   const { data: mindmaps = [] } = useAsyncSelector({
     selector: mindmapsWithTitles,
     args: {},
@@ -138,7 +147,7 @@ export const MindmapPage = ({
         topClassName="flex min-h-0 flex-col"
         projectLink={ProjectLink}
         selectedProjectId={selectedProjectId}
-        selectedDate={today}
+        timelineDays={nextWeek}
       >
         {/* The name moves to its own line rather than shrinking, so a phone
             shows it whole. */}

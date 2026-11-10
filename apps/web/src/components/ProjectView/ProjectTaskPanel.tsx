@@ -36,6 +36,7 @@ import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { ProjectIcon } from "@/components/ui/emoji";
 import { useUndoToast } from "@/store/undo";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -306,7 +307,7 @@ const SectionSection = ({
           onBlur={() => setIsPlaceholderFocused(false)}
           onKeyDown={(e) => {
             const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
-            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+            if (noModifiers && ["KeyO", "KeyA", "KeyI"].includes(e.code)) {
               e.preventDefault();
               handleAddTask();
             }
@@ -393,9 +394,10 @@ export const ProjectTaskPanel = ({
           {project.title}
         </span>
       </div>
-      <div
+      <ScrollArea
         data-focus-region-direction="column"
-        className="flex-1 overflow-y-auto px-3 pb-4"
+        rootClassName="min-h-0 flex-1"
+        className="px-3 pb-4"
       >
         {sections.map((section) => (
           <SectionSection
@@ -405,7 +407,7 @@ export const ProjectTaskPanel = ({
           />
         ))}
         <AddSectionButton onClick={() => void handleAddSection()} />
-      </div>
+      </ScrollArea>
     </div>
   );
 };

@@ -9,16 +9,20 @@ import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
 import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import {
   type CalendarEvent,
+  type BlockLayout,
+  type TimedSpan,
   blockMinutes,
   isDraggable,
   minBlockMinutes,
-  layoutTimedEvents,
+  layoutSpans,
   minutesInDay,
   minutesToTime,
   snapMinutes,
+  timedEventSpan,
   timeToMinutes,
 } from "./calendarModel";
 import {
+  holdTouchScroll,
   startCalendarDrag,
   useCalendarDrag,
   useIsDropTarget,
@@ -26,6 +30,15 @@ import {
 import { CalendarCard } from "./CalendarCard";
 import { cardClass } from "./styles";
 import { type DayActions } from "./DayCells";
+import {
+  type DayExternalEvent,
+  eventTooltip,
+  externalEventClass,
+  externalEventStyle,
+} from "@/components/ExternalEvents/externalEventsModel.ts";
+import { ExternalEventChip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { ExternalEventPopover } from "@/components/ExternalEvents/ExternalEventPopover.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const hourHeight = 48;
 const gutterWidth = "4.5rem";
@@ -45,11 +58,13 @@ export const TimeGridView = ({
   days,
   today,
   eventsByDate,
+  externalByDate,
   actions,
 }: {
   days: Date[];
   today: string;
   eventsByDate: Map<string, CalendarEvent[]>;
+  externalByDate: Map<string, DayExternalEvent[]>;
   actions: DayActions;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,7 +92,7 @@ export const TimeGridView = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div
-        className="grid overflow-y-hidden border-b border-white/5 [scrollbar-gutter:stable]"
+        className="grid border-b border-white/5"
         style={{ gridTemplateColumns: columns }}
       >
         <div />
@@ -122,16 +137,16 @@ export const TimeGridView = ({
               events={(eventsByDate.get(date) ?? []).filter(
                 (e) => e.time === null,
               )}
+              external={(externalByDate.get(date) ?? []).filter(
+                (e) => e.allDay,
+              )}
               actions={actions}
             />
           );
         })}
       </div>
 
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
-      >
+      <ScrollArea ref={scrollRef} rootClassName="min-h-0 flex-1">
         <div
           className="relative grid"
           style={{
@@ -162,12 +177,15 @@ export const TimeGridView = ({
                 events={(eventsByDate.get(date) ?? []).filter(
                   (e) => e.time !== null,
                 )}
+                external={(externalByDate.get(date) ?? []).filter(
+                  (e) => !e.allDay,
+                )}
                 actions={actions}
               />
             );
           })}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -175,25 +193,31 @@ export const TimeGridView = ({
 const UntimedCell = ({
   date,
   events,
+  external,
   actions,
 }: {
   date: string;
   events: CalendarEvent[];
+  external: DayExternalEvent[];
   actions: DayActions;
 }) => {
   const isDropTarget = useIsDropTarget(date, null);
   return (
-    <div
+    <ScrollArea
       data-calendar-date={date}
       data-calendar-untimed
       onClick={(e) => {
         if (e.target === e.currentTarget) actions.onCreate(date, null);
       }}
+      rootClassName="min-w-0"
       className={cn(
-        "flex max-h-32 min-h-9 min-w-0 flex-col gap-1 overflow-y-auto border-l border-white/5 p-1",
+        "flex max-h-32 min-h-9 flex-col gap-1 border-l border-white/5 p-1",
         isDropTarget && "bg-accent/10",
       )}
     >
+      {external.map((event) => (
+        <ExternalEventChip key={event.key} event={event} />
+      ))}
       {events.map((event) => (
         <CalendarCard
           key={event.key}
@@ -203,22 +227,37 @@ const UntimedCell = ({
           onCommit={actions.onCommit}
         />
       ))}
-    </div>
+    </ScrollArea>
   );
 };
+
+const externalSpan = (event: DayExternalEvent): TimedSpan => ({
+  key: event.key,
+  start: event.startMinutes,
+  end: Math.min(
+    minutesInDay,
+    event.startMinutes +
+      Math.max(event.endMinutes - event.startMinutes, minBlockMinutes),
+  ),
+});
 
 const GridColumn = ({
   date,
   isToday,
   events,
+  external,
   actions,
 }: {
   date: string;
   isToday: boolean;
   events: CalendarEvent[];
+  external: DayExternalEvent[];
   actions: DayActions;
 }) => {
-  const layout = layoutTimedEvents(events);
+  const layout = layoutSpans([
+    ...events.map(timedEventSpan),
+    ...external.map(externalSpan),
+  ]);
   const draggedKey = useCalendarDrag((s) => s.drag?.event.key);
   // Only re-render the column the dragged block hovers.
   const drag = useCalendarDrag((s) =>
@@ -259,6 +298,13 @@ const GridColumn = ({
         backgroundSize: `100% ${hourHeight}px`,
       }}
     >
+      {external.map((event) => (
+        <ExternalBlock
+          key={event.key}
+          event={event}
+          layout={layout.get(event.key) ?? { column: 0, columns: 1 }}
+        />
+      ))}
       {events.map((event) => (
         <TimedBlock
           key={event.key}
@@ -301,7 +347,7 @@ const TimedBlock = ({
   actions,
 }: {
   event: CalendarEvent;
-  layout: { column: number; columns: number };
+  layout: BlockLayout;
   isDragged: boolean;
   actions: DayActions;
 }) => {
@@ -312,6 +358,7 @@ const TimedBlock = ({
 
   return (
     <div
+      ref={isDraggable(event) ? holdTouchScroll : undefined}
       role="button"
       tabIndex={0}
       data-focusable-key={event.focusKey}
@@ -329,8 +376,7 @@ const TimedBlock = ({
       style={{
         top: percent(start),
         height: blockHeight(start, length),
-        left: `calc(${(layout.column / layout.columns) * 100}% + 2px)`,
-        width: `calc(${100 / layout.columns}% - 4px)`,
+        ...blockPosition(layout),
       }}
     >
       <BlockContent
@@ -350,6 +396,50 @@ const TimedBlock = ({
         />
       )}
     </div>
+  );
+};
+
+const blockPosition = (layout: BlockLayout) => ({
+  left: `calc(${(layout.column / layout.columns) * 100}% + 2px)`,
+  width: `calc(${100 / layout.columns}% - 4px)`,
+});
+
+// Read-only: no focus, details or dragging.
+const ExternalBlock = ({
+  event,
+  layout,
+}: {
+  event: DayExternalEvent;
+  layout: BlockLayout;
+}) => {
+  const start = event.startMinutes;
+  const length = event.endMinutes - event.startMinutes;
+  return (
+    <ExternalEventPopover occurrence={event.occurrence}>
+      <button
+        type="button"
+        title={eventTooltip(event)}
+        data-external-event
+        className={cn(
+          externalEventClass(event),
+          "absolute z-10 overflow-hidden px-1.5 py-0.5 text-xs",
+          isShortBlock(length) && "flex items-baseline gap-1.5",
+        )}
+        style={{
+          ...externalEventStyle(event),
+          ...blockPosition(layout),
+          top: percent(start),
+          height: blockHeight(start, length),
+        }}
+      >
+        <BlockContent
+          title={event.occurrence.title || "Untitled event"}
+          start={start}
+          length={length}
+          durationMinutes={null}
+        />
+      </button>
+    </ExternalEventPopover>
   );
 };
 

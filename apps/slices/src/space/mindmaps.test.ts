@@ -45,6 +45,7 @@ import {
   deleteMindmapNodes,
   mindmapsOfItem,
   mindmapsWithTitles,
+  mindmapsWithTitlesByIds,
   mindmapTree,
   moveMindmapNode,
   moveMindmapNodes,
@@ -266,6 +267,15 @@ describe("mindmaps", () => {
     expect(richTextMarkdownToPlainText(starredRoot.title, "title")).toBe(
       "*Not* bold",
     );
+    expect(
+      selectSync(db, {
+        selector: mindmapsWithTitlesByIds,
+        args: { ids: [starred.id, "missing", "map"] },
+      }),
+    ).toMatchObject([
+      { mindmap: { id: starred.id }, title: "*Not* bold" },
+      { mindmap: { id: "map" }, title: "Plan" },
+    ]);
     syncDispatch(db, deleteMindmap({ id: starred.id }));
 
     syncDispatch(db, updateMindmap({ id: "map", mindmap: { title: "" } }));

@@ -164,6 +164,53 @@ describe("cross-tab changes", () => {
     expect(onPersisted).toHaveBeenCalledOnce();
   });
 
+  it("publishes an applied server download without waking the local upload", async () => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    await execAsync(db.loadTables([crossTabItemsTable, changesTable]));
+    const postChanges = vi.fn();
+    const onPersisted = vi.fn();
+    inScope(db, makeLocalPersistQueue({ postChanges, onPersisted }));
+    const clock = createHlcClock("server")();
+    const row = { id: "downloaded", title: "From the server" };
+    const change: Change = {
+      id: `${crossTabItemsTable.tableName}:${row.id}`,
+      entityId: row.id,
+      tableName: crossTabItemsTable.tableName,
+      createdAt: clock,
+      updatedAt: clock,
+      deletedAt: null,
+      clientId: "leader",
+      changes: { id: clock, title: clock },
+    };
+    const applyDownload = action({
+      name: "applyDownloadedCrossTabChange",
+      args: {},
+      handler: function* () {
+        yield* upsert(crossTabItemsTable, [row]);
+        yield* upsert(changesTable, [change]);
+      },
+    })({});
+
+    await Effect.runPromise(
+      Database.make(db).dispatch(applyDownload, { skipSync: true }),
+    );
+    expect(postChanges).toHaveBeenCalledExactlyOnceWith({
+      changeset: [
+        { tableName: crossTabItemsTable.tableName, data: [{ row, change }] },
+      ],
+    });
+    expect(onPersisted).not.toHaveBeenCalled();
+
+    // A merge received from another tab must not echo back to the tabs.
+    await Effect.runPromise(
+      Database.make(db).dispatch(applyDownload, {
+        skipSync: true,
+        fromOtherTab: true,
+      }),
+    );
+    expect(postChanges).toHaveBeenCalledOnce();
+  });
+
   // The web runtime keeps changes resident and loads mindmap tables on demand.
   it.each([{ itemsResidency: "preloaded" }, { itemsResidency: "on demand" }])(
     "publishes an externally persisted $itemsResidency row without creating a local echo",

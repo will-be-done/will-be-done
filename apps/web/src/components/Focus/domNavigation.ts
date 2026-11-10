@@ -31,6 +31,10 @@ type VerticalEdge = Extract<Edge, "top" | "bottom">;
  *   Set on data-focus-column elements. Identifies the backing model (e.g. a
  *   dailyList or projectSection) so tasks can be moved between columns.
  *
+ * data-focus-skip
+ *   Set on a container whose columns h/l and task-move pass over, unless the
+ *   focus is already in one. Unlike inert, it keeps the focus where it is.
+ *
  * data-focus-region-direction="row" | "column"
  *   Wraps a group of data-focus-column elements and controls how navigation
  *   behaves at column boundaries:
@@ -46,11 +50,16 @@ type VerticalEdge = Extract<Edge, "top" | "bottom">;
 
 const REGION_SELECTOR = "[data-focus-region-direction]";
 
-const getRegionColumns = (region: ParentNode, regionEl?: Element | null) =>
+const getRegionColumns = (
+  region: ParentNode,
+  regionEl?: Element | null,
+  current?: Element,
+) =>
   Array.from(region.querySelectorAll("[data-focus-column]")).filter(
     (col) =>
       col.closest(REGION_SELECTOR) === (regionEl ?? null) &&
-      !col.closest('[inert], [aria-hidden="true"]'),
+      !col.closest('[inert], [aria-hidden="true"]') &&
+      (col === current || !col.closest("[data-focus-skip]")),
   );
 
 // When direction="column", j/k overflows into the adjacent column at boundaries.
@@ -162,6 +171,7 @@ export const getDOMColumnSiblingFirstItems = (
   const allColumns = getRegionColumns(
     region,
     region instanceof Element ? region : null,
+    currentColumn,
   );
   const colIndex = allColumns.indexOf(currentColumn as HTMLElement);
   if (colIndex === -1) return [null, null];
@@ -226,6 +236,7 @@ export const getDOMColumnSiblingDropTarget = (
   const allColumns = getRegionColumns(
     region,
     region instanceof Element ? region : null,
+    currentColumn,
   );
   const colIndex = allColumns.indexOf(currentColumn as HTMLElement);
   if (colIndex === -1) return null;
@@ -356,6 +367,7 @@ export const getDOMAdjacentColumns = (
   const allColumns = getRegionColumns(
     region,
     region instanceof Element ? region : null,
+    currentColumn,
   );
   const colIndex = allColumns.indexOf(currentColumn as HTMLElement);
   if (colIndex === -1) return [null, null];

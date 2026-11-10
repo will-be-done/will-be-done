@@ -23,6 +23,8 @@ import {
   useAttachmentUrl,
 } from "@/components/Attachments/attachmentFiles";
 import { AttachmentPreview } from "@/components/Attachments/AttachmentPreview";
+import { cn } from "@/lib/utils";
+import { settingsButtonClass } from "./SettingsUI";
 
 const PAGE_SIZE = 50;
 
@@ -54,7 +56,7 @@ function Thumb({
   );
 }
 
-export function AttachmentsSection({ onClose }: { onClose: () => void }) {
+export function AttachmentsSection() {
   const { spaceId } = Route.useParams();
   const dispatch = useAsyncDispatch();
   const transfers = useAttachmentTransfers();
@@ -83,25 +85,22 @@ export function AttachmentsSection({ onClose }: { onClose: () => void }) {
   const totalSize = all.reduce((sum, file) => sum + file.size, 0);
 
   return (
-    <div className="flex flex-col gap-3 px-5 py-5">
-      <div>
-        <h3 className="text-[13px] font-semibold text-content">Files</h3>
-        <p className="mt-1 text-[12px] leading-relaxed text-content-tinted">
-          {all.length === 0
-            ? "Files you attach to tasks, templates, and notes appear here."
-            : `${all.length} ${all.length === 1 ? "file" : "files"} · ${formatFileSize(totalSize)}`}
-        </p>
-      </div>
+    <section className="flex flex-col gap-3">
+      <p className="px-1 text-[13px] leading-relaxed text-content-tinted/60">
+        {all.length === 0
+          ? "Files you attach to tasks, templates, and notes appear here."
+          : `${all.length} ${all.length === 1 ? "file" : "files"} · ${formatFileSize(totalSize)}`}
+      </p>
 
       {files.length > 0 && (
-        <ul className="divide-y divide-white/5 rounded-xl bg-white/[0.03] ring-1 ring-white/8">
+        <ul className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl bg-white/[0.025] ring-1 ring-white/[0.07]">
           {files.map((file) => {
             const fileUsages = usages[file.id] ?? [];
             return (
               <li
                 key={file.id}
                 data-testid="attachment-row"
-                className="flex items-start gap-3 p-3"
+                className="flex items-start gap-3 px-5 py-4"
               >
                 <button
                   type="button"
@@ -119,15 +118,15 @@ export function AttachmentsSection({ onClose }: { onClose: () => void }) {
                   <button
                     type="button"
                     onClick={() => open(file)}
-                    className="block max-w-full cursor-pointer truncate text-left text-[12px] font-medium text-content hover:underline"
+                    className="block max-w-full cursor-pointer truncate text-left text-[14px] font-medium text-content hover:underline"
                   >
                     {file.name}
                   </button>
-                  <p className="text-[11px] text-content-tinted">
+                  <p className="text-[12px] text-content-tinted/60">
                     {formatFileSize(file.size)} ·{" "}
                     {format(file.createdAt, "MMM d, yyyy")}
                   </p>
-                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[12px]">
                     {fileUsages.length === 0 && (
                       <span className="text-content-tinted/70">Unused</span>
                     )}
@@ -137,7 +136,6 @@ export function AttachmentsSection({ onClose }: { onClose: () => void }) {
                           key={`trash:${usage.parentId}`}
                           to="/spaces/$spaceId/trash"
                           params={{ spaceId }}
-                          onClick={onClose}
                           className="text-content-tinted hover:underline"
                         >
                           In trash
@@ -147,7 +145,6 @@ export function AttachmentsSection({ onClose }: { onClose: () => void }) {
                           key={`${usage.parentType}:${usage.parentId}`}
                           to="/spaces/$spaceId/item-details/$itemId"
                           params={{ spaceId, itemId: usage.parentId }}
-                          onClick={onClose}
                           className="max-w-[200px] truncate text-accent hover:underline"
                         >
                           {usageLabel(usage)}
@@ -190,11 +187,11 @@ export function AttachmentsSection({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={() => setLimit((current) => current + PAGE_SIZE)}
-          className="self-center cursor-pointer rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 hover:bg-white/10"
+          className={cn(settingsButtonClass, "self-center")}
         >
           Show more
         </button>
       )}
-    </div>
+    </section>
   );
 }

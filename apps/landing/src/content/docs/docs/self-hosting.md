@@ -65,6 +65,26 @@ For HTTPS access, put a reverse proxy in front of port 3000 and allow WebSocket
 connections for sync. Use the resulting base URL in your browser or
 [desktop app](/docs/install/).
 
+## Calendar connections
+
+The server fetches events from the calendars users connect, so it stores their
+calendar passwords and subscription links. They are encrypted with a key you
+provide. Calendar connections stay off until you set it. Generate a key once,
+for example with `openssl rand -base64 48`, and pass it to the container:
+
+```sh
+-e WBD_CALENDAR_ENCRYPTION_KEY=<your key>
+```
+
+With Docker Compose, add it under `environment:`. Keep the key stable: changing it makes saved connections unreadable, and users
+have to add them again.
+
+By default the server refuses calendar addresses on private networks. To use a
+CalDAV server on your own network, such as Radicale or Nextcloud, also set
+`WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS=true`. Only do this when you trust every
+user of the server, since it lets them make the server request internal
+addresses.
+
 ## Keep persistent storage
 
 The named Docker volume `will_be_done_storage` holds the server's storage at

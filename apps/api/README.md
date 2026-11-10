@@ -50,9 +50,9 @@ hour per IP, and 3 Todoist imports per hour per user. Redis errors are logged
 and fail open so a transient Redis outage does not take down the API.
 
 Recurring tasks are generated lazily when an authenticated v1 request accesses
-a space. Each template keeps a persisted generation checkpoint and is checked
-at most once every 60 seconds by default. Set
-`WBD_TASK_GENERATION_INTERVAL_MS` to change the interval (minimum 1000).
+a space. Each server process checks a space at most once every 60 seconds by
+default. Set `WBD_TASK_GENERATION_INTERVAL_MS` to change the interval (minimum
+1000).
 
 ## Database engines
 

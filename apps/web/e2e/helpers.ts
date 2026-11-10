@@ -186,13 +186,54 @@ export async function openTaskDetails(page: Page, title: string) {
   return { item, description };
 }
 
-export async function openSpaceSettings(page: Page) {
-  await page.getByRole("button", { name: "Space settings" }).click();
+export async function openSpaceSettings(
+  page: Page,
+  section:
+    | "General"
+    | "Account"
+    | "Calendars"
+    | "API tokens"
+    | "Files"
+    | "Backup"
+    | "Import" = "General",
+) {
+  await page.getByRole("link", { name: "Space settings" }).click();
+  await page
+    .getByRole("navigation", { name: "Settings" })
+    .getByRole("link", { name: section, exact: true })
+    .click();
 
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading", { name: "Settings" })).toBeVisible();
+  const settings = page.getByRole("main");
+  await expect(
+    settings.getByRole("heading", { level: 1, name: section }),
+  ).toBeVisible();
 
-  return dialog;
+  return settings;
+}
+
+export async function closeSpaceSettings(page: Page) {
+  await page.getByRole("link", { name: "Back", exact: true }).click();
+}
+
+// A new space reaches the server with its first sync; server-side calls fail
+// with "Space not found" before that.
+export async function waitForSpaceOnServer(page: Page) {
+  const spaceId = new URL(page.url()).pathname.split("/")[2];
+  expect(spaceId).toBeTruthy();
+  await expect(
+    page
+      .getByRole("button", { name: "Sync status: All changes synced" })
+      .first(),
+  ).toBeVisible({ timeout: 15_000 });
+  const sessionToken = await page.evaluate(() =>
+    localStorage.getItem("auth_token"),
+  );
+  expect(sessionToken).toBeTruthy();
+
+  return {
+    spaceId,
+    authorization: { Authorization: `Bearer ${sessionToken}` },
+  };
 }
 
 export function taskItem(page: Page, title: string): Locator {
@@ -304,4 +345,23 @@ export function waitForSyncedText(page: Page, text: string) {
     page.on("request", onRequest);
     page.on("response", onResponse);
   });
+}
+
+export function scrollViewport(container: Locator): Locator {
+  return container.locator('[data-slot="scroll-area-viewport"]');
+}
+
+// Resolves with the viewport's scroll position at its next `scroll` event.
+// Call before the action that should scroll it.
+export async function nextScroll(viewport: Locator) {
+  const pending = await viewport.evaluateHandle((el) => ({
+    position: new Promise<{ top: number; left: number }>((resolve) =>
+      el.addEventListener(
+        "scroll",
+        () => resolve({ top: el.scrollTop, left: el.scrollLeft }),
+        { once: true },
+      ),
+    ),
+  }));
+  return () => pending.evaluate(({ position }) => position);
 }

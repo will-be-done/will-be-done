@@ -35,7 +35,9 @@ test("shows new HyperDB actions when the devtool is enabled", async ({
 
   const devtool = page.getByText("HyperDB", { exact: true });
   await expect(devtool).toBeVisible();
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  // The docked devtool covers the settings Back link and closes on Escape.
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/settings\//);
 
   const databaseSelect = page.getByLabel("HyperDB database");
   const spaceDatabaseValue = await databaseSelect

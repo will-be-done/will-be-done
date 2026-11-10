@@ -3,11 +3,14 @@ import { getDMY } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import {
   type CalendarEvent,
-  monthChipLimit,
   shownDayEvents,
+  shownMonthExternalCount,
 } from "./calendarModel";
 import { type DragCommit, useIsDropTarget } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
+import { type DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
+import { ExternalEventChip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export type DayActions = {
   onCommit: DragCommit;
@@ -54,20 +57,21 @@ const DayCell = ({
 }) => {
   const isDropTarget = useIsDropTarget(date, undefined);
   return (
-    <div
+    <ScrollArea
       data-calendar-date={date}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCreate(date, null);
       }}
+      rootClassName="min-h-0 min-w-0"
       className={cn(
-        "flex min-h-0 min-w-0 flex-col gap-1 border-b border-r border-white/5 p-1.5",
+        "flex flex-col gap-1 border-b border-r border-white/5 p-1.5",
         isToday && "bg-accent/[0.04]",
         isDropTarget && "bg-accent/10",
         className,
       )}
     >
       {children}
-    </div>
+    </ScrollArea>
   );
 };
 
@@ -76,17 +80,24 @@ export const MonthCell = ({
   anchor,
   today,
   events,
+  external,
   actions,
 }: {
   day: Date;
   anchor: Date;
   today: string;
   events: CalendarEvent[];
+  external: DayExternalEvent[];
   actions: DayActions;
 }) => {
   const date = getDMY(day);
-  const overflows = events.length > monthChipLimit;
-  const shown = shownDayEvents("month", events);
+  const shownExternal = external.slice(
+    0,
+    shownMonthExternalCount(external.length, events.length),
+  );
+  const shown = shownDayEvents("month", events, external.length);
+  const hidden =
+    external.length + events.length - shownExternal.length - shown.length;
 
   return (
     <DayCell date={date} isToday={date === today} onCreate={actions.onCreate}>
@@ -97,6 +108,9 @@ export const MonthCell = ({
           isMuted={!isSameMonth(day, anchor)}
         />
       </div>
+      {shownExternal.map((event) => (
+        <ExternalEventChip key={event.key} event={event} />
+      ))}
       {shown.map((event) => (
         <CalendarCard
           key={event.key}
@@ -105,13 +119,13 @@ export const MonthCell = ({
           onCommit={actions.onCommit}
         />
       ))}
-      {overflows && (
+      {hidden > 0 && (
         <button
           type="button"
           onClick={() => actions.onOpenDay(day)}
           className="self-start rounded px-1.5 text-xs text-content-tinted hover:bg-white/5 hover:text-content cursor-pointer"
         >
-          +{events.length - shown.length} more
+          +{hidden} more
         </button>
       )}
     </DayCell>
@@ -122,11 +136,13 @@ export const PlanCell = ({
   day,
   today,
   events,
+  external,
   actions,
 }: {
   day: Date;
   today: string;
   events: CalendarEvent[];
+  external: DayExternalEvent[];
   actions: DayActions;
 }) => {
   const date = getDMY(day);
@@ -135,11 +151,14 @@ export const PlanCell = ({
       date={date}
       isToday={date === today}
       onCreate={actions.onCreate}
-      className="gap-1.5 overflow-y-auto"
+      className="gap-1.5"
     >
       <div className="pointer-events-none flex">
         <DayNumber label={format(day, "MMM d")} isToday={date === today} />
       </div>
+      {external.map((event) => (
+        <ExternalEventChip key={event.key} event={event} />
+      ))}
       {events.map((event) => (
         <CalendarCard
           key={event.key}

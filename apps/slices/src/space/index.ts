@@ -27,6 +27,7 @@ export * from "./stashEntries";
 export * from "./checklistItems";
 export * from "./trash";
 export * from "./attachments";
+export * from "./externalEvents";
 export * from "./mindmaps";
 export * from "./backup";
 export * from "./importer/ticktick";
