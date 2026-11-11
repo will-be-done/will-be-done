@@ -131,7 +131,14 @@ export function AttachmentsSection() {
                       <span className="text-content-tinted/70">Unused</span>
                     )}
                     {fileUsages.map((usage) =>
-                      usage.trashed ? (
+                      usage.parentType === "background" ? (
+                        <span
+                          key={`background:${usage.parentId}`}
+                          className="text-content-tinted"
+                        >
+                          Background
+                        </span>
+                      ) : usage.trashed ? (
                         <Link
                           key={`trash:${usage.parentId}`}
                           to="/spaces/$spaceId/trash"

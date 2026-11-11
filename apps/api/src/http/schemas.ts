@@ -790,7 +790,11 @@ export const AttachmentSchema = z.object({
 });
 
 export const AttachmentUsageSchema = z.object({
-  parentType: AttachmentParentTypeSchema,
+  parentType: z
+    .enum(["task", "template", "note", "background"])
+    .describe(
+      "Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view",
+    ),
   parentId: z.string(),
   title: z.string().describe("Item title; empty for items in the trash"),
   trashed: z.boolean().describe("Whether the item is in the trash"),

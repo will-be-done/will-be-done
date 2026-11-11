@@ -15952,8 +15952,13 @@
                               "properties": {
                                 "parentType": {
                                   "type": "string",
-                                  "enum": ["task", "template", "note"],
-                                  "description": "Kind of item that lists the attachment"
+                                  "enum": [
+                                    "task",
+                                    "template",
+                                    "note",
+                                    "background"
+                                  ],
+                                  "description": "Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view"
                                 },
                                 "parentId": { "type": "string" },
                                 "title": {
@@ -16472,8 +16477,13 @@
                             "properties": {
                               "parentType": {
                                 "type": "string",
-                                "enum": ["task", "template", "note"],
-                                "description": "Kind of item that lists the attachment"
+                                "enum": [
+                                  "task",
+                                  "template",
+                                  "note",
+                                  "background"
+                                ],
+                                "description": "Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view"
                               },
                               "parentId": { "type": "string" },
                               "title": {

@@ -328,11 +328,17 @@ export type Attachment = ExtractSchema<typeof attachmentsTable>;
 export const isAttachment = isObjectType<Attachment>(attachmentType);
 
 export const itemAttachmentType = "itemAttachment";
+// The items this version links files to.
 export const attachmentParentType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
   v.literal(noteType),
 );
+// A file shown as the background of a surface, named by `parentId`:
+// `<model>:<id>` such as `project:<id>`, or a view name such as `timeline`.
+// Reserved so a later version can add backgrounds without a sync version bump;
+// this one only shows the file as used.
+export const attachmentBackgroundType = "background";
 // Lists an Attachment under an Item. One file can be linked from several
 // items, such as a template and the tasks generated from it.
 export const itemAttachmentsTable = defineTable("item_attachments", {
@@ -340,7 +346,10 @@ export const itemAttachmentsTable = defineTable("item_attachments", {
   id: v.string(),
   attachmentId: v.string(),
   parentId: v.string(),
-  parentType: attachmentParentType,
+  parentType: v.union(
+    attachmentParentType,
+    v.literal(attachmentBackgroundType),
+  ),
   orderToken: v.string(),
   createdAt: v.number(),
 })
@@ -351,6 +360,10 @@ registerSpaceSyncableTable(itemAttachmentsTable, itemAttachmentType);
 
 export type ItemAttachment = ExtractSchema<typeof itemAttachmentsTable>;
 export type AttachmentParentType = Infer<typeof attachmentParentType>;
+export const isAttachmentParentType = (
+  parentType: ItemAttachment["parentType"],
+): parentType is AttachmentParentType =>
+  parentType !== attachmentBackgroundType;
 
 export const trashedTaskType = "trashedTask";
 // A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts

@@ -11,7 +11,13 @@ the rules that keep the two halves consistent.
   upload idempotent and lets downloads be cached forever.
 - **`item_attachments`** lists a file under an item. One file can be listed by
   several items: copies, the tasks a template generates, or a reference pasted
-  into another description. Settings' "used in" reads these links.
+  into another description. Settings' "used in" reads these links. The
+  `background` owner type is reserved for files shown behind a surface, named
+  by `parentId` (`project:<id>`, `mindmap:<id>`, or a view such as
+  `timeline`), so backgrounds can ship without a sync version bump. Clients
+  that show no backgrounds list such a file as a background, never touch its
+  owner, and drop the link from backups they load; the server's cleanup counts
+  it like any other link.
 - **Inline references** are `![name](wbd-attachment:<id>)` in a title or
   description (see [rich-text.md](rich-text.md)). An inline reference always
   has a link: item writes call `ensureInlineAttachmentLinks`, so "used in"

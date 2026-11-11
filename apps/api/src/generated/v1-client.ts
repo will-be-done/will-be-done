@@ -9983,7 +9983,7 @@ export type ListAttachmentsParams = {
 };
 
 /**
- * Kind of item that lists the attachment
+ * Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view
  */
 export type ListAttachments200AttachmentsItemUsagesItemParentType =
   (typeof ListAttachments200AttachmentsItemUsagesItemParentType)[keyof typeof ListAttachments200AttachmentsItemUsagesItemParentType];
@@ -9992,10 +9992,11 @@ export const ListAttachments200AttachmentsItemUsagesItemParentType = {
   task: "task",
   template: "template",
   note: "note",
+  background: "background",
 } as const;
 
 export type ListAttachments200AttachmentsItemUsagesItem = {
-  /** Kind of item that lists the attachment */
+  /** Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view */
   parentType: ListAttachments200AttachmentsItemUsagesItemParentType;
   parentId: string;
   /** Item title; empty for items in the trash */
@@ -10316,7 +10317,7 @@ export type CreateAttachment500 = {
 };
 
 /**
- * Kind of item that lists the attachment
+ * Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view
  */
 export type GetAttachment200AttachmentUsagesItemParentType =
   (typeof GetAttachment200AttachmentUsagesItemParentType)[keyof typeof GetAttachment200AttachmentUsagesItemParentType];
@@ -10325,10 +10326,11 @@ export const GetAttachment200AttachmentUsagesItemParentType = {
   task: "task",
   template: "template",
   note: "note",
+  background: "background",
 } as const;
 
 export type GetAttachment200AttachmentUsagesItem = {
-  /** Kind of item that lists the attachment */
+  /** Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view */
   parentType: GetAttachment200AttachmentUsagesItemParentType;
   parentId: string;
   /** Item title; empty for items in the trash */

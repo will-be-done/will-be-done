@@ -20,6 +20,7 @@ import {
   type Attachment,
   attachmentParentType,
   type AttachmentParentType,
+  isAttachmentParentType,
   attachmentsTable,
   attachmentType,
   type ItemAttachment,
@@ -221,7 +222,7 @@ function* linksOfAttachments(attachmentIds: readonly string[]) {
 }
 
 export type AttachmentUsage = {
-  parentType: AttachmentParentType;
+  parentType: ItemAttachment["parentType"];
   parentId: string;
   title: string;
   trashed: boolean;
@@ -258,6 +259,15 @@ export const attachmentUsages = selector({
     const result: Record<string, AttachmentUsage[]> = {};
     for (const id of attachmentIds) result[id] = [];
     for (const link of links) {
+      if (!isAttachmentParentType(link.parentType)) {
+        result[link.attachmentId]?.push({
+          parentType: link.parentType,
+          parentId: link.parentId,
+          title: "",
+          trashed: false,
+        });
+        continue;
+      }
       const title = titles.get(`${link.parentType}:${link.parentId}`);
       result[link.attachmentId]?.push({
         parentType: link.parentType,
@@ -508,9 +518,11 @@ export const removeItemAttachment = action({
     const link = yield* itemAttachmentById({ id });
     if (!link) return;
     yield* deleteRows(itemAttachmentsTable, [link.id]);
-    yield* removeInlineReferences(link.parentType, link.parentId, [
-      link.attachmentId,
-    ]);
+    if (isAttachmentParentType(link.parentType)) {
+      yield* removeInlineReferences(link.parentType, link.parentId, [
+        link.attachmentId,
+      ]);
+    }
   },
 });
 
@@ -524,8 +536,11 @@ export const deleteAttachments = action({
       string,
       { parentType: AttachmentParentType; parentId: string }
     >();
-    for (const link of links) {
-      parents.set(`${link.parentType}:${link.parentId}`, link);
+    for (const { parentType, parentId } of links) {
+      // A background's owner clears its own reference to the file.
+      if (isAttachmentParentType(parentType)) {
+        parents.set(`${parentType}:${parentId}`, { parentType, parentId });
+      }
     }
     if (links.length > 0) {
       yield* deleteRows(

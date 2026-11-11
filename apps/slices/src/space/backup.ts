@@ -24,8 +24,8 @@ import {
 import {
   AnyModel,
   type Attachment,
+  attachmentBackgroundType,
   attachmentParentType,
-  type AttachmentParentType,
   attachmentsTable,
   attachmentType,
   type ItemAttachment,
@@ -183,7 +183,7 @@ interface ItemAttachmentBackup {
   id: string;
   attachmentId: string;
   parentId: string;
-  parentType: AttachmentParentType;
+  parentType: ItemAttachment["parentType"];
   orderToken: string;
   createdAt: number;
 }
@@ -402,7 +402,12 @@ const backupSchema = v.object({
         id: v.string(),
         attachmentId: v.string(),
         parentId: v.string(),
-        parentType: attachmentParentType,
+        // Background links are dropped on load: this version restores no
+        // backgrounds.
+        parentType: v.union(
+          attachmentParentType,
+          v.literal(attachmentBackgroundType),
+        ),
         orderToken: v.string(),
         createdAt: v.number(),
       }),

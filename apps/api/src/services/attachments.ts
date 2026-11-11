@@ -39,20 +39,22 @@ type Parent = { parentType: AttachmentParentType; parentId: string };
 type Space = { spaceId: string; userId: string };
 
 export type PublicAttachment = Omit<Attachment, "type">;
-export type PublicItemAttachment = Omit<ItemAttachment, "type"> & {
-  attachment: PublicAttachment;
-};
+export type PublicItemAttachment = Omit<ItemAttachment, "type"> &
+  Parent & { attachment: PublicAttachment };
 
 const toPublicAttachment = ({
   type: _type,
   ...attachment
 }: Attachment): PublicAttachment => attachment;
 
+// Links read by their parent, whose type is known.
 const toPublicItemAttachment = (
   { type: _type, ...link }: ItemAttachment,
+  parent: Parent,
   attachment: Attachment,
 ): PublicItemAttachment => ({
   ...link,
+  ...parent,
   attachment: toPublicAttachment(attachment),
 });
 
@@ -273,7 +275,7 @@ export const listItemAttachments = ({
     yield* requireParent(db, parent);
     const rows = yield* select(db, { selector: itemAttachments, args: parent });
     return rows.map(({ link, attachment }) =>
-      toPublicItemAttachment(link, attachment),
+      toPublicItemAttachment(link, parent, attachment),
     );
   });
 
@@ -293,7 +295,7 @@ export const attachToItem = ({
     if (!link) {
       return yield* Effect.fail(new ResourceNotFoundError("Attachment"));
     }
-    return toPublicItemAttachment(link, attachment);
+    return toPublicItemAttachment(link, parent, attachment);
   });
 
 export const removeItemAttachment = ({

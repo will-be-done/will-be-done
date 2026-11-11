@@ -17,6 +17,7 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { changeId, changesTable } from "@will-be-done/slices/common";
 import {
   type Attachment,
+  attachmentBackgroundType,
   attachmentsTable,
   type ItemAttachment,
   attachmentType,
@@ -106,6 +107,20 @@ const rowIds = createAction()({
 let root: string | undefined;
 afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
+});
+
+const addBackgroundLink = action({
+  name: "addBackgroundLinkAttachmentCleanupTest",
+  args: { attachmentId: v.string() },
+  handler: function* ({ attachmentId }) {
+    yield* insert(itemAttachmentsTable, [
+      {
+        ...link(attachmentId),
+        parentType: attachmentBackgroundType,
+        parentId: "project:p1",
+      },
+    ]);
+  },
 });
 
 const addRow = action({
@@ -199,6 +214,17 @@ describe("attachment storage cleanup", () => {
     await sweep(now + UNSYNCED_ATTACHMENT_GRACE_MS);
 
     expect(await stored()).toEqual([revived!]);
+  });
+
+  test("keeps files used as backgrounds", async () => {
+    const { db, sweep } = await setup([]);
+    syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
+    syncDispatch(db, addBackgroundLink({ attachmentId: "live" }));
+
+    await sweep(now);
+    await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS);
+
+    expect(syncDispatch(db, rowIds({}))).toEqual(["live"]);
   });
 
   test("an expired file listed again is not deleted", async () => {

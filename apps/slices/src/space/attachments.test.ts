@@ -14,8 +14,10 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import {
+  attachmentBackgroundType,
   attachmentsTable,
   itemAttachmentsTable,
+  itemAttachmentType,
   notesTable,
   noteType,
   projectSectionsTable,
@@ -91,6 +93,25 @@ const insertNote = action({
         title: "",
         projectSectionId: "section",
         orderToken: "b",
+        createdAt: 0,
+      },
+    ]);
+  },
+});
+
+// As a later version would write it: this one shows no backgrounds.
+const insertBackgroundLink = action({
+  name: "insertBackgroundLinkAttachmentTest",
+  args: { attachmentId: v.string() },
+  handler: function* ({ attachmentId }) {
+    yield* insert(itemAttachmentsTable, [
+      {
+        type: itemAttachmentType,
+        id: "background",
+        attachmentId,
+        parentType: attachmentBackgroundType,
+        parentId: "project:p1",
+        orderToken: "a",
         createdAt: 0,
       },
     ]);
@@ -490,5 +511,35 @@ describe("attachments", () => {
 
     expect(read(restored).attachments.map((a) => a.id)).toEqual(["f1"]);
     expect(read(restored).links.map((l) => l.attachmentId)).toEqual(["f1"]);
+  });
+
+  test("files used as backgrounds stay listed", () => {
+    const db = createDB();
+    addFile(db, "f1");
+    syncDispatch(db, insertBackgroundLink({ attachmentId: "f1" }));
+
+    expect(
+      selectSync(db, {
+        selector: attachmentUsages,
+        args: { attachmentIds: ["f1"] },
+      }).f1,
+    ).toEqual([
+      {
+        parentType: attachmentBackgroundType,
+        parentId: "project:p1",
+        title: "",
+        trashed: false,
+      },
+    ]);
+
+    // A backup holding one still loads; the link goes with its owner.
+    const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+    expect(backup.itemAttachments).toHaveLength(1);
+    const restored = createDB();
+    syncDispatch(restored, loadSpaceBackup({ backup }));
+    expect(read(restored).attachments.map((a) => a.id)).toEqual(["f1"]);
+
+    syncDispatch(db, deleteAttachments({ ids: ["f1"] }));
+    expect(read(db).links).toEqual([]);
   });
 });
