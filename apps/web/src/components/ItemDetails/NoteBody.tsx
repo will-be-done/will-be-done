@@ -22,6 +22,7 @@ import {
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
+import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
 
 export function NoteBody({
   note,
@@ -70,68 +71,70 @@ export function NoteBody({
   if (!project) return null;
 
   return (
-    <div className="px-3 py-3 space-y-3">
-      <EditableTitle
-        key={note.id}
-        icon={
-          <StickyNote
-            className="h-4 w-4 text-content shrink-0 mt-0.5"
-            strokeWidth={2.5}
-          />
-        }
-        isEditing={isEditingTitle}
-        title={note.title}
-        titleDoc={note.titleDoc}
-        onSave={saveTitleDoc}
-        setIsEditingTitle={setIsEditingTitle}
-      />
-
-      <div className="space-y-2 text-xs">
-        <ProjectDetailRow
-          project={project}
-          onOpenClick={() => openProject(project.id)}
-          onEditClick={() => setIsMoveProjectModalOpen(true)}
-        />
-
-        <SectionDetailRow
-          projectSectionId={note.projectSectionId}
-          projectSections={projectSections}
-          onChange={(projectSectionId) =>
-            void dispatch(
-              updateNote({ id: noteId, note: { projectSectionId } }),
-            )
+    <ItemDetailsLayout
+      title={
+        <EditableTitle
+          key={note.id}
+          icon={
+            <StickyNote
+              className="h-4 w-4 text-content shrink-0 mt-0.5"
+              strokeWidth={2.5}
+            />
           }
+          isEditing={isEditingTitle}
+          title={note.title}
+          titleDoc={note.titleDoc}
+          onSave={saveTitleDoc}
+          setIsEditingTitle={setIsEditingTitle}
         />
-
-        <DetailRow
-          icon={<CalendarDays className="h-3 w-3 shrink-0" />}
-          label="Created"
-        >
-          {format(new Date(note.createdAt), "MMM d, yyyy, h:mm a")}
-        </DetailRow>
-
-        <ItemMindmapsRow itemId={noteId} />
-
-        <div className="pt-1">
-          <EditableDescription
-            key={note.id}
-            isEditing={isEditingDescription}
-            content={note.content ?? ""}
-            contentDoc={note.contentDoc}
-            onSave={saveContentDoc}
-            setIsEditingDescription={setIsEditingDescription}
+      }
+      properties={
+        <>
+          <ProjectDetailRow
+            project={project}
+            onOpenClick={() => openProject(project.id)}
+            onEditClick={() => setIsMoveProjectModalOpen(true)}
           />
-        </div>
-      </div>
 
-      <button
-        onClick={() => void noteConversion.toTask(noteId)}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
-      >
-        <SquareCheckboxIcon className="h-3 w-3" />
-        Convert to task
-      </button>
+          <SectionDetailRow
+            projectSectionId={note.projectSectionId}
+            projectSections={projectSections}
+            onChange={(projectSectionId) =>
+              void dispatch(
+                updateNote({ id: noteId, note: { projectSectionId } }),
+              )
+            }
+          />
 
+          <ItemMindmapsRow itemId={noteId} />
+
+          <DetailRow
+            icon={<CalendarDays className="h-3 w-3 shrink-0" />}
+            label="Created"
+          >
+            {format(new Date(note.createdAt), "MMM d, yyyy, h:mm a")}
+          </DetailRow>
+        </>
+      }
+      description={
+        <EditableDescription
+          key={note.id}
+          isEditing={isEditingDescription}
+          content={note.content ?? ""}
+          contentDoc={note.contentDoc}
+          onSave={saveContentDoc}
+          setIsEditingDescription={setIsEditingDescription}
+        />
+      }
+      actions={
+        <DetailsAction
+          icon={<SquareCheckboxIcon className="h-3 w-3" />}
+          onClick={() => void noteConversion.toTask(noteId)}
+        >
+          Convert to task
+        </DetailsAction>
+      }
+    >
       {isMoveProjectModalOpen && (
         <MoveModal
           setIsOpen={setIsMoveProjectModalOpen}
@@ -142,6 +145,6 @@ export function NoteBody({
           exceptProjectId={project.id}
         />
       )}
-    </div>
+    </ItemDetailsLayout>
   );
 }

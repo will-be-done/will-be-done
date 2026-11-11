@@ -67,7 +67,9 @@ export function useMindmapFocus({
     const entry = [...index.nodes.values()].find(
       (e) =>
         e.kind === "node" &&
-        (e.tree.task?.id === focusItemId || e.tree.note?.id === focusItemId),
+        (e.id === focusItemId ||
+          e.tree.task?.id === focusItemId ||
+          e.tree.note?.id === focusItemId),
     );
     if (entry?.kind !== "node") return;
     let collapsed = false;

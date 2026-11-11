@@ -39,9 +39,11 @@ import fs from "fs";
 import {
   createInboxIfNotExists,
   installProjectTaskStatsHooks,
+  installSearchIndexHooks,
   migrateLegacySpaceStorage,
   migrateProjectSectionTaskStats,
   migrateScheduledTodoTasks,
+  migrateSearchIndex,
   spaceStorageMigrationTables,
 } from "@will-be-done/slices/space";
 import { subscriptionManager } from "../subscriptionManager";
@@ -282,6 +284,7 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
 
     if (dbConfig.dbType === "space") {
       installProjectTaskStatsHooks(hyperDB);
+      installSearchIndexHooks(hyperDB);
     }
 
     installSyncNotificationHook(hyperDB, dbConfig);
@@ -372,6 +375,7 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
     if (dbConfig.dbType === "space") {
       await asyncDispatch(hyperDB, migrateProjectSectionTaskStats({}));
       await asyncDispatch(hyperDB, migrateScheduledTodoTasks({}));
+      await migrateSearchIndex(hyperDB);
       await asyncDispatch(hyperDB, createInboxIfNotExists({}));
     }
 

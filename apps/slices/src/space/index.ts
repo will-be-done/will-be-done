@@ -28,6 +28,7 @@ export * from "./checklistItems";
 export * from "./trash";
 export * from "./externalEvents";
 export * from "./mindmaps";
+export * from "./search";
 export * from "./backup";
 export * from "./importer/ticktick";
 export * from "./selection";

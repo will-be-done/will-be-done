@@ -240,6 +240,10 @@ it writes a Change record, it also upserts that Change's row so subscribers
 receive the row operation. The `skip-sync` trait still prevents those writes
 from producing a second local change record or upload echo.
 
+Derived tables kept only in storage, such as the search index, are not
+re-derived by a cross-tab merge: the sending tab persisted them in the same
+batch as the change ([search.md](search.md#other-tabs)).
+
 After a cross-tab merge completes, the receiving tab wakes the ordinary sync
 loop so the leader uploads the changes from its updated view. The changes and
 status channels have independent delivery order. A follower's `request-sync`

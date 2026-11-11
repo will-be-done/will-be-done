@@ -15875,6 +15875,397 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{spaceId}/search": {
+      "get": {
+        "operationId": "searchSpace",
+        "summary": "Search tasks, notes and mindmap topics",
+        "tags": ["Search"],
+        "description": "Matches titles and descriptions of tasks and notes, and the text of mindmap topics.",
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "description": "Words to find. Each must start a word of the result; Chinese, Japanese, Korean and Thai text matches anywhere"
+          },
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Tasks, notes and mindmap topics matching every word, title matches first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": { "type": "string", "enum": ["task"] },
+                              "id": {
+                                "type": "string",
+                                "description": "Task identifier"
+                              },
+                              "title": { "type": "string" },
+                              "content": { "type": "string" },
+                              "state": {
+                                "type": "string",
+                                "enum": ["todo", "done"]
+                              },
+                              "projectSectionId": {
+                                "type": "string",
+                                "description": "Parent project section identifier"
+                              },
+                              "nature": {
+                                "type": "string",
+                                "enum": ["red", "green", "unknown"]
+                              },
+                              "createdAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "Creation time as Unix milliseconds"
+                              },
+                              "lastToggledAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "Last state change time as Unix milliseconds"
+                              },
+                              "scheduledDate": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Current schedule date, or null when the task is unscheduled"
+                              },
+                              "scheduledTime": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                              },
+                              "durationMinutes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10080,
+                                    "description": "Estimated duration in whole minutes"
+                                  },
+                                  { "type": "null" }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "id",
+                              "title",
+                              "state",
+                              "projectSectionId",
+                              "nature",
+                              "createdAt",
+                              "lastToggledAt",
+                              "scheduledDate",
+                              "scheduledTime",
+                              "durationMinutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": { "type": "string", "enum": ["note"] },
+                              "id": {
+                                "type": "string",
+                                "description": "Note identifier"
+                              },
+                              "title": { "type": "string" },
+                              "content": { "type": "string" },
+                              "projectSectionId": {
+                                "type": "string",
+                                "description": "Parent project section identifier"
+                              },
+                              "createdAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "id",
+                              "title",
+                              "projectSectionId",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": ["mindmapNode"]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "Mindmap node identifier"
+                              },
+                              "mindmapId": { "type": "string" },
+                              "parentId": {
+                                "anyOf": [
+                                  { "type": "string" },
+                                  { "type": "null" }
+                                ],
+                                "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["topic", "task", "note"],
+                                "description": "A topic owns its title; a task or note node shows that item"
+                              },
+                              "taskId": {
+                                "anyOf": [
+                                  { "type": "string" },
+                                  { "type": "null" }
+                                ]
+                              },
+                              "noteId": {
+                                "anyOf": [
+                                  { "type": "string" },
+                                  { "type": "null" }
+                                ]
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "Topic text, or the task's or note's title"
+                              },
+                              "side": {
+                                "type": "string",
+                                "enum": ["left", "right"],
+                                "description": "Side of its root a main branch sits on"
+                              },
+                              "position": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": { "type": "number" },
+                                      "y": { "type": "number" }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": false,
+                                    "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Set on floating topics only"
+                              },
+                              "collapsed": { "type": "boolean" },
+                              "createdAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "id",
+                              "mindmapId",
+                              "parentId",
+                              "kind",
+                              "taskId",
+                              "noteId",
+                              "title",
+                              "side",
+                              "position",
+                              "collapsed",
+                              "createdAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["results"],
+                  "additionalProperties": false,
+                  "description": "Tasks, notes and mindmap topics matching every word, title matches first"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

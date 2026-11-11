@@ -47,6 +47,7 @@ import {
   notesTable,
   Note,
   noteType,
+  projectsTable,
 } from "./tables";
 
 export const defaultProjectSection: ProjectSection = {
@@ -143,6 +144,39 @@ export const projectOfProjectSectionOrDefault = selector({
     if (!section) return defaultProject;
 
     return yield* projectByIdOrDefault({ id: section.projectId });
+  },
+});
+
+export const projectsOfProjectSections = selector({
+  name: "projectsOfProjectSections",
+  args: { projectSectionIds: v.array(v.string()) },
+  handler: function* projectsOfProjectSections({
+    projectSectionIds,
+  }): SelectorGenerator<Record<string, Project>> {
+    if (projectSectionIds.length === 0) return {};
+    const sections = yield* selectFrom(projectSectionsTable, "byId").where(
+      (q) => projectSectionIds.map((id) => q.eq("id", id)),
+    );
+    const projectIds = [...new Set(sections.map((s) => s.projectId))];
+    const projects =
+      projectIds.length > 0
+        ? yield* selectFrom(projectsTable, "byId").where((q) =>
+            projectIds.map((id) => q.eq("id", id)),
+          )
+        : [];
+    const projectById = new Map(projects.map((p) => [p.id, p]));
+    const projectIdBySection = new Map(
+      sections.map((s) => [s.id, s.projectId]),
+    );
+    return Object.fromEntries(
+      projectSectionIds.map((id) => {
+        const projectId = projectIdBySection.get(id);
+        return [
+          id,
+          (projectId && projectById.get(projectId)) || defaultProject,
+        ];
+      }),
+    );
   },
 });
 

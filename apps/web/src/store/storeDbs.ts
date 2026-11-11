@@ -93,7 +93,11 @@ export const createStoreDbs = async (
     ...hyperDBStrictOptions,
     dbName: "hybrid-cache",
   });
-  const syncSubDb = new SubscribableDB(new HybridDB(persistentDB, cacheDB));
+  const syncSubDb = new SubscribableDB(
+    new HybridDB(persistentDB, cacheDB, {
+      uncachedTables: syncConfig.uncachedTables,
+    }),
+  );
   await execAsync(syncSubDb.loadTables(syncConfig.persistDBTables));
 
   // const canPreloadChanges = syncConfig.persistDBTables.includes(changesTable);

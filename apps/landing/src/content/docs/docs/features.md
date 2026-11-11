@@ -1,6 +1,6 @@
 ---
 title: Features
-description: How tasks, notes, text formatting, projects, scheduling, Stash, and recurring templates work.
+description: How tasks, notes, text formatting, projects, scheduling, search, Stash, and recurring templates work.
 sidebar:
   order: 1
 ---
@@ -150,7 +150,7 @@ them. Scroll to pan, `Ctrl`-scroll to zoom, or drag with the middle mouse
 button to pan. On a touch screen, drag with one finger to pan and pinch to
 zoom; tap a topic to select it, tap it again to edit, and double-tap empty
 space to start a floating topic. On a phone, the bar at the bottom adds topics,
-edits, removes, opens a task or note's details full screen, and opens **More**
+edits, removes, opens a task or note's page, and opens **More**
 for the rest of a topic's actions.
 
 Task and note topics stay linked to their item: renaming or completing one
@@ -162,6 +162,17 @@ same actions a task has in a list. Converting a task to a note, or back, keeps
 its place on the map. Removing a topic, or deleting a whole mindmap, keeps its
 tasks and notes in their projects. Deleting a task or note removes it from its
 mindmaps, and restoring it from the trash puts it back.
+
+## Search
+
+Press `/`, or select Search in the sidebar or the search icon next to the page
+links, to search a space.
+Search finds tasks, notes, and mindmap topics by their titles and
+descriptions, including done tasks, and it works offline. Each word you type
+matches the start of a word, so `gro list` finds "Grocery list". Chinese,
+Japanese, Korean, and Thai text matches anywhere inside a word, and hiragana
+and katakana match each other. Select a task or
+note to open its page, or a topic to jump to it on its mindmap.
 
 ## Stash
 
@@ -180,6 +191,11 @@ any project that you expect to work on soon.
 The task details panel shows a task's project, section, schedule, description,
 and checklist. Checklist items can be checked off and reordered independently
 of the parent task.
+
+Every task, note, and repeating task also has its own page, with a link you
+can copy and share between your devices. Open it with the expand button in the
+details panel, **Open page** in the task's **…** menu, or from search. On a
+phone, the details button opens it. Press `Esc` or the close button to go back.
 
 Completing a task changes its state wherever it appears. Completing a checklist
 item changes that checklist row.

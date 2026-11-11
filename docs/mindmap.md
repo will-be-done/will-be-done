@@ -253,7 +253,8 @@ is an alias), and the item details panel on the right. Tasks and Notes are
 dragged from the project panel or the stash onto the canvas. The stash sits at
 the canvas's left edge (`WithStash`) and pushes the canvas aside when open.
 
-The details panel's mindmaps row links with `itemId`. The canvas expands the
+The details panel's mindmaps row links with `itemId`, a Task or Note ID;
+search results link topics by their node ID. The canvas expands the
 node's collapsed ancestors, waits until the node is measured (centering on an
 estimated layout lands off-center once real sizes arrive), centers and focuses
 it, then drops `itemId` from the URL with a replace so the same link works

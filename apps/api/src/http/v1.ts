@@ -9,6 +9,7 @@ import { noteRoutes } from "./v1/notes";
 import { checklistItemRoutes } from "./v1/checklistItems";
 import { stashRoutes } from "./v1/stash";
 import { mindmapRoutes } from "./v1/mindmaps";
+import { searchRoutes } from "./v1/search";
 import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
 import { sendError } from "./errors";
@@ -129,4 +130,5 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
   server.register(checklistItemRoutes, { analytics });
   server.register(stashRoutes);
   server.register(mindmapRoutes);
+  server.register(searchRoutes);
 };

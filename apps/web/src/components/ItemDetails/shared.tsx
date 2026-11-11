@@ -10,6 +10,12 @@ import {
 import { RichTextView } from "@/components/RichText/RichTextView";
 import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
+import { useDetailsVariant } from "./detailsVariant";
+
+const titleTextClass = {
+  panel: "text-sm font-medium leading-snug",
+  page: "text-2xl font-semibold leading-tight tracking-tight",
+};
 
 // Editable title
 
@@ -37,9 +43,16 @@ export function EditableTitle({
     onSave,
   );
   const [caretOffset, setCaretOffset] = useState<number>();
+  const variant = useDetailsVariant();
   return (
-    <div className="flex items-start gap-2">
-      <div className="shrink-0">{icon}</div>
+    <div
+      className={
+        variant === "page" ? "flex items-start gap-3" : "flex items-start gap-2"
+      }
+    >
+      <div className={variant === "page" ? "mt-2 shrink-0" : "shrink-0"}>
+        {icon}
+      </div>
       {isEditing ? (
         <RichTextEditor
           kind="title"
@@ -55,7 +68,7 @@ export function EditableTitle({
           placeholder="Untitled"
           ariaLabel="Edit task title"
           className={cn(
-            "text-sm font-medium leading-snug",
+            titleTextClass[variant],
             titleClassName ?? "text-content",
           )}
         />
@@ -64,7 +77,8 @@ export function EditableTitle({
           data-testid="task-title"
           data-disable-task-shortcuts
           className={cn(
-            "min-h-5 flex-1 cursor-text rounded-sm text-sm font-medium leading-snug focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent",
+            "min-h-5 flex-1 cursor-text rounded-sm focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent",
+            titleTextClass[variant],
             titleClassName ?? "text-content",
           )}
           tabIndex={0}
@@ -104,6 +118,18 @@ export function DetailRow({
   label: string;
   children: React.ReactNode;
 }) {
+  const variant = useDetailsVariant();
+  if (variant === "page") {
+    return (
+      <div className="flex min-h-8 items-center gap-2">
+        <span className="flex w-24 shrink-0 items-center gap-2 text-content-tinted">
+          {icon}
+          {label}
+        </span>
+        <div className="min-w-0 flex-1 text-content">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-start gap-2">
       <span className="text-content-tinted mt-0.5">{icon}</span>
@@ -131,6 +157,7 @@ export function EditableDescription({
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<RichTextEditorHandle | null>(null);
+  const variant = useDetailsVariant();
 
   // The `e` shortcut asks to edit the description.
   useLayoutEffect(() => {
@@ -143,7 +170,11 @@ export function EditableDescription({
     <div
       ref={boxRef}
       data-testid="task-description"
-      className="min-h-[94px] w-full cursor-text rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-within:ring-1 focus-within:ring-accent"
+      className={
+        variant === "page"
+          ? "min-h-40 w-full cursor-text text-[15px] leading-7 text-content"
+          : "min-h-[94px] w-full cursor-text rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-within:ring-1 focus-within:ring-accent"
+      }
       onClick={() => editorRef.current?.focusEnd()}
     >
       <RichTextEditor
@@ -217,7 +248,7 @@ export function SectionDetailRow({
       <select
         value={projectSectionId}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-transparent text-content text-xs focus:outline-none cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors"
+        className="bg-transparent text-content [font-size:inherit] focus:outline-none cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors"
       >
         {projectSections.map((section) => (
           <option

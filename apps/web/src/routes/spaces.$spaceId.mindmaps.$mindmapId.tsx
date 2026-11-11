@@ -16,7 +16,7 @@ import { selectedProject } from "@/components/ProjectView/selectors.ts";
 
 const searchParams = z.object({
   projectId: z.string().default("inbox"),
-  // A task or note to focus on open.
+  // A node, or the task or note of one, to focus on open.
   itemId: z.string().optional(),
 });
 

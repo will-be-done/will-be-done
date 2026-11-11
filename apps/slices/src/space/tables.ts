@@ -307,6 +307,50 @@ export type MindmapNode = ExtractSchema<typeof mindmapNodesTable>;
 export type MindmapNodeSide = MindmapNode["side"];
 export const isMindmapNode = isObjectType<MindmapNode>(mindmapNodeType);
 
+export const searchDocType = v.union(
+  v.literal(taskType),
+  v.literal(noteType),
+  v.literal(mindmapNodeType),
+);
+// The search index is derived per replica and never synced. Each token row
+// is a distinct word of an item with how often it occurs in each field.
+export const searchTokensTable = defineTable("search_tokens", {
+  id: v.string(),
+  token: v.string(),
+  docId: v.string(),
+  titleCount: v.number(),
+  contentCount: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byToken", ["token", "docId"])
+  .index("byDocId", ["docId", "token"]);
+export type SearchToken = ExtractSchema<typeof searchTokensTable>;
+
+// Word counts of each indexed item, for BM25's length normalization.
+export const searchDocsTable = defineTable("search_docs", {
+  id: v.string(),
+  docType: searchDocType,
+  titleLength: v.number(),
+  contentLength: v.number(),
+}).index("byIds", ["id"]);
+export type SearchDoc = ExtractSchema<typeof searchDocsTable>;
+export type SearchDocType = SearchDoc["docType"];
+
+// One row of totals over search_docs, for BM25's averages and document count.
+export const searchStatsTable = defineTable("search_stats", {
+  id: v.string(),
+  docs: v.number(),
+  titleLength: v.number(),
+  contentLength: v.number(),
+}).index("byIds", ["id"]);
+export type SearchStats = ExtractSchema<typeof searchStatsTable>;
+
+export const searchIndexTables = [
+  searchTokensTable,
+  searchDocsTable,
+  searchStatsTable,
+];
+
 export const trashedTaskType = "trashedTask";
 // A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts
 // the snapshot rows, which revives their tombstoned IDs.

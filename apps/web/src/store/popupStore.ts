@@ -15,10 +15,12 @@ import {
 import { hyperDBStrictOptions } from "@will-be-done/slices";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import {
+  applySearchIndexOps,
   createInboxIfNotExists,
   createTaskInSection,
   firstProjectSectionChild,
   registeredSpaceSyncableTables,
+  searchIndexTables,
   tasksTable,
   areSpaceStorageMigrationsApplied,
   migrateLegacySpaceStorage,
@@ -43,6 +45,7 @@ export async function initPopupStore(spaceId: string) {
 
   const persistDBTables = [
     ...registeredSpaceSyncableTables,
+    ...searchIndexTables,
     changesTable,
     syncStateTable,
   ];
@@ -98,6 +101,10 @@ export async function initPopupStore(spaceId: string) {
             position: "prepend",
             taskAttrs: { title },
           });
+          // This DB has no hooks, so it indexes the task itself.
+          yield* applySearchIndexOps(tasksTable, [
+            { type: "insert", table: tasksTable, newValue: task },
+          ]);
 
           // Create change record
           const latest = yield* getLatestChangeCursor({});

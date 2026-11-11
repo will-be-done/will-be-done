@@ -1,6 +1,5 @@
 import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { Trash2, Info } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import {
@@ -17,7 +16,7 @@ import {
 } from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { cn } from "@/lib/utils";
-import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
+import { useOpenItemPage } from "@/components/ItemPage/useOpenItemPage.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { differenceInCalendarDays } from "date-fns";
 import { isMindmapItemFocusKey } from "@/components/Mindmap/focusKeys.ts";
@@ -35,8 +34,7 @@ export const MobileTaskToolbar = () => {
   const dispatch = useAsyncDispatch();
   const deleteWithUndo = useUndoToast();
   const select = useSelectAsync();
-  const navigate = useNavigate();
-  const { spaceId } = SpaceRoute.useParams();
+  const openItemPage = useOpenItemPage();
   const focusKey = useFocusStore((s) => s.focusItemKey);
 
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
@@ -113,10 +111,7 @@ export const MobileTaskToolbar = () => {
       });
       if (!item) return;
 
-      await navigate({
-        to: "/spaces/$spaceId/item-details/$itemId",
-        params: { spaceId, itemId: item.id },
-      });
+      openItemPage(item);
     })();
   };
 

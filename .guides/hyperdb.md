@@ -288,6 +288,11 @@ persistence or when the cache transaction commits, so `byId` and other unique
 equality reads can return from memory while persistence is still pending.
 Write transaction scans reuse coverage already known by the committed cache.
 
+Pass `uncachedTables: [table]` to `new HybridDB(primary, cache, options)` for
+large tables read through bounded queries: their rows never enter the cache,
+every read goes to the primary, and writes still persist with their
+transaction. `preloadTables` rejects them.
+
 Use `new HybridDB(primary, cache, { debug: true })` to log why an uncached scan
 fell through to persistence, waited for pending persistence, or retried a
 failed background flush. Use a callback for structured `HybridDBDebugEvent`

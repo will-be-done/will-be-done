@@ -76,8 +76,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       '@will-be-done/hyperdb':
-        specifier: ^0.10.0
-        version: 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.11.0
+        version: 0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -292,8 +292,8 @@ importers:
   apps/slices:
     dependencies:
       '@will-be-done/hyperdb':
-        specifier: ^0.10.0
-        version: 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.11.0
+        version: 0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       date-fns:
         specifier: ^4.1.0
         version: 4.4.0
@@ -488,11 +488,11 @@ importers:
         specifier: workspace:*
         version: link:../api
       '@will-be-done/hyperdb':
-        specifier: ^0.10.0
-        version: 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.11.0
+        version: 0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/hyperdb-devtool':
-        specifier: 0.4.12
-        version: 0.4.12(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.4.13
+        version: 0.4.13(@will-be-done/hyperdb@0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -4350,6 +4350,7 @@ packages:
 
   '@tiptap/y-tiptap@3.0.11':
     resolution: {integrity: sha512-6qS59XDJVpAAzjxVunBPSpFRj7FALIE0sMrETskDORPqc3lDUKxQC7hCCua7yRogKo3eWUEreaJJ0xx7OuYN6w==}
+    deprecated: Persistent position migrations can cause excessive collaborative document growth. Upgrade all collaborating clients to 3.1.0 or later.
     peerDependencies:
       prosemirror-model: ^1.7.1
       prosemirror-state: ^1.2.3
@@ -4655,14 +4656,15 @@ packages:
   '@vitest/utils@4.1.9':
     resolution: {integrity: sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==}
 
-  '@will-be-done/hyperdb-devtool@0.4.12':
-    resolution: {integrity: sha512-vX522WPdlv5xVF6hi15Q97VGOVqxO+jGJOM6xgaccMuCIO7GJ4GQB3X35hK7nOAn25RKf0fDxxKs1MKEb4FHYg==}
+  '@will-be-done/hyperdb-devtool@0.4.13':
+    resolution: {integrity: sha512-A44w/81HJAU9UxHgPVtPLlRZsivUHjxWeA1qbp7oAlBolVKHFIIAYiNfSOyf0h1/uCQuLLiJ2IN4l7qrDlgBKg==}
     peerDependencies:
+      '@will-be-done/hyperdb': '>=0.11.0 <1.0.0'
       react: 19.2.7
       react-dom: 19.2.7
 
-  '@will-be-done/hyperdb@0.10.0':
-    resolution: {integrity: sha512-SW1Epfg7ByJPCshr//+7yQDGAfE0Hj9vbkqvmJPLWSHYaHmcCrLv3oDin8NRN8vvO1tWGzMu7RIfKROv1Zu94w==}
+  '@will-be-done/hyperdb@0.11.0':
+    resolution: {integrity: sha512-naKUaGrlzie30JsqACBvWXACINIg1KTxRC+cbgFuXrvksiHtvTTLFGpARjzgbl1eMAsMI4m4GFBfSIJhJTge4w==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -13599,16 +13601,16 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@will-be-done/hyperdb-devtool@0.4.12(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb-devtool@0.4.13(@will-be-done/hyperdb@0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@will-be-done/hyperdb': 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@will-be-done/hyperdb': 0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       goober: 2.1.19(csstype@3.2.3)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
     transitivePeerDependencies:
       - csstype
 
-  '@will-be-done/hyperdb@0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb@0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       neverthrow: 8.2.0
       react: 19.2.7
