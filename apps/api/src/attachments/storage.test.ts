@@ -95,9 +95,20 @@ describe("local attachment storage", () => {
 describe("S3 attachment storage", () => {
   test("reports bytes S3 rejects by checksum as mismatched content", async () => {
     // S3 reads the whole body, then refuses a wrong x-amz-checksum-sha256.
+    const stored: string[] = [];
     const server = createServer((request, response) => {
-      request.resume();
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
+        const received = Buffer.concat(chunks);
+        const checksum = request.headers["x-amz-checksum-sha256"];
+        const digest = createHash("sha256").update(received).digest("base64");
+        if (checksum === undefined || checksum === digest) {
+          stored.push(received.toString());
+          response.writeHead(200);
+          response.end();
+          return;
+        }
         response.writeHead(400, { "content-type": "application/xml" });
         response.end(
           "<Error><Code>BadDigest</Code><Message>Checksum mismatch</Message></Error>",
@@ -119,6 +130,12 @@ describe("S3 attachment storage", () => {
         }),
       );
 
+      await Effect.runPromise(
+        storage.put("space", "file", body("hello world"), {
+          size: 11,
+          sha256: sha256("hello world"),
+        }),
+      );
       const error = await Effect.runPromise(
         Effect.flip(
           storage.put("space", "file", body("hello there"), {
@@ -129,6 +146,7 @@ describe("S3 attachment storage", () => {
       );
 
       expect(error).toBeInstanceOf(AttachmentContentMismatchError);
+      expect(stored).toEqual(["hello world"]);
     } finally {
       server.close();
     }

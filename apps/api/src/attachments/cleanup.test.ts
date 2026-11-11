@@ -10,6 +10,7 @@ import {
   execSync,
   insert,
   selectFrom,
+  SubscribableDB,
   syncDispatch,
   v,
 } from "@will-be-done/hyperdb";
@@ -38,7 +39,10 @@ import {
   type AttachmentStore,
   makeLocalAttachmentStorage,
 } from "./storage";
-import { attachmentSweepMarksTable } from "./tables";
+import {
+  attachmentSweepMarksTable,
+  installAttachmentSweepHooks,
+} from "./tables";
 
 const now = Date.UTC(2026, 10, 7);
 const spaceId = "space";
@@ -133,11 +137,14 @@ const addRow = action({
 
 const setup = async (
   ids: string[],
-  wrap: (storage: AttachmentStore, db: DB) => AttachmentStore = (s) => s,
+  wrap: (storage: AttachmentStore, db: SubscribableDB) => AttachmentStore = (
+    s,
+  ) => s,
 ) => {
   root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
   const local = makeLocalAttachmentStorage(root);
-  const db = new DB(new BptreeInmemDriver());
+  const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+  installAttachmentSweepHooks(db);
   execSync(
     db.loadTables([
       ...registeredSpaceSyncableTables,
@@ -184,9 +191,9 @@ describe("attachment storage cleanup", () => {
     syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
 
     await sweep(now);
-    // Listed again by a replica that was offline.
+    // Listed again by a replica that was offline, and unlisted again before
+    // any sweep saw it.
     syncDispatch(db, setLink({ attachmentId: "live", linked: true }));
-    await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS / 2);
     syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
     await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS);
 

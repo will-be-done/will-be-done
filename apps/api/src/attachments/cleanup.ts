@@ -27,8 +27,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // meanwhile to sync. Deciding here, on the merged state, means a replica never
 // deletes a file another one has just listed.
 export const UNLINKED_ATTACHMENT_GRACE_MS = 30 * DAY_MS;
-// Bytes of a deleted file stay long enough for undo and offline replicas that
-// still hold the row to settle.
+// Bytes of a deleted file stay long enough for offline replicas that still
+// hold the row to settle.
 export const DELETED_ATTACHMENT_GRACE_MS = 7 * DAY_MS;
 // Bytes without a row are usually a failed upload, but a server restored from
 // a backup also has no rows for files added since. Those rows return as

@@ -1,10 +1,12 @@
 import {
   createAction,
   DB,
+  deleteRows,
   execSync,
   insert,
   SubscribableDB,
   syncDispatch,
+  v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
@@ -61,6 +63,22 @@ const seed = createAction()({
         changes: {},
       },
     ]);
+  },
+});
+
+const removeRow = createAction()({
+  name: "removeTransfersTestRow",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    yield* deleteRows(attachmentsTable, [id]);
+  },
+});
+
+const restoreRow = createAction()({
+  name: "restoreTransfersTestRow",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    yield* insert(attachmentsTable, [file(id)]);
   },
 });
 
@@ -131,6 +149,7 @@ function start(store: FakeStore, respond: Respond) {
   const db = new DB(new BptreeInmemDriver());
   execSync(db.loadTables([attachmentsTable, changesTable]));
   syncDispatch(db, seed({}));
+  const database = new SubscribableDB(db);
   const syncStatus = new State<SyncStatus>(initialSyncStatus);
   const logger = makeTestLogger();
   const scope = Scope.makeUnsafe();
@@ -146,7 +165,7 @@ function start(store: FakeStore, respond: Respond) {
       Scope.provide(scope),
       Effect.provide(
         Layer.mergeAll(
-          Database.layer(new SubscribableDB(db)),
+          Database.layer(database),
           makeTestTabs().layer,
           makeTestPage().layer,
           testAuthSession(":", "token"),
@@ -157,7 +176,7 @@ function start(store: FakeStore, respond: Respond) {
       ),
     ),
   );
-  return { transfers, syncStatus, logger };
+  return { transfers, syncStatus, logger, database };
 }
 
 const contentUrl = (id: string) =>
@@ -234,7 +253,7 @@ describe("attachment transfers", () => {
     expect(uploads).toBe(2);
   });
 
-  it("keeps a refused upload's error after other files transfer", async () => {
+  it("keeps a refused upload's error after other files transfer, until the file comes back", async () => {
     const store = new FakeStore();
     Effect.runSync(
       store.put("local", new Blob(["local"]), { uploaded: false }),
@@ -242,8 +261,11 @@ describe("attachment transfers", () => {
 
     let refused!: () => void;
     const uploadRefused = new Promise<void>((resolve) => (refused = resolve));
-    const { transfers } = start(store, async (_url, init) => {
+    let uploads = 0;
+    const { transfers, database } = start(store, async (_url, init) => {
       if (init.method === "PUT") {
+        uploads++;
+        if (uploads > 1) return new Response(null, { status: 204 });
         refused();
         return new Response(null, { status: 400 });
       }
@@ -260,7 +282,13 @@ describe("attachment transfers", () => {
           uploading.files === 0 && downloading.files === 0 && error !== null,
       ),
     );
-    expect(settled.error).toMatch(/could not upload/);
+    expect(settled.error).toMatch(/add them again/);
+
+    syncDispatch(database, removeRow({ id: "local" }));
+    await Effect.runPromise(status.waitFor(({ error }) => error === null));
+    const uploaded = store.done("uploaded:local");
+    syncDispatch(database, restoreRow({ id: "local" }));
+    await uploaded;
   });
 
   it("opens files from the server once the device is out of storage", async () => {

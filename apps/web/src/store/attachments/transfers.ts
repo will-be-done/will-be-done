@@ -333,13 +333,22 @@ export const makeAttachmentTransfers = ({
         channel.post({ type: "stored", id });
       });
 
+    // The server refuses these bytes for good, so they never retry.
+    const isRefused = (failure: TransferError) =>
+      failure._tag === "AttachmentHttpError" &&
+      (failure.status === 400 || failure.status === 413);
+
     const failureMessage = (job: Job) =>
       Match.type<TransferError>().pipe(
         Match.tagsExhaustive({
-          AttachmentHttpError: ({ status }) =>
-            status === 401 || status === 403
+          AttachmentHttpError: (failure) =>
+            failure.status === 401 || failure.status === 403
               ? "Sign in again to transfer files."
-              : `Some files could not ${job.kind}. They will retry automatically.`,
+              : isRefused(failure)
+                ? job.kind === "upload"
+                  ? "The server refused some files. Remove them and add them again."
+                  : "The server refused some files, so they can't download."
+                : `Some files could not ${job.kind}. They will retry automatically.`,
           AttachmentNetworkError: () =>
             "Could not reach the server. Files will transfer when you reconnect.",
           AttachmentStorageFullError: () =>
@@ -366,12 +375,7 @@ export const makeAttachmentTransfers = ({
         } else {
           errors.set(id, failureMessage(job)(failure));
         }
-        if (
-          failure._tag === "AttachmentHttpError" &&
-          (failure.status === 400 || failure.status === 413)
-        ) {
-          failed.add(id);
-        }
+        if (isRefused(failure)) failed.add(id);
         if (failure._tag === "AttachmentStorageFullError") {
           storageFull = true;
           for (const [queuedId, queued] of queue) {
@@ -464,8 +468,9 @@ export const makeAttachmentTransfers = ({
       const { stored, pending } = yield* store.keys;
       const now = yield* Clock.currentTimeMillis;
       const live = new Set(rows.map(({ id }) => id));
-      for (const id of errors.keys()) {
-        if (!live.has(id)) errors.delete(id);
+      // A file that comes back, such as from a restore, starts over.
+      for (const state of [errors, failed, retryAt, attempts]) {
+        for (const id of state.keys()) if (!live.has(id)) state.delete(id);
       }
       let nextRetry = Infinity;
       for (const attachment of rows) {

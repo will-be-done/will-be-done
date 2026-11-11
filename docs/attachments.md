@@ -70,7 +70,9 @@ device's clock is used: a file uploaded long ago and deleted today must survive,
 and a device with a wrong clock must not shorten the wait.
 
 - Rows no item has listed for 30 days are deleted, which tombstones them on
-  every replica. Relisting the file in the meantime restarts the wait.
+  every replica. Relisting the file in the meantime restarts the wait, even
+  when no sweep saw it listed: a hook clears the mark whenever the file or a
+  link to it is written.
 - Bytes whose row has been tombstoned for 7 days are deleted, so offline
   replicas that still hold the row can settle.
 - Bytes whose row never arrived are deleted after 30 days. A server

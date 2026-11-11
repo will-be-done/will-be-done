@@ -50,6 +50,7 @@ import {
   getOrCreateTursoCloudDatabase,
 } from "./turso";
 import { createTursodSqlDriver } from "./tursod";
+import { installAttachmentSweepHooks } from "../attachments/tables";
 import { createServerClientId } from "../serverInstance";
 import { initializeServerSyncFeed, recordServerChanges } from "../sync/actions";
 
@@ -282,6 +283,7 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
 
     if (dbConfig.dbType === "space") {
       installProjectTaskStatsHooks(hyperDB);
+      installAttachmentSweepHooks(hyperDB);
     }
 
     installSyncNotificationHook(hyperDB, dbConfig);
