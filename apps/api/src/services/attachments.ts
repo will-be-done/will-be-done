@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import type { Readable } from "node:stream";
 import {
   asyncDispatch,
   selectAsync,
@@ -26,7 +26,10 @@ import {
   taskTemplateById,
 } from "@will-be-done/slices/space";
 import { Effect } from "effect";
-import { AttachmentStorage } from "../attachments/storage";
+import {
+  AttachmentStorage,
+  type ExpectedContent,
+} from "../attachments/storage";
 import { getSpaceDatabase } from "./databaseAccess";
 import { BadRequestError, ResourceNotFoundError } from "./errors";
 import { decodeNumericCursor, encodeNumericCursor } from "./pagination";
@@ -53,9 +56,6 @@ const toPublicItemAttachment = (
   attachment: toPublicAttachment(attachment),
 });
 
-const sha256Hex = (body: Buffer) =>
-  createHash("sha256").update(body).digest("hex");
-
 // Access and database failures keep the errors route handlers map to
 // responses.
 const spaceDatabase = ({ spaceId, userId }: Space) =>
@@ -70,10 +70,31 @@ const select = <TSelector extends AnyObjectSelector>(
 const dispatch = <A>(db: SpaceDatabase, action: ActionGenerator<A>) =>
   Effect.promise(() => asyncDispatch(db, action));
 
-const checkSize = (body: Buffer) =>
-  body.length > MAX_ATTACHMENT_SIZE
+// The length comes from Content-Length: S3 needs it before the body arrives.
+const checkSize = (size: number | undefined) => {
+  if (size === undefined || !Number.isSafeInteger(size) || size < 0) {
+    return Effect.fail(new BadRequestError("Uploads need a Content-Length"));
+  }
+  return size > MAX_ATTACHMENT_SIZE
     ? Effect.fail(new BadRequestError("Attachments are limited to 50 MB"))
-    : Effect.void;
+    : Effect.succeed(size);
+};
+
+const store = (
+  spaceId: string,
+  id: string,
+  body: Readable,
+  expected: ExpectedContent,
+) =>
+  Effect.gen(function* () {
+    return yield* (yield* AttachmentStorage).put(spaceId, id, body, expected);
+  }).pipe(
+    Effect.catchTag("AttachmentContentMismatchError", () =>
+      Effect.fail(
+        new BadRequestError("Uploaded bytes do not match the attachment"),
+      ),
+    ),
+  );
 
 const requireAttachment = (db: SpaceDatabase, attachmentId: string) =>
   select(db, { selector: attachmentById, args: { id: attachmentId } }).pipe(
@@ -154,22 +175,24 @@ export const createAttachment = ({
   name,
   mimeType,
   body,
+  contentLength,
   parent,
   ...space
 }: Space & {
   name: string;
   mimeType: string;
-  body: Buffer;
+  body: Readable;
+  contentLength: number | undefined;
   parent?: Parent;
 }) =>
   Effect.gen(function* () {
-    yield* checkSize(body);
+    const size = yield* checkSize(contentLength);
     const db = yield* spaceDatabase(space);
     if (parent) yield* requireParent(db, parent);
     const id = crypto.randomUUID();
     // Bytes first: a row whose upload failed would point at nothing, while
     // bytes without a row are swept by the cleanup job.
-    yield* (yield* AttachmentStorage).put(space.spaceId, id, body);
+    const sha256 = yield* store(space.spaceId, id, body, { size });
     const { attachment } = yield* dispatch(
       db,
       createAttachmentAction({
@@ -177,8 +200,8 @@ export const createAttachment = ({
           id,
           name,
           mimeType,
-          size: body.length,
-          sha256: sha256Hex(body),
+          size,
+          sha256,
         },
         ...(parent ? { parent } : {}),
       }),
@@ -190,21 +213,26 @@ export const createAttachment = ({
 export const uploadAttachmentContent = ({
   attachmentId,
   body,
+  contentLength,
   ...space
-}: Space & { attachmentId: string; body: Buffer }) =>
+}: Space & {
+  attachmentId: string;
+  body: Readable;
+  contentLength: number | undefined;
+}) =>
   Effect.gen(function* () {
-    yield* checkSize(body);
+    const size = yield* checkSize(contentLength);
     const db = yield* spaceDatabase(space);
     const attachment = yield* requireAttachment(db, attachmentId);
-    if (
-      body.length !== attachment.size ||
-      sha256Hex(body) !== attachment.sha256
-    ) {
+    if (size !== attachment.size) {
       return yield* Effect.fail(
         new BadRequestError("Uploaded bytes do not match the attachment"),
       );
     }
-    yield* (yield* AttachmentStorage).put(space.spaceId, attachmentId, body);
+    yield* store(space.spaceId, attachmentId, body, {
+      size,
+      sha256: attachment.sha256,
+    });
   });
 
 export const getAttachmentContent = ({

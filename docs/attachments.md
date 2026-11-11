@@ -27,6 +27,10 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
 - **Adding** writes the bytes locally first, then the row, so the file works
   offline at once. The bytes upload after the row has reached the server; the
   server checks size and SHA-256 against the row and refuses a mismatch.
+  Uploads stream into storage and are never held in memory, so they need a
+  `Content-Length`: S3 must know it before the body arrives. Local storage
+  checks into a temp file and renames; S3 checks the `x-amz-checksum-sha256`
+  header, so wrong bytes never replace stored ones.
 - **Removing from an item** deletes the link and the item's inline references,
   then deletes the file if nothing else lists it. **Deleting a file** removes
   every link and inline reference. Inline references are deleted from the Yjs

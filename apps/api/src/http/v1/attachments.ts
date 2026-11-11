@@ -1,3 +1,4 @@
+import { errorCodes, type FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { MAX_ATTACHMENT_SIZE } from "@will-be-done/slices/space";
@@ -51,6 +52,11 @@ const transferRateLimit = { rateLimit: { max: 1200, timeWindow: "1 minute" } };
 const INLINE_TYPES =
   /^(image\/(png|jpeg|gif|webp|avif|bmp)|application\/pdf|text\/plain|audio\/[\w.+-]+|video\/[\w.+-]+)$/;
 
+const contentLength = (request: FastifyRequest) => {
+  const header = request.headers["content-length"];
+  return header === undefined ? undefined : Number(header);
+};
+
 const contentDisposition = (name: string, inline: boolean) =>
   `${inline ? "inline" : "attachment"}; filename="${name.replace(/[^\x20-\x7e]|["\\]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 
@@ -68,10 +74,17 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
     if (!(await authenticateRequest(request))) return unauthorized(reply);
   });
 
+  // Handlers stream the body into storage. A declared length over the limit
+  // is refused before any of it is read; storage stops at the declared length.
   server.addContentTypeParser(
     "application/octet-stream",
-    { parseAs: "buffer", bodyLimit: MAX_ATTACHMENT_SIZE },
-    (_request, body, done) => done(null, body),
+    (request, payload, done) => {
+      if (Number(request.headers["content-length"]) > MAX_ATTACHMENT_SIZE) {
+        done(new errorCodes.FST_ERR_CTP_BODY_TOO_LARGE());
+        return;
+      }
+      done(null, payload);
+    },
   );
 
   server.get(
@@ -142,6 +155,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
             name,
             mimeType: mimeType ?? "application/octet-stream",
             body: request.body,
+            contentLength: contentLength(request),
             ...(parentType && parentId
               ? { parent: { parentType, parentId } }
               : {}),
@@ -318,6 +332,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
             userId: user.id,
             attachmentId: request.params.attachmentId,
             body: request.body,
+            contentLength: contentLength(request),
           }),
         );
         return reply.code(204).send(null);

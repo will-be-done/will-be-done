@@ -1,4 +1,4 @@
-import type { Readable } from "node:stream";
+import { Readable } from "node:stream";
 import { z } from "zod";
 import {
   isValidTaskTemplateRule,
@@ -847,8 +847,12 @@ export const CreateAttachmentQuerySchema = z
   );
 
 // Fastify hands raw bodies over as Buffers; OpenAPI describes them as binary.
+// The body stays a stream, so uploads are never held in memory.
 export const BinaryBodySchema = z
-  .custom<Buffer>((value) => Buffer.isBuffer(value), "Expected a binary body")
+  .custom<Readable>(
+    (value) => value instanceof Readable,
+    "Expected a binary body",
+  )
   .meta({ type: "string", format: "binary" });
 
 // Streams bypass response serialization, so this only documents the payload.

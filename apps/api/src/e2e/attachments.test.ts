@@ -84,6 +84,13 @@ test("covers every attachment operation", async () => {
     ),
     400,
   );
+  // The rejected bytes never replace the stored ones.
+  expect(
+    await expectResponseStatus(
+      await downloadAttachmentContent(space.id, attachment.id, options),
+      200,
+    ).data.text(),
+  ).toBe("hello");
 
   const linked = await coverOperation(
     "createItemAttachment",
@@ -225,4 +232,42 @@ test("rejects uploads over 50 MB with a documented error", async () => {
 
   expect(response.status).toBe(413);
   expect(response.data).toMatchObject({ code: "BAD_REQUEST" });
+});
+
+test("streams uploads larger than the default body limit", async () => {
+  const { space, options } = await createTaskFixture(
+    await createAuthorization(),
+  );
+  const content = new Uint8Array(3 * 1024 * 1024).map(
+    (_, index) => index % 251,
+  );
+
+  const created = expectResponseStatus(
+    await createAttachment(
+      space.id,
+      new Blob([content]),
+      { name: "big.bin", mimeType: "application/octet-stream" },
+      options,
+    ),
+    201,
+  ).data.attachment;
+
+  expect(created).toMatchObject({
+    size: content.length,
+    sha256: createHash("sha256").update(content).digest("hex"),
+  });
+  expectResponseStatus(
+    await uploadAttachmentContent(
+      space.id,
+      created.id,
+      new Blob([content]),
+      options,
+    ),
+    204,
+  );
+  const downloaded = expectResponseStatus(
+    await downloadAttachmentContent(space.id, created.id, options),
+    200,
+  );
+  expect(new Uint8Array(await downloaded.data.arrayBuffer())).toEqual(content);
 });

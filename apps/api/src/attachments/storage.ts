@@ -1,7 +1,9 @@
-import { createReadStream } from "node:fs";
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
-import type { Readable } from "node:stream";
+import { pipeline, type Readable, Transform } from "node:stream";
+import { pipeline as pipelineAsync } from "node:stream/promises";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -18,12 +20,29 @@ export class AttachmentStorageError extends Data.TaggedError(
   "AttachmentStorageError",
 )<{ readonly operation: string; readonly cause: unknown }> {}
 
+// The body's length or checksum is not the one the caller expected.
+export class AttachmentContentMismatchError extends Data.TaggedError(
+  "AttachmentContentMismatchError",
+) {}
+
 type Result<A> = Effect.Effect<A, AttachmentStorageError>;
+
+export type ExpectedContent = { size: number; sha256?: string };
 
 // Attachment bytes are immutable once written: an ID always names the same
 // content, so writes are idempotent and readers can cache forever.
 export interface AttachmentStore {
-  readonly put: (spaceId: string, id: string, body: Buffer) => Result<void>;
+  // Streams the body without holding it in memory. Bytes that do not match
+  // `expected` never replace stored ones. Returns their SHA-256.
+  readonly put: (
+    spaceId: string,
+    id: string,
+    body: Readable,
+    expected: ExpectedContent,
+  ) => Effect.Effect<
+    string,
+    AttachmentStorageError | AttachmentContentMismatchError
+  >;
   readonly get: (
     spaceId: string,
     id: string,
@@ -45,6 +64,43 @@ const attempt = <A>(operation: string, run: () => Promise<A>) =>
     catch: (cause) => new AttachmentStorageError({ operation, cause }),
   });
 
+const attemptPut = <A>(run: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: run,
+    catch: (cause) =>
+      cause instanceof AttachmentContentMismatchError
+        ? cause
+        : new AttachmentStorageError({ operation: "put", cause }),
+  });
+
+// Hashes and counts bytes as they stream past, failing unless exactly
+// `expected.size` bytes pass. `digest` is undefined on a checksum mismatch.
+const measure = (expected: ExpectedContent) => {
+  const hash = createHash("sha256");
+  let bytes = 0;
+  const stream = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      bytes += chunk.length;
+      if (bytes > expected.size) {
+        callback(new AttachmentContentMismatchError());
+        return;
+      }
+      hash.update(chunk);
+      callback(null, chunk);
+    },
+    flush(callback) {
+      callback(
+        bytes === expected.size ? null : new AttachmentContentMismatchError(),
+      );
+    },
+  });
+  const digest = () => {
+    const sha256 = hash.digest("hex");
+    return !expected.sha256 || sha256 === expected.sha256 ? sha256 : undefined;
+  };
+  return { stream, digest };
+};
+
 const isMissingFile = (error: unknown) =>
   (error as NodeJS.ErrnoException).code === "ENOENT";
 
@@ -55,15 +111,19 @@ export const makeLocalAttachmentStorage = (root: string): AttachmentStore => {
     return path.join(root, spaceId, id);
   };
   return {
-    put: (spaceId, id, body) =>
-      attempt("put", async () => {
+    put: (spaceId, id, body, expected) =>
+      attemptPut(async () => {
         const target = file(spaceId, id);
         await mkdir(path.dirname(target), { recursive: true });
-        // Readers never see a partially written file.
+        // Readers never see a partial or unchecked file.
         const temp = `${target}.${crypto.randomUUID()}.tmp`;
+        const measured = measure(expected);
         try {
-          await writeFile(temp, body);
+          await pipelineAsync(body, measured.stream, createWriteStream(temp));
+          const sha256 = measured.digest();
+          if (!sha256) throw new AttachmentContentMismatchError();
           await rename(temp, target);
+          return sha256;
         } catch (error) {
           await rm(temp, { force: true });
           throw error;
@@ -143,16 +203,48 @@ const makeS3AttachmentStorage = (
     } while (continuationToken);
   }
   return {
-    put: (spaceId, id, body) =>
-      attempt("put", async () => {
-        await client.send(
-          new PutObjectCommand({
-            Bucket: bucket,
-            Key: key(spaceId, id),
-            Body: body,
-            ContentLength: body.length,
-          }),
-        );
+    put: (spaceId, id, body, expected) =>
+      attemptPut(async () => {
+        const measured = measure(expected);
+        // The SDK does not notice a failed body stream and would wait for the
+        // rest of it, so an error aborts the request. S3 then stores nothing.
+        const abort = new AbortController();
+        let failure: unknown;
+        const source = pipeline(body, measured.stream, (error) => {
+          if (!error) return;
+          failure = error;
+          abort.abort(error);
+        });
+        await client
+          .send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: key(spaceId, id),
+              Body: source,
+              ContentLength: expected.size,
+              // S3 rejects other bytes, so they never replace stored ones.
+              ...(expected.sha256 && {
+                ChecksumSHA256: Buffer.from(expected.sha256, "hex").toString(
+                  "base64",
+                ),
+              }),
+            }),
+            { abortSignal: abort.signal },
+          )
+          .catch((error: unknown) => {
+            throw failure ?? error;
+          });
+        // A body longer than its length can fail after S3 took the rest.
+        if (failure) throw failure;
+        const sha256 = measured.digest();
+        if (!sha256) {
+          // A store that ignored the checksum kept them anyway.
+          await client.send(
+            new DeleteObjectCommand({ Bucket: bucket, Key: key(spaceId, id) }),
+          );
+          throw new AttachmentContentMismatchError();
+        }
+        return sha256;
       }),
     get: (spaceId, id) =>
       attempt("get", async () => {

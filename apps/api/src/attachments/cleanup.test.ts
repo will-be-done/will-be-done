@@ -1,6 +1,7 @@
 import { mkdtemp, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   createAction,
@@ -87,7 +88,11 @@ describe("attachment storage cleanup", () => {
       "unsynced-since-restore": now - 7 * 24 * 60 * 60 * 1000,
     };
     for (const [id, modifiedAt] of Object.entries(files)) {
-      await Effect.runPromise(storage.put(spaceId, id, Buffer.from(id)));
+      await Effect.runPromise(
+        storage.put(spaceId, id, Readable.from([Buffer.from(id)]), {
+          size: id.length,
+        }),
+      );
       const time = new Date(modifiedAt);
       await utimes(path.join(root, spaceId, id), time, time);
     }
@@ -112,7 +117,9 @@ describe("attachment storage cleanup", () => {
     root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
     const storage = makeLocalAttachmentStorage(root);
     await Effect.runPromise(
-      storage.put("unknown-space", "old", Buffer.from("old")),
+      storage.put("unknown-space", "old", Readable.from([Buffer.from("old")]), {
+        size: 3,
+      }),
     );
     const time = new Date(now - 365 * UNSYNCED_ATTACHMENT_GRACE_MS);
     await utimes(path.join(root, "unknown-space", "old"), time, time);
