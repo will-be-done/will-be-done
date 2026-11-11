@@ -52,9 +52,7 @@ export const attachmentRowProblem = ({
   id,
   size,
   sha256,
-  width,
-  height,
-}: Pick<Attachment, "id" | "size" | "sha256" | "width" | "height">) => {
+}: Pick<Attachment, "id" | "size" | "sha256">) => {
   if (!ATTACHMENT_ID.test(id))
     return "Attachment ID may only use A-Z, 0-9, _ and -";
   if (!Number.isInteger(size) || size < 0 || size > MAX_ATTACHMENT_SIZE) {
@@ -62,6 +60,17 @@ export const attachmentRowProblem = ({
   }
   if (!SHA256_HEX.test(sha256))
     return "Attachment checksum must be a hex SHA-256";
+  return undefined;
+};
+
+// Safe integers, so the v1 API can serialize them.
+const isPixelSize = (value: number) => Number.isSafeInteger(value) && value > 0;
+
+// Why an image's stored pixel size is invalid, if it is.
+export const imageSizeProblem = ({
+  width,
+  height,
+}: Pick<Attachment, "width" | "height">) => {
   if ((width === undefined) !== (height === undefined)) {
     return "Attachment width and height go together";
   }
@@ -73,8 +82,6 @@ export const attachmentRowProblem = ({
   }
   return undefined;
 };
-
-const isPixelSize = (value: number) => Number.isInteger(value) && value > 0;
 
 export const attachmentById = selector({
   name: "attachmentById",
@@ -413,7 +420,9 @@ export const createAttachment = action({
   },
   handler: function* createAttachment({ attachment, parent }) {
     const id = attachment.id || uuidv7();
-    const problem = attachmentRowProblem({ ...attachment, id });
+    const problem =
+      attachmentRowProblem({ ...attachment, id }) ??
+      imageSizeProblem(attachment);
     if (problem) throw new Error(problem);
     if (parent && !(yield* parentExists(parent.parentType, parent.parentId))) {
       throw new Error("Attachment parent not found");
@@ -447,7 +456,7 @@ export const setAttachmentImageSize = action({
     const attachment = yield* attachmentById({ id });
     if (!attachment || attachment.width !== undefined) return;
     const row = { ...attachment, width, height };
-    const problem = attachmentRowProblem(row);
+    const problem = imageSizeProblem(row);
     if (problem) throw new Error(problem);
     yield* withoutUndo(() => upsert(attachmentsTable, [row]));
   },

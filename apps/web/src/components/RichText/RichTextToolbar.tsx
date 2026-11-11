@@ -111,6 +111,8 @@ export function RichTextToolbar({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const focusedOnPick = useRef(false);
+  // Tabbing from the editor to the button keeps the editor's selection.
+  const cameFromEditor = useRef(false);
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) =>
@@ -158,12 +160,18 @@ export function RichTextToolbar({
         <>
           <button
             type="button"
-            tabIndex={-1}
             aria-label="Attach file"
             title="Attach file"
             onMouseDown={(event) => event.preventDefault()}
+            onFocus={(event) => {
+              cameFromEditor.current =
+                event.relatedTarget instanceof Node &&
+                editor.view.dom.contains(event.relatedTarget);
+            }}
+            onBlur={() => (cameFromEditor.current = false)}
             onClick={() => {
-              focusedOnPick.current = editor.isFocused;
+              focusedOnPick.current =
+                editor.isFocused || cameFromEditor.current;
               inputRef.current?.click();
             }}
             className={cn(buttonClass, "ml-auto")}

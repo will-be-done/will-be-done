@@ -147,7 +147,7 @@ export function AttachmentPreview({
                 event.stopPropagation();
                 show(previous);
               }}
-              className={`${navButtonClass} left-3 hidden sm:block`}
+              className={`${navButtonClass} left-3`}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -172,7 +172,7 @@ export function AttachmentPreview({
                 event.stopPropagation();
                 show(next);
               }}
-              className={`${navButtonClass} right-3 hidden sm:block`}
+              className={`${navButtonClass} right-3`}
             >
               <ChevronRight className="h-5 w-5" />
             </button>

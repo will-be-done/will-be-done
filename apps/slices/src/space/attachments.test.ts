@@ -507,7 +507,6 @@ describe("attachments", () => {
       { ...valid!, id: "bad-sha", sha256: "not hex" },
       { ...valid!, id: "too-big", size: 50 * 1024 * 1024 + 1 },
       { ...valid!, id: "fraction", size: 1.5 },
-      { ...valid!, id: "half-size", width: 10 },
     );
     const [link] = backup.itemAttachments!;
     backup.itemAttachments!.push({ ...link!, id: "l2", attachmentId: "a.b" });
@@ -545,6 +544,7 @@ describe("attachments", () => {
     expect(() => setSize("missing", 1, 1)).not.toThrow();
     addFile(db, "bad");
     expect(() => setSize("bad", 0, 10)).toThrow("width");
+    expect(() => setSize("bad", 10, 2 ** 53)).toThrow("height");
 
     const sizes = (target: HyperDB) =>
       Object.fromEntries(
@@ -564,6 +564,29 @@ describe("attachments", () => {
       }),
     );
     expect(sizes(restored)).toEqual(sizes(db));
+  });
+
+  test("backups keep files whose size is invalid, without the size", () => {
+    const db = createDB();
+    addFile(db, "f1", "t1");
+    const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+    const [valid] = backup.attachments!;
+    backup.attachments!.push(
+      { ...valid!, id: "half-size", width: 10 },
+      { ...valid!, id: "unsafe", width: 2 ** 53, height: 10 },
+    );
+
+    const restored = createDB();
+    syncDispatch(restored, loadSpaceBackup({ backup }));
+
+    expect(
+      read(restored).attachments.map((a) => [a.id, a.width, a.height]),
+    ).toEqual([
+      ["f1", undefined, undefined],
+      ["half-size", undefined, undefined],
+      ["unsafe", undefined, undefined],
+    ]);
+    expect(listOf(restored, "t1")).toEqual(["f1"]);
   });
 
   test("a file's siblings are the files of the item listing it", () => {

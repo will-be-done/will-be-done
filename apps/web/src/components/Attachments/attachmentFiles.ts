@@ -278,12 +278,15 @@ export async function openAttachment(
   tab.document.body.style.cssText =
     "margin:0;padding:16px;background:#0f1115;color:#9ca3af;font:13px system-ui,sans-serif";
   tab.document.body.textContent = `Downloading ${attachment.name}…`;
-  const blob = await blobWhenStored(
+  const stored = await blobWhenStored(
     transfers,
     attachment.id,
     () => !tab.closed,
   );
-  if (!blob || tab.closed) return;
+  if (!stored || tab.closed) return;
+  // The row's type passed the inline check; the stored bytes' type may not,
+  // as when a restored backup pairs them with another row.
+  const blob = new Blob([stored], { type: attachment.mimeType });
   if (framesFiles()) {
     showInTab(tab, blob, attachment.name);
     return;
