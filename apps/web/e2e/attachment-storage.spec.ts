@@ -36,7 +36,10 @@ async function storedBytes(
   });
   try {
     const object = await client.send(
-      new GetObjectCommand({ Bucket: bucket, Key: `${prefix}${spaceId}/${id}` }),
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: `${prefix}${spaceId}/${id}`,
+      }),
     );
     return Buffer.from(await object.Body!.transformToByteArray());
   } finally {

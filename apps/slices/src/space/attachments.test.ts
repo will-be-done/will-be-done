@@ -340,7 +340,11 @@ describe("attachments", () => {
     syncDispatch(db, insertNote({ id: "t1" }));
     syncDispatch(
       db,
-      attachToItem({ attachmentId: "f1", parentType: noteType, parentId: "t1" }),
+      attachToItem({
+        attachmentId: "f1",
+        parentType: noteType,
+        parentId: "t1",
+      }),
     );
     syncDispatch(db, trashTasks({ ids: ["t1"] }));
     syncDispatch(db, emptyTrash({}));

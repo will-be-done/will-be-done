@@ -54,7 +54,8 @@ export interface AttachmentStore {
 }
 
 const assertSafeId = (value: string) => {
-  if (!ATTACHMENT_ID.test(value)) throw new Error(`Unsafe storage key: ${value}`);
+  if (!ATTACHMENT_ID.test(value))
+    throw new Error(`Unsafe storage key: ${value}`);
 };
 
 const attempt = <A>(operation: string, run: () => Promise<A>) =>
@@ -152,7 +153,9 @@ export const makeLocalAttachmentStorage = (root: string): AttachmentStore => {
       try {
         const entries = await readdir(root, { withFileTypes: true });
         return entries
-          .filter((entry) => entry.isDirectory() && ATTACHMENT_ID.test(entry.name))
+          .filter(
+            (entry) => entry.isDirectory() && ATTACHMENT_ID.test(entry.name),
+          )
           .map((entry) => entry.name);
       } catch (error) {
         if (isMissingFile(error)) return [];

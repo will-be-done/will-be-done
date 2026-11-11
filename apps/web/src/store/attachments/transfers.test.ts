@@ -236,7 +236,9 @@ describe("attachment transfers", () => {
 
   it("keeps a refused upload's error after other files transfer", async () => {
     const store = new FakeStore();
-    Effect.runSync(store.put("local", new Blob(["local"]), { uploaded: false }));
+    Effect.runSync(
+      store.put("local", new Blob(["local"]), { uploaded: false }),
+    );
 
     let refused!: () => void;
     const uploadRefused = new Promise<void>((resolve) => (refused = resolve));

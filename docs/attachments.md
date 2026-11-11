@@ -63,13 +63,13 @@ and a device with a wrong clock must not shorten the wait.
 - Bytes whose row has been tombstoned for 7 days are deleted, so undo and
   offline replicas that still hold the row can settle.
 - Bytes whose row never arrived are deleted after 30 days. A server
-restored from a backup has no rows for files added since the backup, and
-clients resend those rows as they reconnect
-([sync.md](sync.md#required-server-backup-recovery-guarantee)). They never
-resend bytes they have already uploaded, so a shorter grace period would lose
-those files for good. Attachment storage must also be at least as recent as the
-database: restoring storage to an older state loses files the same way.
-A crashed local upload can leave a temp file; listing removes those a day old.
+  restored from a backup has no rows for files added since the backup, and
+  clients resend those rows as they reconnect
+  ([sync.md](sync.md#required-server-backup-recovery-guarantee)). They never
+  resend bytes they have already uploaded, so a shorter grace period would lose
+  those files for good. Attachment storage must also be at least as recent as the
+  database: restoring storage to an older state loses files the same way.
+  A crashed local upload can leave a temp file; listing removes those a day old.
 
 Local storage is per machine and must be on a persistent volume. Several server
 instances, or machines with ephemeral disks, need S3 storage.

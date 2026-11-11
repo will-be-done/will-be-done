@@ -137,7 +137,10 @@ export const sweepSpaceAttachments = (
         if (!expired) continue;
         // Sync may have brought the row back since the batch was read.
         const current = yield* Effect.promise(() =>
-          selectAsync(db, { selector: attachmentRowStates, args: { ids: [id] } }),
+          selectAsync(db, {
+            selector: attachmentRowStates,
+            args: { ids: [id] },
+          }),
         );
         if (current[id]?.state !== state) continue;
         yield* storage.delete(spaceId, id);
