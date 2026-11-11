@@ -262,7 +262,12 @@ export function RichTextEditor({
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      {toolbar && editor && <RichTextToolbar editor={editor} />}
+      {toolbar && editor && (
+        <RichTextToolbar
+          editor={editor}
+          {...(mountedAttachFiles ? { attachFiles: mountedAttachFiles } : {})}
+        />
+      )}
       <EditorContent editor={editor} />
     </div>
   );

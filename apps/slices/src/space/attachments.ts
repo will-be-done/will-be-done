@@ -52,7 +52,9 @@ export const attachmentRowProblem = ({
   id,
   size,
   sha256,
-}: Pick<Attachment, "id" | "size" | "sha256">) => {
+  width,
+  height,
+}: Pick<Attachment, "id" | "size" | "sha256" | "width" | "height">) => {
   if (!ATTACHMENT_ID.test(id))
     return "Attachment ID may only use A-Z, 0-9, _ and -";
   if (!Number.isInteger(size) || size < 0 || size > MAX_ATTACHMENT_SIZE) {
@@ -60,8 +62,19 @@ export const attachmentRowProblem = ({
   }
   if (!SHA256_HEX.test(sha256))
     return "Attachment checksum must be a hex SHA-256";
+  if ((width === undefined) !== (height === undefined)) {
+    return "Attachment width and height go together";
+  }
+  if (width !== undefined && !isPixelSize(width)) {
+    return "Attachment width must be a positive whole number";
+  }
+  if (height !== undefined && !isPixelSize(height)) {
+    return "Attachment height must be a positive whole number";
+  }
   return undefined;
 };
+
+const isPixelSize = (value: number) => Number.isInteger(value) && value > 0;
 
 export const attachmentById = selector({
   name: "attachmentById",
@@ -222,6 +235,24 @@ function* linksOfAttachments(attachmentIds: readonly string[]) {
   );
 }
 
+// The files of the item that lists this one, in list order. A file listed
+// by several items takes the first of them.
+export const attachmentSiblings = selector({
+  name: "attachmentSiblings",
+  args: { attachmentId: v.string() },
+  handler: function* attachmentSiblings({ attachmentId }) {
+    const links = yield* linksOfAttachments([attachmentId]);
+    const link = links.find((candidate) =>
+      isAttachmentParentType(candidate.parentType),
+    );
+    if (!link || !isAttachmentParentType(link.parentType)) return [];
+    return (yield* itemAttachments({
+      parentType: link.parentType,
+      parentId: link.parentId,
+    })).map(({ attachment }) => attachment);
+  },
+});
+
 export type AttachmentUsage = {
   parentType: ItemAttachment["parentType"];
   parentId: string;
@@ -373,6 +404,8 @@ export const createAttachment = action({
       mimeType: v.string(),
       size: v.number(),
       sha256: v.string(),
+      width: v.optional(v.number()),
+      height: v.optional(v.number()),
     }),
     parent: v.optional(
       v.object({ parentType: attachmentParentType, parentId: v.string() }),
@@ -393,6 +426,8 @@ export const createAttachment = action({
       size: attachment.size,
       sha256: attachment.sha256,
       createdAt: Date.now(),
+      ...(attachment.width !== undefined && { width: attachment.width }),
+      ...(attachment.height !== undefined && { height: attachment.height }),
     };
     // Undo skips file changes: the text that references a file is not an undo
     // step, so undoing them would leave references with no file or no link.
@@ -401,6 +436,20 @@ export const createAttachment = action({
       ? yield* linkAttachments(parent.parentType, parent.parentId, [row.id])
       : [];
     return { attachment: row, link };
+  },
+});
+
+// Fills in the size of an image that was stored without one.
+export const setAttachmentImageSize = action({
+  name: "setAttachmentImageSize",
+  args: { id: v.string(), width: v.number(), height: v.number() },
+  handler: function* setAttachmentImageSize({ id, width, height }) {
+    const attachment = yield* attachmentById({ id });
+    if (!attachment || attachment.width !== undefined) return;
+    const row = { ...attachment, width, height };
+    const problem = attachmentRowProblem(row);
+    if (problem) throw new Error(problem);
+    yield* withoutUndo(() => upsert(attachmentsTable, [row]));
   },
 });
 

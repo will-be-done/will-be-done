@@ -96,7 +96,9 @@ test("restores a ZIP backup with its files into another space", async ({
     buffer: solidPng(40, 30),
   });
   await expect(
-    page.getByTestId("item-attachments").getByText("shot.png"),
+    page
+      .getByTestId("item-attachments")
+      .getByRole("button", { name: "Open shot.png" }),
   ).toBeVisible();
 
   const source = await openSpaceSettings(page, "Backup");

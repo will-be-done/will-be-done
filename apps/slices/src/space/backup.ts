@@ -177,6 +177,8 @@ interface AttachmentBackup {
   size: number;
   sha256: string;
   createdAt: number;
+  width?: number;
+  height?: number;
 }
 
 interface ItemAttachmentBackup {
@@ -393,6 +395,8 @@ const backupSchema = v.object({
         size: v.number(),
         sha256: v.string(),
         createdAt: v.number(),
+        width: v.optional(v.number()),
+        height: v.optional(v.number()),
       }),
     ),
   ),

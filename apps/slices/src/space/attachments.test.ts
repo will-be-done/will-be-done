@@ -33,12 +33,14 @@ import {
   type TaskTemplate,
 } from "./tables";
 import {
+  attachmentSiblings,
   attachmentUsages,
   attachToItem,
   createAttachment,
   deleteAttachments,
   itemAttachments,
   removeItemAttachment,
+  setAttachmentImageSize,
 } from "./attachments";
 import { trashTasks, updateTask } from "./tasks";
 import { convertTaskToNote } from "./notes";
@@ -505,6 +507,7 @@ describe("attachments", () => {
       { ...valid!, id: "bad-sha", sha256: "not hex" },
       { ...valid!, id: "too-big", size: 50 * 1024 * 1024 + 1 },
       { ...valid!, id: "fraction", size: 1.5 },
+      { ...valid!, id: "half-size", width: 10 },
     );
     const [link] = backup.itemAttachments!;
     backup.itemAttachments!.push({ ...link!, id: "l2", attachmentId: "a.b" });
@@ -514,6 +517,71 @@ describe("attachments", () => {
 
     expect(read(restored).attachments.map((a) => a.id)).toEqual(["f1"]);
     expect(read(restored).links.map((l) => l.attachmentId)).toEqual(["f1"]);
+  });
+
+  test("an image's size is filled in once and survives backups", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      createAttachment({
+        attachment: {
+          id: "sized",
+          name: "sized.png",
+          mimeType: "image/png",
+          size: 3,
+          sha256,
+          width: 640,
+          height: 480,
+        },
+      }),
+    );
+    addFile(db, "unsized");
+    const setSize = (id: string, width: number, height: number) =>
+      syncDispatch(db, setAttachmentImageSize({ id, width, height }));
+
+    setSize("sized", 1, 1);
+    setSize("unsized", 100, 50);
+    setSize("unsized", 1, 1);
+    expect(() => setSize("missing", 1, 1)).not.toThrow();
+    addFile(db, "bad");
+    expect(() => setSize("bad", 0, 10)).toThrow("width");
+
+    const sizes = (target: HyperDB) =>
+      Object.fromEntries(
+        read(target).attachments.map((a) => [a.id, [a.width, a.height]]),
+      );
+    expect(sizes(db)).toEqual({
+      sized: [640, 480],
+      unsized: [100, 50],
+      bad: [undefined, undefined],
+    });
+
+    const restored = createDB();
+    syncDispatch(
+      restored,
+      loadSpaceBackup({
+        backup: selectSync(db, { selector: getSpaceBackup, args: {} }),
+      }),
+    );
+    expect(sizes(restored)).toEqual(sizes(db));
+  });
+
+  test("a file's siblings are the files of the item listing it", () => {
+    const db = createDB();
+    addFile(db, "f1", "t1");
+    addFile(db, "f2", "t1");
+    addFile(db, "f3", "t2");
+    addFile(db, "bg");
+    syncDispatch(db, insertBackgroundLink({ attachmentId: "bg" }));
+    const siblings = (attachmentId: string) =>
+      selectSync(db, {
+        selector: attachmentSiblings,
+        args: { attachmentId },
+      }).map((attachment) => attachment.id);
+
+    expect(siblings("f2")).toEqual(["f1", "f2"]);
+    expect(siblings("f3")).toEqual(["f3"]);
+    expect(siblings("bg")).toEqual([]);
   });
 
   test("files used as backgrounds stay listed", () => {

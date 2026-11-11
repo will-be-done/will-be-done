@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { useDB } from "@will-be-done/hyperdb/react";
+import { useCallback, useEffect, useReducer } from "react";
+import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
 import {
   INLINE_ATTACHMENT_TYPE,
+  setAttachmentImageSize,
   type Attachment,
   type AttachmentParentType,
 } from "@will-be-done/slices/space";
@@ -18,44 +19,102 @@ export const formatFileSize = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
+export const fileExtension = (name: string) => {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : undefined;
+};
+
+// Keeps a short extension, so "meeting notes.txt" becomes "meetin….txt".
+export const shortFileName = (name: string, max = 10) => {
+  if (name.length <= max) return name;
+  const extension = fileExtension(name);
+  const suffix =
+    extension && extension.length <= 4 ? name.slice(-extension.length - 1) : "";
+  return `${name.slice(0, Math.max(1, max - suffix.length))}…${suffix}`;
+};
+
 export function useAttachmentTransfers() {
   return attachmentTransfersByDB.get(useDB());
+}
+
+type AttachmentTransfers = NonNullable<
+  ReturnType<typeof useAttachmentTransfers>
+>;
+
+type UrlEntry = {
+  url: string | undefined;
+  listeners: Set<() => void>;
+};
+
+// Reading bytes is async, so a URL lives for the session: a file shown again
+// is on its first frame. IndexedDB blobs are backed by disk, not memory.
+const urlEntries = new WeakMap<AttachmentTransfers, Map<string, UrlEntry>>();
+
+function urlEntry(transfers: AttachmentTransfers, id: string) {
+  let entries = urlEntries.get(transfers);
+  if (!entries) {
+    entries = new Map();
+    urlEntries.set(transfers, entries);
+  }
+  const existing = entries.get(id);
+  if (existing) return existing;
+
+  const entry: UrlEntry = { url: undefined, listeners: new Set() };
+  const load = () =>
+    void Effect.runPromise(
+      transfers.getBlob(id).pipe(
+        Effect.map((blob) => {
+          if (!blob) return;
+          if (entry.url) URL.revokeObjectURL(entry.url);
+          entry.url = URL.createObjectURL(blob);
+          for (const listener of entry.listeners) listener();
+        }),
+        Effect.catchCause((cause) =>
+          Effect.logError(`Could not read attachment ${id}`, cause),
+        ),
+      ),
+    );
+  transfers.subscribeBlob(id, load);
+  entries.set(id, entry);
+  load();
+  return entry;
 }
 
 // An object URL for the file once it is on this device; asks for it first in
 // the download queue when it is not.
 export function useAttachmentUrl(id: string | undefined) {
   const transfers = useAttachmentTransfers();
-  const [state, setState] = useState<{ id: string; url: string }>();
+  const entry = transfers && id ? urlEntry(transfers, id) : undefined;
+  const url = entry?.url;
+  const [, rerender] = useReducer((count: number) => count + 1, 0);
 
+  // useSyncExternalStore updates got stuck inside tiptap node views.
   useEffect(() => {
-    if (!transfers || !id) return;
-    let cancelled = false;
-    let url: string | undefined;
-    const load = () =>
-      void Effect.runPromise(
-        transfers.getBlob(id).pipe(
-          Effect.map((blob) => {
-            if (cancelled || !blob) return;
-            if (url) URL.revokeObjectURL(url);
-            url = URL.createObjectURL(blob);
-            setState({ id, url });
-          }),
-          Effect.catchCause((cause) =>
-            Effect.logError(`Could not read attachment ${id}`, cause),
-          ),
-        ),
-      );
-    load();
-    const unsubscribe = transfers.subscribeBlob(id, load);
-    return () => {
-      cancelled = true;
-      unsubscribe();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [id, transfers]);
+    if (!entry) return;
+    entry.listeners.add(rerender);
+    if (entry.url !== url) rerender();
+    return () => void entry.listeners.delete(rerender);
+  }, [entry, url]);
 
-  return state && state.id === id ? state.url : undefined;
+  return url;
+}
+
+// For an <img> onLoad: stores the size of an image saved without one.
+export function useRememberImageSize() {
+  const dispatch = useAsyncDispatch();
+  return (
+    attachment: Pick<Attachment, "id" | "width">,
+    image: HTMLImageElement,
+  ) => {
+    if (attachment.width !== undefined || !image.naturalWidth) return;
+    void dispatch(
+      setAttachmentImageSize({
+        id: attachment.id,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      }),
+    );
+  };
 }
 
 async function attachmentBlob(
@@ -73,7 +132,7 @@ async function attachmentBlob(
   return blob;
 }
 
-// The opened tab or download has its own reference by then.
+// The download has its own reference by then.
 const revokeLater = (url: string) =>
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 
@@ -93,6 +152,36 @@ export async function downloadAttachment(
   revokeLater(url);
 }
 
+// A blob: URL carries no name, so the file opens in a page of its own that
+// is titled with the name and downloads under it.
+function showInTab(tab: Window, blob: Blob, name: string) {
+  const doc = tab.document;
+  doc.title = name;
+  // Created in the tab, so it lives exactly as long as the tab.
+  const url = (tab as Window & typeof globalThis).URL.createObjectURL(blob);
+  doc.body.style.cssText =
+    "margin:0;height:100vh;display:flex;flex-direction:column;background:#0f1115;color:#e5e7eb;font:13px system-ui,sans-serif";
+  const bar = doc.createElement("div");
+  bar.style.cssText =
+    "display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #262a33";
+  const label = doc.createElement("span");
+  label.textContent = name;
+  label.style.cssText =
+    "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500";
+  const download = doc.createElement("a");
+  download.href = url;
+  download.download = name;
+  download.textContent = "Download";
+  download.style.cssText =
+    "color:#fff;text-decoration:none;padding:5px 10px;border-radius:6px;background:#ffffff1a";
+  const frame = doc.createElement("iframe");
+  frame.src = url;
+  frame.title = name;
+  frame.style.cssText = "flex:1;width:100%;border:0;background:#fff";
+  bar.append(label, download);
+  doc.body.replaceChildren(bar, frame);
+}
+
 export async function openAttachment(
   transfers: ReturnType<typeof useAttachmentTransfers>,
   attachment: Attachment,
@@ -103,11 +192,19 @@ export async function openAttachment(
     await downloadAttachment(transfers, attachment);
     return;
   }
+  // Opened before reading the file so popup blockers see the click.
+  const tab = window.open("", "_blank");
+  if (!tab) {
+    await downloadAttachment(transfers, attachment);
+    return;
+  }
   const blob = await attachmentBlob(transfers, attachment);
-  if (!blob) return;
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank", "noopener");
-  revokeLater(url);
+  if (!blob) {
+    tab.close();
+    return;
+  }
+  showInTab(tab, blob, attachment.name);
+  tab.opener = null;
 }
 
 export function useAttachFiles(

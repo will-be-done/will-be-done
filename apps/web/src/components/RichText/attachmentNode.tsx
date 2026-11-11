@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { Extension, mergeAttributes, Node } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
 import {
   NodeViewWrapper,
   ReactNodeViewRenderer,
@@ -12,7 +11,6 @@ import {
   ATTACHMENT_NODE,
   ATTACHMENT_URL_PREFIX,
   attachmentIdFromUrl,
-  attachmentUrl,
 } from "@will-be-done/slices/common";
 import { attachmentById, type Attachment } from "@will-be-done/slices/space";
 import { FileText } from "lucide-react";
@@ -21,21 +19,34 @@ import {
   formatFileSize,
   isImageAttachment,
   openAttachment,
+  shortFileName,
   useAttachmentTransfers,
   useAttachmentUrl,
+  useRememberImageSize,
 } from "@/components/Attachments/attachmentFiles";
 import { AttachmentPreview } from "@/components/Attachments/AttachmentPreview";
 import { pastedFiles } from "./filePaste";
-import {
-  pendingInserts,
-  pendingInsertsPlugin,
-  type PendingMeta,
-  type Range,
-} from "./pendingInserts";
+import { attachAt, pendingInsertsPlugin } from "./pendingInserts";
 
 export type AttachFiles = (files: File[]) => Promise<Attachment[]>;
 
 const MIN_IMAGE_WIDTH = 48;
+// An unsized image is capped at max-h-64.
+const MAX_IMAGE_HEIGHT = 256;
+
+type PixelSize = Pick<Attachment, "width" | "height">;
+
+// The box an image takes in a description, known before its bytes load when
+// the file has a stored size.
+const imageBox = (width: number | null, pixels: PixelSize | undefined) => {
+  if (!pixels?.width || !pixels.height) return width ? { width } : undefined;
+  return {
+    width:
+      width ??
+      Math.min(pixels.width, (MAX_IMAGE_HEIGHT * pixels.width) / pixels.height),
+    aspectRatio: `${pixels.width} / ${pixels.height}`,
+  };
+};
 
 // Dragging the corner handle sets the image's display width; double-clicking
 // the handle returns it to its natural size.
@@ -43,20 +54,24 @@ function ResizableImage({
   url,
   name,
   width,
+  pixels,
   editable,
   onResize,
   onOpen,
+  onLoad,
 }: {
   url: string;
   name: string;
   width: number | null;
+  pixels: PixelSize | undefined;
   editable: boolean;
   onResize: (width: number | null) => void;
   onOpen: () => void;
+  onLoad: (image: HTMLImageElement) => void;
 }) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
-  const shownWidth = dragWidth ?? width;
+  const box = imageBox(dragWidth ?? width, pixels);
 
   const startResize = (event: React.PointerEvent<HTMLSpanElement>) => {
     const image = imageRef.current;
@@ -98,12 +113,13 @@ function ResizableImage({
         src={url}
         alt={name}
         draggable={false}
-        style={shownWidth ? { width: shownWidth } : undefined}
+        style={box}
         className={cn(
           "block max-w-full cursor-zoom-in rounded",
-          !shownWidth && "max-h-64",
+          !box && "max-h-64",
         )}
         onClick={onOpen}
+        onLoad={(event) => onLoad(event.currentTarget)}
       />
       {editable && (
         <span
@@ -157,23 +173,42 @@ export function InlineAttachment({
   const url = useAttachmentUrl(image ? id : undefined);
   const name = attachment?.name ?? String(alt ?? "File");
   const [previewing, setPreviewing] = useState(false);
+  const rememberSize = useRememberImageSize();
+  const placeholder = imageBox(Number(width) || null, attachment);
 
   return (
     <>
-      {image && url && !compact ? (
-        <ResizableImage
-          url={url}
-          name={name}
-          width={Number(width) || null}
-          editable={!!onResize}
-          onResize={(next) => onResize?.(next)}
-          onOpen={() => setPreviewing(true)}
-        />
+      {image && !compact ? (
+        url ? (
+          <ResizableImage
+            url={url}
+            name={name}
+            width={Number(width) || null}
+            pixels={attachment}
+            editable={!!onResize}
+            onResize={(next) => onResize?.(next)}
+            onOpen={() => setPreviewing(true)}
+            onLoad={(image) => rememberSize(attachment, image)}
+          />
+        ) : (
+          <span
+            role="img"
+            aria-label={name}
+            style={placeholder}
+            className={cn(
+              "inline-block max-w-full rounded bg-white/10 align-bottom",
+              !placeholder?.aspectRatio && "h-32",
+              !placeholder && "w-48",
+            )}
+          />
+        )
       ) : (
         <button
           type="button"
           contentEditable={false}
           data-rich-text-atom
+          title={attachment ? name : undefined}
+          aria-label={attachment ? name : "Deleted file"}
           disabled={!attachment}
           onClick={() => {
             if (image) setPreviewing(true);
@@ -188,13 +223,17 @@ export function InlineAttachment({
               draggable={false}
               className="h-4 w-4 shrink-0 rounded-sm object-cover"
             />
+          ) : image ? (
+            <span className="h-4 w-4 shrink-0 rounded-sm bg-white/10" />
           ) : (
             <FileText className="h-3 w-3 shrink-0" />
           )}
-          <span className="truncate">{attachment ? name : "Deleted file"}</span>
+          <span className="truncate">
+            {attachment ? shortFileName(name) : "Deleted file"}
+          </span>
           {attachment && (
             <span className="shrink-0 text-[10px] opacity-70">
-              {image && !url ? "Downloading…" : formatFileSize(attachment.size)}
+              {formatFileSize(attachment.size)}
             </span>
           )}
         </button>
@@ -275,49 +314,6 @@ export const AttachmentNode = Node.create<AttachmentNodeOptions>({
     return ReactNodeViewRenderer(AttachmentNodeView, { as: "span" });
   },
 });
-
-const insertAttachments = (
-  view: EditorView,
-  key: symbol,
-  attachments: Attachment[],
-) => {
-  // The file stays in the item's list when the editor closed meanwhile.
-  if (view.isDestroyed) return;
-  const range = pendingInserts.getState(view.state)?.get(key);
-  let tr = view.state.tr.setMeta(pendingInserts, {
-    remove: key,
-  } satisfies PendingMeta);
-  const type = view.state.schema.nodes[ATTACHMENT_NODE];
-  if (range && type && attachments.length > 0) {
-    tr = tr.replaceWith(
-      range.from,
-      range.to,
-      attachments.map((attachment) =>
-        type.create({
-          src: attachmentUrl(attachment.id),
-          alt: attachment.name,
-        }),
-      ),
-    );
-    tr = tr.scrollIntoView();
-  }
-  view.dispatch(tr);
-};
-
-const attachAt = (
-  view: EditorView,
-  attachFiles: AttachFiles,
-  files: File[],
-  range: Range,
-) => {
-  const key = Symbol();
-  view.dispatch(
-    view.state.tr.setMeta(pendingInserts, {
-      add: [key, range],
-    } satisfies PendingMeta),
-  );
-  void attachFiles(files).then((added) => insertAttachments(view, key, added));
-};
 
 const filesOf = (data: DataTransfer | null) =>
   data ? Array.from(data.files) : [];

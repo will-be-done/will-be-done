@@ -322,10 +322,12 @@
 .rich-text {
   overflow-wrap: anywhere;
 }
-/* ProseMirror's base styles reset font features; keep the app's Inter glyphs. */
+/* ProseMirror's base styles reset font features and wrapping; keep the app's
+   Inter glyphs, and wrap like RichTextView so editing does not reflow text. */
 .rich-text.ProseMirror {
   font-variant-ligatures: inherit;
   font-feature-settings: inherit;
+  overflow-wrap: anywhere;
 }
 .rich-text > :first-child {
   margin-top: 0;

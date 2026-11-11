@@ -1,8 +1,17 @@
-export type PromptRequest = {
-  title: string;
-  defaultValue?: string;
-  resolve: (value: string | null) => void;
-};
+export type PromptRequest =
+  | {
+      kind: "prompt";
+      title: string;
+      defaultValue?: string;
+      resolve: (value: string | null) => void;
+    }
+  | {
+      kind: "confirm";
+      title: string;
+      description?: string;
+      confirmLabel: string;
+      resolve: (confirmed: boolean) => void;
+    };
 
 type PromptDialogSetter = (req: PromptRequest | null) => void;
 
@@ -32,6 +41,33 @@ export function promptDialog(
       resolve(window.prompt(title, defaultValue));
       return;
     }
-    mountedSetter({ title, defaultValue, resolve });
+    mountedSetter({ kind: "prompt", title, defaultValue, resolve });
+  });
+}
+
+// Drop-in replacement for `window.confirm()` with a destructive action.
+export function confirmDialog({
+  title,
+  description,
+  confirmLabel,
+}: {
+  title: string;
+  description?: string;
+  confirmLabel: string;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!mountedSetter) {
+      resolve(
+        window.confirm(description ? `${title}\n\n${description}` : title),
+      );
+      return;
+    }
+    mountedSetter({
+      kind: "confirm",
+      title,
+      description,
+      confirmLabel,
+      resolve,
+    });
   });
 }

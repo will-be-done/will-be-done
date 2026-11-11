@@ -20,9 +20,10 @@ import {
   isImageAttachment,
   openAttachment,
   useAttachmentTransfers,
-  useAttachmentUrl,
 } from "@/components/Attachments/attachmentFiles";
 import { AttachmentPreview } from "@/components/Attachments/AttachmentPreview";
+import { AttachmentThumb } from "@/components/Attachments/AttachmentThumb";
+import { confirmDialog } from "@/components/ui/prompt-dialog-service";
 import { cn } from "@/lib/utils";
 import { settingsButtonClass } from "./SettingsUI";
 
@@ -36,29 +37,17 @@ const usageLabel = (usage: AttachmentUsage) =>
       ? "Untitled template"
       : "Untitled task");
 
-function Thumb({
-  id,
-  name,
-  mimeType,
-}: {
-  id: string;
-  name: string;
-  mimeType: string;
-}) {
-  const extension = name.includes(".") ? name.split(".").pop() : undefined;
-  const url = useAttachmentUrl(isImageAttachment(mimeType) ? id : undefined);
-  return url ? (
-    <img src={url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
-  ) : (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-white/5 text-[10px] uppercase text-content-tinted">
-      {extension?.slice(0, 4) || "file"}
-    </span>
-  );
-}
-
 export function AttachmentsSection() {
   const { spaceId } = Route.useParams();
   const dispatch = useAsyncDispatch();
+  const confirmDelete = async (file: Attachment) => {
+    const confirmed = await confirmDialog({
+      title: "Delete file?",
+      description: `“${file.name}” will be removed from every item that uses it.`,
+      confirmLabel: "Delete",
+    });
+    if (confirmed) void dispatch(deleteAttachments({ ids: [file.id] }));
+  };
   const transfers = useAttachmentTransfers();
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
@@ -108,11 +97,7 @@ export function AttachmentsSection() {
                   onClick={() => open(file)}
                   aria-label={`Open ${file.name}`}
                 >
-                  <Thumb
-                    id={file.id}
-                    name={file.name}
-                    mimeType={file.mimeType}
-                  />
+                  <AttachmentThumb attachment={file} className="h-10 w-10" />
                 </button>
                 <div className="min-w-0 flex-1">
                   <button
@@ -164,15 +149,7 @@ export function AttachmentsSection() {
                   type="button"
                   title="Delete file"
                   aria-label={`Delete ${file.name}`}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Delete ${file.name}? It is removed from every item that uses it.`,
-                      )
-                    ) {
-                      void dispatch(deleteAttachments({ ids: [file.id] }));
-                    }
-                  }}
+                  onClick={() => void confirmDelete(file)}
                   className="cursor-pointer rounded-lg p-1.5 text-content-tinted/60 transition-colors hover:bg-white/8 hover:text-red-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" />

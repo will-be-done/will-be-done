@@ -24,6 +24,7 @@ import { NoteBody } from "./NoteBody.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AttachmentDropZone } from "@/components/Attachments/AttachmentDropZone.tsx";
 import {
   useItemDetailsSize,
   useItemDetailsOpen,
@@ -75,6 +76,7 @@ export function ItemDetails() {
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (
       e.key === "Escape" &&
+      !e.defaultPrevented &&
       isVisible &&
       !isEditingAnyField &&
       !useFocusStore.getState().isFocusDisabled
@@ -194,28 +196,37 @@ export function ItemDetails() {
           )}
           style={{ width: `${width}px` }}
         >
-          <ScrollArea rootClassName="h-full">
-            {/* Header */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
-              <span className="text-content-tinted text-xs font-medium flex-1">
-                Item Details
-              </span>
-            </div>
-
-            {focusedItem ? (
-              <ItemDetailsBody
-                item={focusedItem}
-                isEditingTitle={isEditingTitle}
-                setIsEditingTitle={setIsEditingTitle}
-                isEditingDescription={isEditingDescription}
-                setIsEditingDescription={setIsEditingDescription}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
-                Select a task
+          <AttachmentDropZone
+            parent={
+              focusedItem
+                ? { parentType: focusedItem.type, parentId: focusedItem.id }
+                : undefined
+            }
+            className="h-full"
+          >
+            <ScrollArea rootClassName="h-full">
+              {/* Header */}
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
+                <span className="text-content-tinted text-xs font-medium flex-1">
+                  Item Details
+                </span>
               </div>
-            )}
-          </ScrollArea>
+
+              {focusedItem ? (
+                <ItemDetailsBody
+                  item={focusedItem}
+                  isEditingTitle={isEditingTitle}
+                  setIsEditingTitle={setIsEditingTitle}
+                  isEditingDescription={isEditingDescription}
+                  setIsEditingDescription={setIsEditingDescription}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
+                  Select a task
+                </div>
+              )}
+            </ScrollArea>
+          </AttachmentDropZone>
         </div>
       </div>
     </div>
@@ -264,25 +275,30 @@ export function ItemDetailsPage({
         </div>
       </div>
 
-      <ScrollArea
-        rootClassName="min-h-0 flex-1"
-        style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
+      <AttachmentDropZone
+        parent={item ? { parentType: item.type, parentId: item.id } : undefined}
+        className="min-h-0 flex-1"
       >
-        {item ? (
-          <ItemDetailsBody
-            item={item}
-            isEditingTitle={isEditingTitle}
-            setIsEditingTitle={setIsEditingTitle}
-            isEditingDescription={isEditingDescription}
-            setIsEditingDescription={setIsEditingDescription}
-            onItemIdChange={onItemIdChange}
-          />
-        ) : (
-          <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-content-tinted/60">
-            Task details are not available.
-          </div>
-        )}
-      </ScrollArea>
+        <ScrollArea
+          rootClassName="h-full"
+          style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
+        >
+          {item ? (
+            <ItemDetailsBody
+              item={item}
+              isEditingTitle={isEditingTitle}
+              setIsEditingTitle={setIsEditingTitle}
+              isEditingDescription={isEditingDescription}
+              setIsEditingDescription={setIsEditingDescription}
+              onItemIdChange={onItemIdChange}
+            />
+          ) : (
+            <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-content-tinted/60">
+              Task details are not available.
+            </div>
+          )}
+        </ScrollArea>
+      </AttachmentDropZone>
     </div>
   );
 }
