@@ -151,6 +151,7 @@ export function ItemAttachments({
               >
                 <AttachmentThumb
                   attachment={attachment}
+                  rememberSize
                   className="h-full w-full rounded-none"
                 />
               </button>
@@ -179,7 +180,11 @@ export function ItemAttachments({
                 onClick={() => void openAttachment(transfers, attachment)}
                 className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
               >
-                <AttachmentThumb attachment={attachment} className="h-8 w-8" />
+                <AttachmentThumb
+                  attachment={attachment}
+                  rememberSize
+                  className="h-8 w-8"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-content">
                     {attachment.name}
@@ -214,6 +219,7 @@ export function ItemAttachments({
       {previewing && (
         <AttachmentPreview
           attachment={previewing}
+          parent={{ parentType, parentId }}
           onClose={() => setPreviewing(null)}
         />
       )}

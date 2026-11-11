@@ -86,7 +86,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   await page.mouse.up();
   await expect(image).toHaveCSS("width", "100px");
   // The stored size keeps the box before the bytes load.
-  await expect(image).toHaveAttribute("style", /aspect-ratio: 160 \/ 100/);
+  await expect(image).toHaveAttribute("style", /aspect-ratio: auto 160 \/ 100/);
 
   // Files pasted into the title show inline in the title and in the card.
   await page.getByTestId("task-title").click();
@@ -166,7 +166,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   );
   await expect(
     remote.description.locator('img[alt="shot.png"]'),
-  ).toHaveAttribute("style", /aspect-ratio: 160 \/ 100/);
+  ).toHaveAttribute("style", /aspect-ratio: auto 160 \/ 100/);
   await expect(
     other.getByTestId("item-attachments").getByText("notes.txt"),
   ).toBeVisible();

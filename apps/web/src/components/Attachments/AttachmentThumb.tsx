@@ -7,12 +7,16 @@ import {
   useRememberImageSize,
 } from "./attachmentFiles";
 
-// An image's picture, or the file's extension as a badge.
+// An image's picture, or the file's extension as a badge. `rememberSize`
+// stores the size of an image saved without one; Settings leaves it off, as a
+// write to a file no item lists would restart its unused-file grace period.
 export function AttachmentThumb({
   attachment,
+  rememberSize: remember = false,
   className,
 }: {
   attachment: Pick<Attachment, "id" | "name" | "mimeType" | "width">;
+  rememberSize?: boolean;
   className?: string;
 }) {
   const image = isImageAttachment(attachment.mimeType);
@@ -23,7 +27,9 @@ export function AttachmentThumb({
       src={url}
       alt=""
       draggable={false}
-      onLoad={(event) => rememberSize(attachment, event.currentTarget)}
+      onLoad={(event) => {
+        if (remember) rememberSize(attachment, event.currentTarget);
+      }}
       className={cn("shrink-0 rounded object-cover", className)}
     />
   ) : (

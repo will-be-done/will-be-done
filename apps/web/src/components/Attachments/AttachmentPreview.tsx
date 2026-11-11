@@ -4,7 +4,9 @@ import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   attachmentSiblings,
+  itemAttachments,
   type Attachment,
+  type AttachmentParentType,
 } from "@will-be-done/slices/space";
 import { useFocusStore } from "@/store/focusSlice";
 import {
@@ -21,21 +23,32 @@ const navButtonClass =
   "absolute top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full bg-black/40 p-2.5 text-white/80 ring-1 ring-white/10 backdrop-blur transition-colors hover:bg-black/60 hover:text-white";
 
 // Full-screen view of an image attachment that pages through the other images
-// of its item. Clicking outside the image or pressing Escape closes it.
+// of its item: `parent` when known, else the first item listing the file.
+// Clicking outside the image or pressing Escape closes it.
 export function AttachmentPreview({
   attachment,
+  parent,
   onClose,
 }: {
   attachment: Attachment;
+  parent?: { parentType: AttachmentParentType; parentId: string };
   onClose: () => void;
 }) {
   const transfers = useAttachmentTransfers();
+  const { data: listed } = useAsyncSelector({
+    selector: itemAttachments,
+    args: parent ?? { parentType: "task", parentId: "" },
+    enabled: !!parent,
+    defaultValue: [],
+  });
   const { data: siblings } = useAsyncSelector({
     selector: attachmentSiblings,
     args: { attachmentId: attachment.id },
+    enabled: !parent,
     defaultValue: [],
   });
-  const images = siblings.filter((file) => isImageAttachment(file.mimeType));
+  const files = parent ? listed.map((row) => row.attachment) : siblings;
+  const images = files.filter((file) => isImageAttachment(file.mimeType));
   const gallery = images.some((file) => file.id === attachment.id)
     ? images
     : [attachment];
@@ -51,7 +64,9 @@ export function AttachmentPreview({
   // Reads the neighbours ahead so stepping shows them at once.
   useAttachmentUrl(previous?.id);
   useAttachmentUrl(next?.id);
-  const swipe = useRef<{ x: number; y: number } | null>(null);
+  // One finger swipes; a second one makes it a pinch, which never pages.
+  const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
+  const touches = useRef(new Set<number>());
 
   // Keeps arrows and Escape away from the lists behind the preview.
   useEffect(() => {
@@ -98,17 +113,24 @@ export function AttachmentPreview({
           </button>
         </div>
         <div
-          className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center px-4 sm:px-16"
+          className="relative flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom items-center justify-center px-4 sm:px-16"
           onPointerDown={(event) => {
+            if (event.pointerType === "mouse") return;
+            touches.current.add(event.pointerId);
             swipe.current =
-              event.pointerType === "mouse"
-                ? null
-                : { x: event.clientX, y: event.clientY };
+              touches.current.size === 1
+                ? { id: event.pointerId, x: event.clientX, y: event.clientY }
+                : null;
+          }}
+          onPointerCancel={(event) => {
+            touches.current.delete(event.pointerId);
+            swipe.current = null;
           }}
           onPointerUp={(event) => {
+            touches.current.delete(event.pointerId);
             const start = swipe.current;
+            if (start?.id !== event.pointerId) return;
             swipe.current = null;
-            if (!start) return;
             const dx = event.clientX - start.x;
             const dy = event.clientY - start.y;
             if (Math.abs(dx) < SWIPE_DISTANCE || Math.abs(dx) < Math.abs(dy)) {

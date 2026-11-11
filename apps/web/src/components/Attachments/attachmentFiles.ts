@@ -21,7 +21,9 @@ export const formatFileSize = (bytes: number) => {
 
 export const fileExtension = (name: string) => {
   const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(dot + 1).toLowerCase() : undefined;
+  return dot > 0 && dot < name.length - 1
+    ? name.slice(dot + 1).toLowerCase()
+    : undefined;
 };
 
 // Keeps a short extension, so "meeting notes.txt" becomes "meetin….txt".
@@ -44,11 +46,29 @@ type AttachmentTransfers = NonNullable<
 type UrlEntry = {
   url: string | undefined;
   listeners: Set<() => void>;
+  loading: boolean;
+  disposed: boolean;
+  load: () => void;
+  dispose: () => void;
 };
 
-// Reading bytes is async, so a URL lives for the session: a file shown again
-// is on its first frame. IndexedDB blobs are backed by disk, not memory.
+// Reading bytes is async, so unused URLs are kept and a file shown again is
+// on its first frame. Bounded: bytes read from the server while browser
+// storage is full live in memory.
+const MAX_IDLE_URLS = 100;
+// Least recently used first.
+const idleUrls = new Set<UrlEntry>();
 const urlEntries = new WeakMap<AttachmentTransfers, Map<string, UrlEntry>>();
+
+const markIdle = (entry: UrlEntry) => {
+  idleUrls.delete(entry);
+  idleUrls.add(entry);
+  for (const oldest of idleUrls) {
+    if (idleUrls.size <= MAX_IDLE_URLS) break;
+    idleUrls.delete(oldest);
+    oldest.dispose();
+  }
+};
 
 function urlEntry(transfers: AttachmentTransfers, id: string) {
   let entries = urlEntries.get(transfers);
@@ -59,24 +79,40 @@ function urlEntry(transfers: AttachmentTransfers, id: string) {
   const existing = entries.get(id);
   if (existing) return existing;
 
-  const entry: UrlEntry = { url: undefined, listeners: new Set() };
-  const load = () =>
-    void Effect.runPromise(
-      transfers.getBlob(id).pipe(
-        Effect.map((blob) => {
-          if (!blob) return;
-          if (entry.url) URL.revokeObjectURL(entry.url);
-          entry.url = URL.createObjectURL(blob);
-          for (const listener of entry.listeners) listener();
-        }),
-        Effect.catchCause((cause) =>
-          Effect.logError(`Could not read attachment ${id}`, cause),
+  const entry: UrlEntry = {
+    url: undefined,
+    listeners: new Set(),
+    loading: false,
+    disposed: false,
+    load: () => {
+      entry.loading = true;
+      void Effect.runPromise(
+        transfers.getBlob(id).pipe(
+          Effect.map((blob) => {
+            if (entry.disposed || !blob) return;
+            if (entry.url) URL.revokeObjectURL(entry.url);
+            entry.url = URL.createObjectURL(blob);
+            for (const listener of entry.listeners) listener();
+          }),
+          Effect.catchCause((cause) =>
+            Effect.logError(`Could not read attachment ${id}`, cause),
+          ),
+          Effect.ensuring(Effect.sync(() => (entry.loading = false))),
         ),
-      ),
-    );
-  transfers.subscribeBlob(id, load);
+      );
+    },
+    dispose: () => {
+      entry.disposed = true;
+      unsubscribe();
+      if (entry.url) URL.revokeObjectURL(entry.url);
+      entries.delete(id);
+    },
+  };
+  const unsubscribe = transfers.subscribeBlob(id, entry.load);
   entries.set(id, entry);
-  load();
+  // Covers a render that never commits.
+  markIdle(entry);
+  entry.load();
   return entry;
 }
 
@@ -91,9 +127,21 @@ export function useAttachmentUrl(id: string | undefined) {
   // useSyncExternalStore updates got stuck inside tiptap node views.
   useEffect(() => {
     if (!entry) return;
+    // Evicted between render and commit, as when many files mount at once.
+    if (entry.disposed) {
+      rerender();
+      return;
+    }
+    idleUrls.delete(entry);
     entry.listeners.add(rerender);
     if (entry.url !== url) rerender();
-    return () => void entry.listeners.delete(rerender);
+    // A read that found nothing, such as a download that failed, tries again
+    // each time the file is shown.
+    else if (!entry.url && !entry.loading) entry.load();
+    return () => {
+      entry.listeners.delete(rerender);
+      if (entry.listeners.size === 0 && !entry.disposed) markIdle(entry);
+    };
   }, [entry, url]);
 
   return url;
@@ -182,13 +230,40 @@ function showInTab(tab: Window, blob: Blob, name: string) {
   doc.body.replaceChildren(bar, frame);
 }
 
+// Resolves once the file is on this device, asking for it first in the
+// download queue; undefined when `wanted` turns false before then.
+const blobWhenStored = (
+  transfers: AttachmentTransfers,
+  id: string,
+  wanted: () => boolean,
+) =>
+  new Promise<Blob | undefined>((resolve) => {
+    const read = () =>
+      void Effect.runPromise(
+        transfers.getBlob(id).pipe(Effect.orElseSucceed(() => undefined)),
+      ).then((blob) => {
+        if (!blob && wanted()) return;
+        unsubscribe();
+        resolve(blob);
+      });
+    const unsubscribe = transfers.subscribeBlob(id, read);
+    read();
+  });
+
+// Phones only show a PDF's first page, or none, inside a frame.
+const framesFiles = () => !window.matchMedia("(pointer: coarse)").matches;
+
 export async function openAttachment(
   transfers: ReturnType<typeof useAttachmentTransfers>,
   attachment: Attachment,
 ) {
   // The desktop shell hands new windows to the system browser, which cannot
   // read this page's blob URLs.
-  if (!INLINE_ATTACHMENT_TYPE.test(attachment.mimeType) || window.desktopApi) {
+  if (
+    !transfers ||
+    !INLINE_ATTACHMENT_TYPE.test(attachment.mimeType) ||
+    window.desktopApi
+  ) {
     await downloadAttachment(transfers, attachment);
     return;
   }
@@ -198,13 +273,24 @@ export async function openAttachment(
     await downloadAttachment(transfers, attachment);
     return;
   }
-  const blob = await attachmentBlob(transfers, attachment);
-  if (!blob) {
-    tab.close();
+  tab.opener = null;
+  tab.document.title = attachment.name;
+  tab.document.body.style.cssText =
+    "margin:0;padding:16px;background:#0f1115;color:#9ca3af;font:13px system-ui,sans-serif";
+  tab.document.body.textContent = `Downloading ${attachment.name}…`;
+  const blob = await blobWhenStored(
+    transfers,
+    attachment.id,
+    () => !tab.closed,
+  );
+  if (!blob || tab.closed) return;
+  if (framesFiles()) {
+    showInTab(tab, blob, attachment.name);
     return;
   }
-  showInTab(tab, blob, attachment.name);
-  tab.opener = null;
+  const url = URL.createObjectURL(blob);
+  tab.location.href = url;
+  revokeLater(url);
 }
 
 export function useAttachFiles(

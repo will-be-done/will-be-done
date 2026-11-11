@@ -44,7 +44,8 @@ const imageBox = (width: number | null, pixels: PixelSize | undefined) => {
     width:
       width ??
       Math.min(pixels.width, (MAX_IMAGE_HEIGHT * pixels.width) / pixels.height),
-    aspectRatio: `${pixels.width} / ${pixels.height}`,
+    // `auto`: a loaded picture keeps its own proportions if the size is off.
+    aspectRatio: `auto ${pixels.width} / ${pixels.height}`,
   };
 };
 

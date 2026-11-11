@@ -9,6 +9,10 @@ the rules that keep the two halves consistent.
 - **`attachments`** is the space's file library: name, type, size, and SHA-256.
   Bytes are immutable, so an ID always names the same content. That makes every
   upload idempotent and lets downloads be cached forever.
+- An image row also stores its pixel size so it takes its space before its
+  bytes load. Images stored without one get it from the first client that draws
+  them in an item; Settings never writes it, because any write to a row clears
+  its sweep mark (see below).
 - **`item_attachments`** lists a file under an item. One file can be listed by
   several items: copies, the tasks a template generates, or a reference pasted
   into another description. Settings' "used in" reads these links. The
