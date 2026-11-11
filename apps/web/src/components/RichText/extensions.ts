@@ -52,28 +52,21 @@ export function richTextExtensions({
   kind,
   doc,
   placeholder,
-  itemField = false,
   attachFiles,
 }: {
   kind: RichTextKind;
   doc: Y.Doc;
   placeholder: string;
-  // Only an item's fields can reference its files; elsewhere a pasted
-  // reference stays text, since nothing would list the file.
-  itemField?: boolean;
-  // Fields of an item take pasted and dropped files when given.
+  // Given for an item's fields, which list the files they reference.
+  // Elsewhere a pasted reference stays text, since nothing would list it.
   attachFiles?: AttachFiles;
 }): Extensions {
-  const attachments =
-    itemField || attachFiles
-      ? [
-          AttachmentNode.configure({
-            compact: kind === "title",
-            parseHTML: kind === "content" || !!attachFiles,
-          }),
-          AttachmentPaste.configure({ attachFiles }),
-        ]
-      : [];
+  const attachments = attachFiles
+    ? [
+        AttachmentNode.configure({ compact: kind === "title" }),
+        AttachmentPaste.configure({ attachFiles }),
+      ]
+    : [];
   const shared = [
     StarBold,
     StarItalic,

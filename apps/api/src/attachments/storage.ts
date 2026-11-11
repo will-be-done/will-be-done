@@ -73,10 +73,12 @@ const attemptPut = <A>(run: () => Promise<A>) =>
   });
 
 // Hashes and counts bytes as they stream past, failing unless exactly
-// `expected.size` bytes pass. `digest` is undefined on a checksum mismatch.
+// `expected.size` bytes pass. `digest` is undefined on a checksum mismatch,
+// and is known once the whole body has passed.
 const measure = (expected: ExpectedContent) => {
   const hash = createHash("sha256");
   let bytes = 0;
+  let sha256: string | undefined;
   const stream = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       bytes += chunk.length;
@@ -88,16 +90,18 @@ const measure = (expected: ExpectedContent) => {
       callback(null, chunk);
     },
     flush(callback) {
-      callback(
-        bytes === expected.size ? null : new AttachmentContentMismatchError(),
-      );
+      if (bytes !== expected.size) {
+        callback(new AttachmentContentMismatchError());
+        return;
+      }
+      sha256 = hash.digest("hex");
+      callback();
     },
   });
-  const digest = () => {
-    const sha256 = hash.digest("hex");
-    return !expected.sha256 || sha256 === expected.sha256 ? sha256 : undefined;
-  };
-  return { stream, digest };
+  const complete = () => sha256 !== undefined;
+  const digest = () =>
+    !expected.sha256 || sha256 === expected.sha256 ? sha256 : undefined;
+  return { stream, complete, digest };
 };
 
 // Uploads take minutes at most, so an older temp file was abandoned.
@@ -244,7 +248,12 @@ const makeS3AttachmentStorage = (
             { abortSignal: abort.signal },
           )
           .catch((error: unknown) => {
-            throw failure ?? error;
+            if (failure) throw failure;
+            // S3 refuses wrong bytes by their checksum, as a 400.
+            if (measured.complete() && !measured.digest()) {
+              throw new AttachmentContentMismatchError();
+            }
+            throw error;
           });
         // A body longer than its length can fail after S3 took the rest.
         if (failure) throw failure;

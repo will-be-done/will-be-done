@@ -111,10 +111,19 @@ export const restoreTrashedTasks = action({
 // Trashed items keep their file links until they are purged.
 function* purgeTrashRows(rows: TrashedTaskRow[]) {
   if (rows.length === 0) return;
-  const ids = rows.map((row) => row.id);
-  yield* deleteRows(trashedTasksTable, ids);
-  yield* deleteItemAttachmentLinks(taskType, ids);
-  yield* deleteItemAttachmentLinks(noteType, ids);
+  yield* deleteRows(
+    trashedTasksTable,
+    rows.map((row) => row.id),
+  );
+  const items = rows.map(decodeTrashedTask);
+  yield* deleteItemAttachmentLinks(
+    taskType,
+    items.filter((item) => "task" in item).map((item) => item.id),
+  );
+  yield* deleteItemAttachmentLinks(
+    noteType,
+    items.filter((item) => "note" in item).map((item) => item.id),
+  );
 }
 
 export const deleteTrashedTasks = action({

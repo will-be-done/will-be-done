@@ -220,7 +220,8 @@ export const makeAttachmentTransfers = ({
     let syncRound = 0;
     const failed = new Set<string>();
     let storageFull = false;
-    let error: string | null = null;
+    // Per file, so one file transferring never hides another's failure.
+    const errors = new Map<string, string>();
     let cleanedOrphans = false;
     let nextWakeAt: number | undefined;
 
@@ -363,7 +364,7 @@ export const makeAttachmentTransfers = ({
             awaitingSync.add(id);
           }
         } else {
-          error = failureMessage(job)(failure);
+          errors.set(id, failureMessage(job)(failure));
         }
         if (
           failure._tag === "AttachmentHttpError" &&
@@ -435,7 +436,7 @@ export const makeAttachmentTransfers = ({
         Effect.matchEffect({
           onSuccess: () =>
             Effect.sync(() => {
-              error = null;
+              errors.delete(job.attachment.id);
               attempts.delete(job.attachment.id);
             }),
           onFailure: (failure) => onFailure(job, failure),
@@ -462,6 +463,10 @@ export const makeAttachmentTransfers = ({
       });
       const { stored, pending } = yield* store.keys;
       const now = yield* Clock.currentTimeMillis;
+      const live = new Set(rows.map(({ id }) => id));
+      for (const id of errors.keys()) {
+        if (!live.has(id)) errors.delete(id);
+      }
       let nextRetry = Infinity;
       for (const attachment of rows) {
         const { id } = attachment;
@@ -484,7 +489,6 @@ export const makeAttachmentTransfers = ({
       // Once per session, so undoing a removal still finds the bytes.
       if (!cleanedOrphans) {
         cleanedOrphans = true;
-        const live = new Set(rows.map(({ id }) => id));
         const unlisted = [...stored].filter((id) => !live.has(id));
         const states = yield* database.select({
           selector: attachmentRowStates,
@@ -560,7 +564,7 @@ export const makeAttachmentTransfers = ({
           status.set({
             uploading: progress("upload"),
             downloading: progress("download"),
-            error,
+            error: [...errors.values()].at(-1) ?? null,
             storageFull,
           });
           broadcastStatus();
@@ -636,8 +640,22 @@ export const makeAttachmentTransfers = ({
       importBlob: ({ id, size, sha256 }, blob) =>
         provide(
           Effect.gen(function* () {
+            const digester = yield* Digest.Digest;
+            const matches = (candidate: Blob) =>
+              Effect.gen(function* () {
+                if (candidate.size !== size) return false;
+                const bytes = yield* Effect.tryPromise({
+                  try: () => candidate.arrayBuffer(),
+                  catch: (cause) => new AttachmentFileReadError({ cause }),
+                });
+                const digest = yield* digester.digestHex(
+                  Digest.sha256,
+                  new Uint8Array(bytes),
+                );
+                return digest === sha256;
+              });
             const local = yield* store.get(id);
-            if (local) {
+            if (local && (yield* matches(local))) {
               // The restored server may have lost the bytes.
               if (syncEnabled) {
                 yield* store.put(id, local, { uploaded: false });
@@ -645,16 +663,7 @@ export const makeAttachmentTransfers = ({
               }
               return true;
             }
-            if (blob.size !== size) return false;
-            const bytes = yield* Effect.tryPromise({
-              try: () => blob.arrayBuffer(),
-              catch: (cause) => new AttachmentFileReadError({ cause }),
-            });
-            const digest = yield* (yield* Digest.Digest).digestHex(
-              Digest.sha256,
-              new Uint8Array(bytes),
-            );
-            if (digest !== sha256) return false;
+            if (!(yield* matches(blob))) return false;
             yield* store.put(id, blob, { uploaded: !syncEnabled });
             notify(id);
             if (syncEnabled) requestDownload(id);

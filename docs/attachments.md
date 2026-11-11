@@ -105,10 +105,11 @@ list before opening a blob URL, which would otherwise run on the app's origin.
 ## Backups
 
 A space export is a zip of `backup.json` and `attachments/<id>`. Restoring it
-re-uploads the bytes, since the target server may not have them. A local copy is
-kept over the archive's bytes but uploads again, since the restored server may
-have lost it. Other files are imported only when their size and SHA-256 match
-their rows, so a damaged archive cannot replace or add wrong bytes. The archive
+re-uploads the bytes, since the target server may not have them. A local copy
+that matches its row is kept over the archive's bytes but uploads again, since
+the restored server may have lost it. Otherwise the archive's bytes are imported
+only when their size and SHA-256 match their rows, so a damaged archive cannot
+replace or add wrong bytes. The archive
 is written one file at a time and read through its central directory
 (`zipArchive.ts`), so neither direction holds the whole space in memory. It has
 no Zip64 support, which caps an export at 4 GB. Scheduled

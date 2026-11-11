@@ -27,11 +27,16 @@ import {
 import { Effect } from "effect";
 import {
   DELETED_ATTACHMENT_GRACE_MS,
+  deleteUnlinkedAttachments,
   sweepSpaceAttachments,
   UNLINKED_ATTACHMENT_GRACE_MS,
   UNSYNCED_ATTACHMENT_GRACE_MS,
 } from "./cleanup";
-import { AttachmentStorage, makeLocalAttachmentStorage } from "./storage";
+import {
+  AttachmentStorage,
+  type AttachmentStore,
+  makeLocalAttachmentStorage,
+} from "./storage";
 import { attachmentSweepMarksTable } from "./tables";
 
 const now = Date.UTC(2026, 10, 7);
@@ -103,9 +108,20 @@ afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-const setup = async (ids: string[]) => {
+const addRow = action({
+  name: "addRowAttachmentCleanupTest",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    yield* insert(attachmentsTable, [file(id)]);
+  },
+});
+
+const setup = async (
+  ids: string[],
+  wrap: (storage: AttachmentStore, db: DB) => AttachmentStore = (s) => s,
+) => {
   root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
-  const storage = makeLocalAttachmentStorage(root);
+  const local = makeLocalAttachmentStorage(root);
   const db = new DB(new BptreeInmemDriver());
   execSync(
     db.loadTables([
@@ -115,6 +131,7 @@ const setup = async (ids: string[]) => {
     ]),
   );
   syncDispatch(db, seed({}));
+  const storage = wrap(local, db);
   for (const id of ids) {
     await Effect.runPromise(
       storage.put(spaceId, id, Readable.from([Buffer.from(id)]), {
@@ -162,5 +179,39 @@ describe("attachment storage cleanup", () => {
 
     await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS * 2);
     expect(syncDispatch(db, rowIds({}))).toEqual([]);
+  });
+
+  test("keeps bytes whose row arrived while the sweep ran", async () => {
+    let revived: string | undefined;
+    const { sweep, stored } = await setup(["a", "b"], (storage, db) => ({
+      ...storage,
+      delete: (space, id) => {
+        // A client syncs the other file's row while this one is deleted.
+        if (!revived) {
+          revived = id === "a" ? "b" : "a";
+          syncDispatch(db, addRow({ id: revived }));
+        }
+        return storage.delete(space, id);
+      },
+    }));
+
+    await sweep(now);
+    await sweep(now + UNSYNCED_ATTACHMENT_GRACE_MS);
+
+    expect(await stored()).toEqual([revived!]);
+  });
+
+  test("an expired file listed again is not deleted", async () => {
+    const { db } = await setup([]);
+    syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
+    syncDispatch(db, setLink({ attachmentId: "live", linked: true }));
+
+    const deleted = syncDispatch(
+      db,
+      deleteUnlinkedAttachments({ ids: ["live", "unlisted"] }),
+    );
+
+    expect(deleted).toEqual(["unlisted"]);
+    expect(syncDispatch(db, rowIds({}))).toEqual(["live"]);
   });
 });

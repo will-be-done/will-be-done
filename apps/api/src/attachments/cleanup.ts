@@ -45,6 +45,18 @@ const sweepMarks = selector({
   },
 });
 
+// Checks and deletes in one transaction, so a file listed again since the
+// sweep read it is kept.
+export const deleteUnlinkedAttachments = action({
+  name: "deleteUnlinkedAttachments",
+  args: { ids: v.array(v.string()) },
+  handler: function* deleteUnlinkedAttachments({ ids }) {
+    const unlinked = yield* unlinkedAttachmentIds({ ids });
+    if (unlinked.length > 0) yield* deleteAttachments({ ids: unlinked });
+    return unlinked;
+  },
+});
+
 const saveSweepMarks = action({
   name: "saveAttachmentSweepMarks",
   args: {
@@ -84,7 +96,7 @@ export const sweepSpaceAttachments = (
     const rows = yield* Effect.promise(() =>
       selectAsync(db, { selector: allAttachments, args: {} }),
     );
-    const expiredRows: string[] = [];
+    const expired: string[] = [];
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const unlinked = yield* Effect.promise(() =>
         selectAsync(db, {
@@ -94,15 +106,16 @@ export const sweepSpaceAttachments = (
       );
       for (const id of unlinked) {
         if (unusedSince(id, "unlinked") <= now - UNLINKED_ATTACHMENT_GRACE_MS) {
-          expiredRows.push(id);
+          expired.push(id);
         }
       }
     }
-    if (expiredRows.length > 0) {
-      yield* Effect.promise(() =>
-        asyncDispatch(db, deleteAttachments({ ids: expiredRows })),
-      );
-    }
+    const deletedRows =
+      expired.length > 0
+        ? yield* Effect.promise(() =>
+            asyncDispatch(db, deleteUnlinkedAttachments({ ids: expired })),
+          )
+        : [];
 
     const files = yield* storage.list(spaceId);
     const removed: string[] = [];
@@ -122,6 +135,11 @@ export const sweepSpaceAttachments = (
             : state === "unknown" &&
               unusedSince(id, "unknown") <= now - UNSYNCED_ATTACHMENT_GRACE_MS;
         if (!expired) continue;
+        // Sync may have brought the row back since the batch was read.
+        const current = yield* Effect.promise(() =>
+          selectAsync(db, { selector: attachmentRowStates, args: { ids: [id] } }),
+        );
+        if (current[id]?.state !== state) continue;
         yield* storage.delete(spaceId, id);
         removed.push(id);
       }
@@ -137,7 +155,7 @@ export const sweepSpaceAttachments = (
         }),
       ),
     );
-    return { deletedRows: expiredRows, removed };
+    return { deletedRows, removed };
   });
 
 // Sweeps spaces this server has loaded. Spaces load when a client syncs, so

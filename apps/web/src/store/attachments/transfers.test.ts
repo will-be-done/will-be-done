@@ -234,6 +234,33 @@ describe("attachment transfers", () => {
     expect(uploads).toBe(2);
   });
 
+  it("keeps a refused upload's error after other files transfer", async () => {
+    const store = new FakeStore();
+    Effect.runSync(store.put("local", new Blob(["local"]), { uploaded: false }));
+
+    let refused!: () => void;
+    const uploadRefused = new Promise<void>((resolve) => (refused = resolve));
+    const { transfers } = start(store, async (_url, init) => {
+      if (init.method === "PUT") {
+        refused();
+        return new Response(null, { status: 400 });
+      }
+      await uploadRefused;
+      return new Response("remote", { status: 200 });
+    });
+    const { status } = await transfers;
+    await store.done("put:remote");
+
+    // Once both settle, the status still reports the refused file.
+    const settled = await Effect.runPromise(
+      status.waitFor(
+        ({ uploading, downloading, error }) =>
+          uploading.files === 0 && downloading.files === 0 && error !== null,
+      ),
+    );
+    expect(settled.error).toMatch(/could not upload/);
+  });
+
   it("opens files from the server once the device is out of storage", async () => {
     const store = new FakeStore();
     store.full = true;
@@ -252,9 +279,14 @@ describe("attachment transfers", () => {
     expect(store.blobs.has("remote")).toBe(false);
   });
 
-  it("imports intact files and never replaces local ones", async () => {
+  it("imports intact files, keeping local copies that match", async () => {
     const store = new FakeStore();
-    Effect.runSync(store.put("local", new Blob(["local"]), { uploaded: true }));
+    Effect.runSync(
+      Effect.all([
+        store.put("local", new Blob(["local"]), { uploaded: true }),
+        store.put("remote", new Blob(["old!"]), { uploaded: true }),
+      ]),
+    );
     const { transfers } = start(
       store,
       async () => new Response(null, { status: 404 }),
@@ -280,11 +312,14 @@ describe("attachment transfers", () => {
     expect(await restore("damaged", "good", "bad!")).toBe(false);
     expect(await restore("truncated", "good", "goo")).toBe(false);
     expect(await restore("good", "good", "good")).toBe(true);
+    expect(await restore("remote", "new!", "new!")).toBe(true);
 
     expect(await store.blobs.get("local")?.text()).toBe("local");
     expect(store.pending.has("local")).toBe(true);
     expect(store.blobs.has("damaged")).toBe(false);
     expect(store.blobs.has("truncated")).toBe(false);
     expect(await store.blobs.get("good")?.text()).toBe("good");
+    expect(await store.blobs.get("remote")?.text()).toBe("new!");
+    expect(store.pending.has("remote")).toBe(true);
   });
 });

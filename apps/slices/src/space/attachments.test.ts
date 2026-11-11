@@ -17,6 +17,7 @@ import {
   attachmentsTable,
   itemAttachmentsTable,
   notesTable,
+  noteType,
   projectSectionsTable,
   projectSectionType,
   tasksTable,
@@ -76,6 +77,23 @@ const seed = action({
       },
     ]);
     yield* insert(tasksTable, [task("t1"), task("t2")]);
+  },
+});
+
+const insertNote = action({
+  name: "insertNoteAttachmentTest",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    yield* insert(notesTable, [
+      {
+        type: noteType,
+        id,
+        title: "",
+        projectSectionId: "section",
+        orderToken: "b",
+        createdAt: 0,
+      },
+    ]);
   },
 });
 
@@ -318,10 +336,17 @@ describe("attachments", () => {
     syncDispatch(db, restoreTrashedTasks({ ids: ["t1"] }));
     expect(listOf(db, "t1")).toEqual(["f1"]);
 
+    // A note sharing the task's ID keeps its own links.
+    syncDispatch(db, insertNote({ id: "t1" }));
+    syncDispatch(
+      db,
+      attachToItem({ attachmentId: "f1", parentType: noteType, parentId: "t1" }),
+    );
     syncDispatch(db, trashTasks({ ids: ["t1"] }));
     syncDispatch(db, emptyTrash({}));
     expect(read(db).attachments.map((a) => a.id)).toEqual(["f1"]);
-    expect(read(db).links).toEqual([]);
+    expect(listOf(db, "t1")).toEqual([]);
+    expect(listOf(db, "t1", noteType)).toEqual(["f1"]);
   });
 
   test("deleting a file removes it from items in the trash", () => {

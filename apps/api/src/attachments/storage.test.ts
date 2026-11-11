@@ -7,12 +7,19 @@ import {
   utimes,
   writeFile,
 } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect, Exit } from "effect";
-import { makeLocalAttachmentStorage } from "./storage";
+import { parseEnvConfig } from "../env";
+import {
+  AttachmentContentMismatchError,
+  makeAttachmentStorage,
+  makeLocalAttachmentStorage,
+} from "./storage";
 
 const sha256 = (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -82,5 +89,46 @@ describe("local attachment storage", () => {
 
     expect(listed.map(({ id }) => id)).toEqual(["file"]);
     expect((await readdir(dir)).sort()).toEqual(["file", "file.fresh.tmp"]);
+  });
+});
+
+describe("S3 attachment storage", () => {
+  test("reports bytes S3 rejects by checksum as mismatched content", async () => {
+    // S3 reads the whole body, then refuses a wrong x-amz-checksum-sha256.
+    const server = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => {
+        response.writeHead(400, { "content-type": "application/xml" });
+        response.end(
+          "<Error><Code>BadDigest</Code><Message>Checksum mismatch</Message></Error>",
+        );
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const storage = makeAttachmentStorage(
+        parseEnvConfig({
+          WBD_ATTACHMENTS_STORAGE: "s3",
+          WBD_ATTACHMENTS_S3_ENDPOINT: `http://127.0.0.1:${port}`,
+          WBD_ATTACHMENTS_S3_BUCKET_NAME: "bucket",
+          WBD_ATTACHMENTS_S3_ACCESS_KEY_ID: "key",
+          WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY: "secret",
+        }),
+      );
+
+      const error = await Effect.runPromise(
+        Effect.flip(
+          storage.put("space", "file", body("hello there"), {
+            size: 11,
+            sha256: sha256("hello world"),
+          }),
+        ),
+      );
+
+      expect(error).toBeInstanceOf(AttachmentContentMismatchError);
+    } finally {
+      server.close();
+    }
   });
 });

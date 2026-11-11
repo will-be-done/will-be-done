@@ -240,8 +240,6 @@ function AttachmentNodeView({
 
 type AttachmentNodeOptions = {
   compact: boolean;
-  // Off where the field has no item to list pasted references under.
-  parseHTML: boolean;
 };
 
 // Only `wbd-attachment:` sources are files of this space; other images
@@ -254,7 +252,7 @@ export const AttachmentNode = Node.create<AttachmentNodeOptions>({
   draggable: true,
   selectable: true,
   addOptions() {
-    return { compact: false, parseHTML: true };
+    return { compact: false };
   },
   addAttributes() {
     // The order matches the converter in apps/slices common/richText.ts.
@@ -268,9 +266,7 @@ export const AttachmentNode = Node.create<AttachmentNodeOptions>({
     };
   },
   parseHTML() {
-    return this.options.parseHTML
-      ? [{ tag: `img[src^="${ATTACHMENT_URL_PREFIX}"]` }]
-      : [];
+    return [{ tag: `img[src^="${ATTACHMENT_URL_PREFIX}"]` }];
   },
   renderHTML({ HTMLAttributes }) {
     return ["img", mergeAttributes(HTMLAttributes)];

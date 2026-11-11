@@ -66,7 +66,6 @@ export function RichTextEditor({
   placeholder = "",
   ariaLabel,
   className,
-  itemField = false,
   attachFiles,
 }: {
   ref?: Ref<RichTextEditorHandle>;
@@ -88,8 +87,6 @@ export function RichTextEditor({
   placeholder?: string;
   ariaLabel: string;
   className?: string;
-  // Edits a Task, TaskTemplate or Note field, which may reference files.
-  itemField?: boolean;
   attachFiles?: AttachFiles;
 }) {
   const [initialDoc] = useState(() => doc ?? seedRichTextDoc(text, kind));
@@ -163,7 +160,6 @@ export function RichTextEditor({
         kind,
         doc: ydoc,
         placeholder,
-        itemField,
         ...(mountedAttachFiles ? { attachFiles: mountedAttachFiles } : {}),
       }),
       shouldRerenderOnTransaction: false,
