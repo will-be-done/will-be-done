@@ -1,13 +1,19 @@
 import { errorCodes, type FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { MAX_ATTACHMENT_SIZE } from "@will-be-done/slices/space";
+import {
+  INLINE_ATTACHMENT_TYPE,
+  MAX_ATTACHMENT_SIZE,
+} from "@will-be-done/slices/space";
 import { Effect } from "effect";
 import {
   AttachmentStorage,
   type AttachmentStore,
 } from "../../attachments/storage";
-import { authenticateRequest } from "../../services/authentication";
+import {
+  authenticateRequest,
+  getAuthenticatedRequestUser,
+} from "../../services/authentication";
 import {
   attachToItem,
   createAttachment,
@@ -48,10 +54,6 @@ const errorResponses = {
 // Clients sync every file on first open, which outruns the global limit.
 const transferRateLimit = { rateLimit: { max: 1200, timeWindow: "1 minute" } };
 
-// Types a browser can show without running anything; the rest download.
-const INLINE_TYPES =
-  /^(image\/(png|jpeg|gif|webp|avif|bmp)|application\/pdf|text\/plain|audio\/[\w.+-]+|video\/[\w.+-]+)$/;
-
 const contentLength = (request: FastifyRequest) => {
   const header = request.headers["content-length"];
   return header === undefined ? undefined : Number(header);
@@ -68,11 +70,16 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       effect.pipe(Effect.provideService(AttachmentStorage, storage)),
     );
 
-  // Bodies are buffered whole, so a caller must be known before one is read.
+  // An upload body is read only for a known caller.
   server.addHook("onRequest", async (request, reply) => {
     if (request.method !== "POST" && request.method !== "PUT") return;
     if (!(await authenticateRequest(request))) return unauthorized(reply);
   });
+
+  const requestUser = async (request: FastifyRequest) => {
+    const known = getAuthenticatedRequestUser(request);
+    return known === undefined ? authenticateRequest(request) : known;
+  };
 
   // Handlers stream the body into storage. A declared length over the limit
   // is refused before any of it is read; storage stops at the declared length.
@@ -104,7 +111,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         const page = await run(
@@ -144,7 +151,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       const { name, mimeType, parentType, parentId } = request.query;
       try {
@@ -186,7 +193,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         const attachment = await run(
@@ -218,7 +225,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         await run(
@@ -264,7 +271,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         const { attachment, body, size } = await run(
@@ -274,7 +281,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
             attachmentId: request.params.attachmentId,
           }),
         );
-        const inline = INLINE_TYPES.test(attachment.mimeType);
+        const inline = INLINE_ATTACHMENT_TYPE.test(attachment.mimeType);
         return reply
           .code(200)
           .header(
@@ -323,7 +330,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         await run(
@@ -361,7 +368,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         const itemAttachments = await run(
@@ -397,7 +404,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       const { attachmentId, parentType, parentId } = request.body;
       try {
@@ -436,7 +443,7 @@ export const attachmentRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
+      const user = await requestUser(request);
       if (!user) return unauthorized(reply);
       try {
         await run(

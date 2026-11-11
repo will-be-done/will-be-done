@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -57,5 +64,23 @@ describe("local attachment storage", () => {
     expect(await readFile(path.join(root!, "space", "file"), "utf8")).toBe(
       "hello world",
     );
+  });
+
+  test("listing removes temp files a crash left behind", async () => {
+    const storage = await setup();
+    await Effect.runPromise(
+      storage.put("space", "file", body("hello world"), { size: 11 }),
+    );
+    const dir = path.join(root!, "space");
+    await writeFile(path.join(dir, "file.stale.tmp"), "partial");
+    const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await utimes(path.join(dir, "file.stale.tmp"), old, old);
+    // Possibly still being written.
+    await writeFile(path.join(dir, "file.fresh.tmp"), "partial");
+
+    const listed = await Effect.runPromise(storage.list("space"));
+
+    expect(listed.map(({ id }) => id)).toEqual(["file"]);
+    expect((await readdir(dir)).sort()).toEqual(["file", "file.fresh.tmp"]);
   });
 });

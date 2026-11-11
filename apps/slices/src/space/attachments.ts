@@ -9,7 +9,6 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
 import { changeId, changesTable, isDeletedChange } from "../common/changes";
-import { parseHlc } from "../common/hlc";
 import { genUUIDV5Many } from "../traits";
 import {
   attachmentIdsInMarkdown,
@@ -40,7 +39,11 @@ export const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 // What an inline reference and server storage can name.
-const ATTACHMENT_ID = /^[A-Za-z0-9_-]+$/;
+export const ATTACHMENT_ID = /^[A-Za-z0-9_-]+$/;
+// Types a browser can show without running anything; the rest download, since
+// opening them from a blob URL or the API would run them on that origin.
+export const INLINE_ATTACHMENT_TYPE =
+  /^(image\/(png|jpeg|gif|webp|avif|bmp)|application\/pdf|text\/plain|audio\/[\w.+-]+|video\/[\w.+-]+)$/;
 
 // Why a client could not have written this row, if it could not.
 export const attachmentRowProblem = ({
@@ -116,11 +119,23 @@ export const attachmentsPage = selector({
 
 export type AttachmentRowState =
   | { state: "live" }
-  | { state: "deleted"; deletedAt: number }
+  | { state: "deleted" }
   | { state: "unknown" };
 
-// For server storage cleanup: whether stored bytes still have a row, and when
-// the row was deleted. "unknown" means the row never arrived.
+// For the server's cleanup sweep: which of these files no item lists.
+export const unlinkedAttachmentIds = selector({
+  name: "unlinkedAttachmentIds",
+  args: { ids: v.array(v.string()) },
+  handler: function* unlinkedAttachmentIds({ ids }) {
+    const linked = new Set(
+      (yield* linksOfAttachments(ids)).map((link) => link.attachmentId),
+    );
+    return ids.filter((id) => !linked.has(id));
+  },
+});
+
+// For storage cleanup: whether stored bytes still have a row. "unknown" means
+// the row never arrived.
 export const attachmentRowStates = selector({
   name: "attachmentRowStates",
   args: { ids: v.array(v.string()) },
@@ -144,14 +159,8 @@ export const attachmentRowStates = selector({
       ids.map((id): [string, AttachmentRowState] => {
         if (live.has(id)) return [id, { state: "live" }];
         const change = changesById.get(id);
-        return change?.deletedAt && isDeletedChange(change)
-          ? [
-              id,
-              {
-                state: "deleted",
-                deletedAt: parseHlc(change.deletedAt).physical,
-              },
-            ]
+        return change && isDeletedChange(change)
+          ? [id, { state: "deleted" }]
           : [id, { state: "unknown" }];
       }),
     );
@@ -489,19 +498,9 @@ function* removeInlineReferences(
   }
 }
 
-// Deletes files nothing lists any more. Items in the trash still list theirs.
-function* deleteOrphanedAttachments(attachmentIds: readonly string[]) {
-  const ids = [...new Set(attachmentIds)];
-  if (ids.length === 0) return;
-  const linked = new Set(
-    (yield* linksOfAttachments(ids)).map((link) => link.attachmentId),
-  );
-  const orphans = ids.filter((id) => !linked.has(id));
-  if (orphans.length > 0) yield* deleteRows(attachmentsTable, orphans);
-}
-
-// Removing a file from an item also removes it from the item's description,
-// and deletes the file when no other item lists it.
+// Removing a file from an item also removes it from the item's description.
+// A file nothing lists any more stays: the server deletes it once replicas
+// have settled, since another replica may have listed it meanwhile.
 export const removeItemAttachment = action({
   name: "removeItemAttachment",
   args: { id: v.string() },
@@ -512,7 +511,6 @@ export const removeItemAttachment = action({
     yield* removeInlineReferences(link.parentType, link.parentId, [
       link.attachmentId,
     ]);
-    yield* deleteOrphanedAttachments([link.attachmentId]);
   },
 });
 
@@ -622,7 +620,7 @@ export function* itemAttachmentLinksOfParents(
   );
 }
 
-export function* deleteItemAttachmentLinksAndOrphans(
+export function* deleteItemAttachmentLinks(
   parentType: AttachmentParentType,
   parentIds: readonly string[],
 ) {
@@ -632,5 +630,4 @@ export function* deleteItemAttachmentLinksAndOrphans(
     itemAttachmentsTable,
     links.map((link) => link.id),
   );
-  yield* deleteOrphanedAttachments(links.map((link) => link.attachmentId));
 }

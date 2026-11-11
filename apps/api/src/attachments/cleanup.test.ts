@@ -1,4 +1,4 @@
-import { mkdtemp, rm, utimes } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -6,62 +6,95 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   createAction,
   DB,
+  deleteRows,
   execSync,
   insert,
+  selectFrom,
   syncDispatch,
+  v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { changeId, changesTable } from "@will-be-done/slices/common";
 import {
+  type Attachment,
   attachmentsTable,
+  type ItemAttachment,
   attachmentType,
+  itemAttachmentsTable,
+  itemAttachmentType,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
-import { dbsTable } from "../slices/tables";
+import { Effect } from "effect";
 import {
   DELETED_ATTACHMENT_GRACE_MS,
   sweepSpaceAttachments,
-  sweepStoredAttachments,
+  UNLINKED_ATTACHMENT_GRACE_MS,
   UNSYNCED_ATTACHMENT_GRACE_MS,
 } from "./cleanup";
-import { Effect } from "effect";
 import { AttachmentStorage, makeLocalAttachmentStorage } from "./storage";
+import { attachmentSweepMarksTable } from "./tables";
 
 const now = Date.UTC(2026, 10, 7);
 const spaceId = "space";
 const hlc = (ms: number) => `${String(ms).padStart(16, "0")}-00000000-client`;
+const action = createAction();
 
-const seed = createAction()({
+const file = (id: string): Attachment => ({
+  type: attachmentType,
+  id,
+  name: `${id}.png`,
+  mimeType: "image/png",
+  size: 1,
+  sha256: "a".repeat(64),
+  createdAt: 0,
+});
+
+const link = (attachmentId: string): ItemAttachment => ({
+  type: itemAttachmentType,
+  id: `link-${attachmentId}`,
+  attachmentId,
+  parentType: "task",
+  parentId: "task",
+  orderToken: "a",
+  createdAt: 0,
+});
+
+const seed = action({
   name: "seedAttachmentCleanupTest",
   args: {},
   handler: function* () {
-    yield* insert(attachmentsTable, [
+    yield* insert(attachmentsTable, [file("live"), file("unlisted")]);
+    yield* insert(itemAttachmentsTable, [link("live")]);
+    // Deleted by a replica whose clock is a year behind.
+    yield* insert(changesTable, [
       {
-        type: attachmentType,
-        id: "live",
-        name: "live.png",
-        mimeType: "image/png",
-        size: 1,
-        sha256: "a".repeat(64),
-        createdAt: 0,
-      },
-    ]);
-    yield* insert(
-      changesTable,
-      [
-        ["deleted-long-ago", now - DELETED_ATTACHMENT_GRACE_MS - 1],
-        ["deleted-recently", now - 1],
-      ].map(([id, deletedAt]) => ({
-        id: changeId(attachmentsTable.tableName, id as string),
-        entityId: id as string,
+        id: changeId(attachmentsTable.tableName, "deleted"),
+        entityId: "deleted",
         tableName: attachmentsTable.tableName,
         createdAt: hlc(0),
-        updatedAt: hlc(deletedAt as number),
-        deletedAt: hlc(deletedAt as number),
+        updatedAt: hlc(now - 365 * DELETED_ATTACHMENT_GRACE_MS),
+        deletedAt: hlc(now - 365 * DELETED_ATTACHMENT_GRACE_MS),
         clientId: "client",
         changes: {},
-      })),
-    );
+      },
+    ]);
+  },
+});
+
+const setLink = action({
+  name: "setLinkAttachmentCleanupTest",
+  args: { attachmentId: v.string(), linked: v.boolean() },
+  handler: function* ({ attachmentId, linked }) {
+    if (linked) yield* insert(itemAttachmentsTable, [link(attachmentId)]);
+    else yield* deleteRows(itemAttachmentsTable, [`link-${attachmentId}`]);
+  },
+});
+
+const rowIds = createAction()({
+  name: "rowIdsAttachmentCleanupTest",
+  args: {},
+  handler: function* () {
+    return (yield* selectFrom(attachmentsTable, "byIds")).map(({ id }) => id);
   },
 });
 
@@ -70,75 +103,64 @@ afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe("attachment storage cleanup", () => {
-  test("removes bytes of long-deleted and never-synced rows only", async () => {
-    root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
-    const storage = makeLocalAttachmentStorage(root);
-    const db = new DB(new BptreeInmemDriver());
-    execSync(db.loadTables([...registeredSpaceSyncableTables, changesTable]));
-    syncDispatch(db, seed({}));
-
-    const files = {
-      live: now - 365 * UNSYNCED_ATTACHMENT_GRACE_MS,
-      "deleted-long-ago": now,
-      "deleted-recently": now,
-      "unsynced-old": now - UNSYNCED_ATTACHMENT_GRACE_MS - 1,
-      "unsynced-new": now - 1,
-      // A server restored from a week-old backup has no row for it yet.
-      "unsynced-since-restore": now - 7 * 24 * 60 * 60 * 1000,
-    };
-    for (const [id, modifiedAt] of Object.entries(files)) {
-      await Effect.runPromise(
-        storage.put(spaceId, id, Readable.from([Buffer.from(id)]), {
-          size: id.length,
-        }),
-      );
-      const time = new Date(modifiedAt);
-      await utimes(path.join(root, spaceId, id), time, time);
-    }
-
-    const removed = await Effect.runPromise(
-      sweepSpaceAttachments(spaceId, db, now).pipe(
+const setup = async (ids: string[]) => {
+  root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
+  const storage = makeLocalAttachmentStorage(root);
+  const db = new DB(new BptreeInmemDriver());
+  execSync(
+    db.loadTables([
+      ...registeredSpaceSyncableTables,
+      changesTable,
+      attachmentSweepMarksTable,
+    ]),
+  );
+  syncDispatch(db, seed({}));
+  for (const id of ids) {
+    await Effect.runPromise(
+      storage.put(spaceId, id, Readable.from([Buffer.from(id)]), {
+        size: id.length,
+      }),
+    );
+  }
+  const sweep = (at: number) =>
+    Effect.runPromise(
+      sweepSpaceAttachments(spaceId, db, at).pipe(
         Effect.provideService(AttachmentStorage, storage),
       ),
     );
+  const stored = async () =>
+    (await Effect.runPromise(storage.list(spaceId))).map(({ id }) => id).sort();
+  return { db, sweep, stored };
+};
 
-    expect(removed.sort()).toEqual(["deleted-long-ago", "unsynced-old"]);
-    const remaining = await Effect.runPromise(storage.list(spaceId));
-    expect(remaining.map(({ id }) => id).sort()).toEqual([
-      "deleted-recently",
-      "live",
-      "unsynced-new",
-      "unsynced-since-restore",
-    ]);
+describe("attachment storage cleanup", () => {
+  test("removes bytes a grace period after this server saw them unused", async () => {
+    const { sweep, stored } = await setup(["live", "deleted", "unsynced"]);
+
+    await sweep(now);
+    expect(await stored()).toEqual(["deleted", "live", "unsynced"]);
+
+    await sweep(now + DELETED_ATTACHMENT_GRACE_MS);
+    expect(await stored()).toEqual(["live", "unsynced"]);
+
+    await sweep(now + UNSYNCED_ATTACHMENT_GRACE_MS);
+    expect(await stored()).toEqual(["live"]);
   });
 
-  test("leaves spaces this server has no database for", async () => {
-    root = await mkdtemp(path.join(tmpdir(), "wbd-attachments-"));
-    const storage = makeLocalAttachmentStorage(root);
-    await Effect.runPromise(
-      storage.put("unknown-space", "old", Readable.from([Buffer.from("old")]), {
-        size: 3,
-      }),
-    );
-    const time = new Date(now - 365 * UNSYNCED_ATTACHMENT_GRACE_MS);
-    await utimes(path.join(root, "unknown-space", "old"), time, time);
-    const mainDB = new DB(new BptreeInmemDriver());
-    execSync(mainDB.loadTables([dbsTable]));
+  test("deletes files no item listed for the grace period", async () => {
+    const { db, sweep } = await setup([]);
+    syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
 
-    await Effect.runPromise(
-      // Opening a missing database yields an empty one.
-      sweepStoredAttachments(mainDB, async () => {
-        const db = new DB(new BptreeInmemDriver());
-        execSync(
-          db.loadTables([...registeredSpaceSyncableTables, changesTable]),
-        );
-        return db;
-      }).pipe(Effect.provideService(AttachmentStorage, storage)),
-    );
+    await sweep(now);
+    // Listed again by a replica that was offline.
+    syncDispatch(db, setLink({ attachmentId: "live", linked: true }));
+    await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS / 2);
+    syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
+    await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS);
 
-    expect(await Effect.runPromise(storage.list("unknown-space"))).toHaveLength(
-      1,
-    );
+    expect(syncDispatch(db, rowIds({})).sort()).toEqual(["live"]);
+
+    await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS * 2);
+    expect(syncDispatch(db, rowIds({}))).toEqual([]);
   });
 });

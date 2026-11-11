@@ -3,7 +3,7 @@ import { action, selector } from "../builders";
 import { inboxProjectSectionId, projectSectionById } from "./projectSections";
 import { taskTemplateById } from "./taskTemplates";
 import { mindmapById } from "./mindmaps";
-import { deleteItemAttachmentLinksAndOrphans } from "./attachments";
+import { deleteItemAttachmentLinks } from "./attachments";
 import {
   checklistItemsTable,
   dailyEntriesTable,
@@ -113,8 +113,8 @@ function* purgeTrashRows(rows: TrashedTaskRow[]) {
   if (rows.length === 0) return;
   const ids = rows.map((row) => row.id);
   yield* deleteRows(trashedTasksTable, ids);
-  yield* deleteItemAttachmentLinksAndOrphans(taskType, ids);
-  yield* deleteItemAttachmentLinksAndOrphans(noteType, ids);
+  yield* deleteItemAttachmentLinks(taskType, ids);
+  yield* deleteItemAttachmentLinks(noteType, ids);
 }
 
 export const deleteTrashedTasks = action({

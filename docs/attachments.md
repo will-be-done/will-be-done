@@ -31,14 +31,16 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
   `Content-Length`: S3 must know it before the body arrives. Local storage
   checks into a temp file and renames; S3 checks the `x-amz-checksum-sha256`
   header, so wrong bytes never replace stored ones.
-- **Removing from an item** deletes the link and the item's inline references,
-  then deletes the file if nothing else lists it. **Deleting a file** removes
+- **Removing from an item** deletes the link and the item's inline references
+  but keeps the file, which Settings then shows as unused. Clients never delete
+  a file implicitly: another replica may list it again meanwhile, and only the
+  server sees the merged state (see cleanup below). **Deleting a file** removes
   every link and inline reference. Inline references are deleted from the Yjs
   doc directly, not by rewriting text, so concurrent typing survives.
 - **Trash.** A trashed item keeps its links, so finding where a file is used
   or whether it is orphaned is an indexed read, never a scan of trash
   snapshots. A link whose item is missing belongs to a trashed item. Purging
-  deletes the links and files left unlisted. Deleting a file also strips its
+  deletes the links only. Deleting a file also strips its
   references from trash snapshots, or restoring would bring them back.
 - **Link IDs** derive from the item and the file, so replicas that link the
   same file to the same item (inline references, generated tasks) converge on
@@ -49,20 +51,25 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
 ## Server storage cleanup
 
 The server never deletes bytes on a request. A daily sweep
-(`apps/api/src/attachments/cleanup.ts`) deletes bytes whose row has been
-tombstoned for 7 days, so undo and offline replicas that still hold the row can
-settle. Use the tombstone's clock, not file age, for deleted rows: a file
-uploaded long ago and deleted today must survive the grace period.
+(`apps/api/src/attachments/cleanup.ts`) runs over the spaces this server has
+loaded, like the calendar scheduler, so it never opens every database. Every
+grace period counts from when the sweep first saw a file unused, recorded in the
+server-only `attachment_sweep_marks` table. Neither file age nor the deleting
+device's clock is used: a file uploaded long ago and deleted today must survive,
+and a device with a wrong clock must not shorten the wait.
 
-It also deletes bytes whose row never arrived, but only after 30 days. A server
+- Rows no item has listed for 30 days are deleted, which tombstones them on
+  every replica. Relisting the file in the meantime restarts the wait.
+- Bytes whose row has been tombstoned for 7 days are deleted, so undo and
+  offline replicas that still hold the row can settle.
+- Bytes whose row never arrived are deleted after 30 days. A server
 restored from a backup has no rows for files added since the backup, and
 clients resend those rows as they reconnect
 ([sync.md](sync.md#required-server-backup-recovery-guarantee)). They never
 resend bytes they have already uploaded, so a shorter grace period would lose
 those files for good. Attachment storage must also be at least as recent as the
 database: restoring storage to an older state loses files the same way.
-Spaces without a database record in the main DB are skipped: opening a missing
-space database creates an empty one, against which every file looks unknown.
+A crashed local upload can leave a temp file; listing removes those a day old.
 
 Local storage is per machine and must be on a persistent volume. Several server
 instances, or machines with ephemeral disks, need S3 storage.
@@ -72,13 +79,15 @@ instances, or machines with ephemeral disks, need S3 storage.
 `makeAttachmentTransfers` (`apps/web/src/store/attachments/transfers.ts`) runs
 in each space store's scope and keeps every file of the space on the device.
 The tab that wins the `TabChannels` leader election moves bytes; other tabs
-follow its status over a tab channel. It reconciles rows against the local store at startup and
-after each completed sync:
+follow its status over a tab channel. It reconciles rows against the local
+store at startup and whenever the `attachments` table changes, from this tab,
+another, or a sync. Other syncs do not trigger a pass.
 
 - A missing file downloads. A 404 means the adding device has not uploaded yet;
-  it retries a minute later.
+  it retries after a minute, backing off to an hour.
 - A pending file uploads. A 404 means its row has not synced yet; it retries
-  after the next sync, not on a timer.
+  after the next sync, not on a timer. If a sync completed while the upload ran,
+  it retries at once, since that sync may already have delivered the row.
 - Uploaded bytes without a row are deleted at startup. Pending bytes without a
   row are deleted only when the row has a tombstone; otherwise another tab may
   not have persisted the new row yet. The pass runs once per session, so

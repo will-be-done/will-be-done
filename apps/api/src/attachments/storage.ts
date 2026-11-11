@@ -11,6 +11,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { ATTACHMENT_ID } from "@will-be-done/slices/space";
 import { Context, Data, Effect, Layer } from "effect";
 import { AppEnv, type EnvConfig } from "../env";
 
@@ -52,10 +53,8 @@ export interface AttachmentStore {
   readonly list: (spaceId: string) => Result<StoredAttachment[]>;
 }
 
-const SAFE_ID = /^[A-Za-z0-9_-]+$/;
-
 const assertSafeId = (value: string) => {
-  if (!SAFE_ID.test(value)) throw new Error(`Unsafe storage key: ${value}`);
+  if (!ATTACHMENT_ID.test(value)) throw new Error(`Unsafe storage key: ${value}`);
 };
 
 const attempt = <A>(operation: string, run: () => Promise<A>) =>
@@ -100,6 +99,9 @@ const measure = (expected: ExpectedContent) => {
   };
   return { stream, digest };
 };
+
+// Uploads take minutes at most, so an older temp file was abandoned.
+const STALE_TEMP_MS = 24 * 60 * 60 * 1000;
 
 const isMissingFile = (error: unknown) =>
   (error as NodeJS.ErrnoException).code === "ENOENT";
@@ -146,7 +148,7 @@ export const makeLocalAttachmentStorage = (root: string): AttachmentStore => {
       try {
         const entries = await readdir(root, { withFileTypes: true });
         return entries
-          .filter((entry) => entry.isDirectory() && SAFE_ID.test(entry.name))
+          .filter((entry) => entry.isDirectory() && ATTACHMENT_ID.test(entry.name))
           .map((entry) => entry.name);
       } catch (error) {
         if (isMissingFile(error)) return [];
@@ -165,12 +167,22 @@ export const makeLocalAttachmentStorage = (root: string): AttachmentStore => {
           throw error;
         }
         const files: StoredAttachment[] = [];
+        const staleBefore = Date.now() - STALE_TEMP_MS;
         for (const name of names) {
-          if (!SAFE_ID.test(name)) continue;
-          files.push({
-            id: name,
-            modifiedAt: (await stat(path.join(dir, name))).mtimeMs,
-          });
+          const file = path.join(dir, name);
+          let modifiedAt: number;
+          try {
+            modifiedAt = (await stat(file)).mtimeMs;
+          } catch (error) {
+            // Deleted since it was listed.
+            if (isMissingFile(error)) continue;
+            throw error;
+          }
+          if (ATTACHMENT_ID.test(name)) files.push({ id: name, modifiedAt });
+          // A write that never finished: the process died mid-upload.
+          else if (name.endsWith(".tmp") && modifiedAt < staleBefore) {
+            await rm(file, { force: true });
+          }
         }
         return files;
       }),
@@ -274,7 +286,7 @@ const makeS3AttachmentStorage = (
       for await (const page of pages(prefix, "/")) {
         for (const { Prefix } of page.CommonPrefixes ?? []) {
           const name = Prefix?.slice(prefix.length).replace(/\/$/, "");
-          if (name && SAFE_ID.test(name)) spaces.push(name);
+          if (name && ATTACHMENT_ID.test(name)) spaces.push(name);
         }
       }
       return spaces;
@@ -287,7 +299,7 @@ const makeS3AttachmentStorage = (
         for await (const page of pages(spacePrefix)) {
           for (const object of page.Contents ?? []) {
             const id = object.Key?.slice(spacePrefix.length);
-            if (!id || !SAFE_ID.test(id)) continue;
+            if (!id || !ATTACHMENT_ID.test(id)) continue;
             files.push({ id, modifiedAt: object.LastModified?.getTime() ?? 0 });
           }
         }

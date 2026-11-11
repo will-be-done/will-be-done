@@ -33,7 +33,7 @@ import { syncItemRichText } from "./richTextItems";
 import {
   copyItemAttachments,
   moveItemAttachments,
-  deleteItemAttachmentLinksAndOrphans,
+  deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
 } from "./attachments";
 import { genUUIDV5 } from "../traits/";
@@ -567,10 +567,7 @@ export const deleteTemplates = action({
       parentType: taskTemplateType,
     });
     yield* deleteRows(taskTemplatesTable, taskTemplateIds);
-    yield* deleteItemAttachmentLinksAndOrphans(
-      taskTemplateType,
-      taskTemplateIds,
-    );
+    yield* deleteItemAttachmentLinks(taskTemplateType, taskTemplateIds);
   },
 });
 

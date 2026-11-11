@@ -303,6 +303,7 @@ export function MindmapNodeCard({
                 onExit={handleExit}
                 onBlur={handleBlur}
                 required={!!item}
+                itemField={!!item}
                 autoFocus
                 caretOffset={caretOffset}
                 placeholder={placeholder}

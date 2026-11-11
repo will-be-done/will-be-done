@@ -846,8 +846,8 @@ export const CreateAttachmentQuerySchema = z
     { message: "parentType and parentId must be provided together" },
   );
 
-// Fastify hands raw bodies over as Buffers; OpenAPI describes them as binary.
-// The body stays a stream, so uploads are never held in memory.
+// Raw bodies stay streams, so uploads are never held in memory; OpenAPI
+// describes them as binary.
 export const BinaryBodySchema = z
   .custom<Readable>(
     (value) => value instanceof Readable,

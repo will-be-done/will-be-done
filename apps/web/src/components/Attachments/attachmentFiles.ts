@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useDB } from "@will-be-done/hyperdb/react";
-import type {
-  Attachment,
-  AttachmentParentType,
+import {
+  INLINE_ATTACHMENT_TYPE,
+  type Attachment,
+  type AttachmentParentType,
 } from "@will-be-done/slices/space";
 import { Cause, Effect, Option, Predicate } from "effect";
 import { toast } from "sonner";
 import { attachmentTransfersByDB } from "@/store/attachments/transfers";
-
-// Opening other types from a blob URL would run them on the app's origin.
-const INLINE_TYPES =
-  /^(image\/(png|jpeg|gif|webp|avif|bmp)|application\/pdf|text\/plain|audio\/[\w.+-]+|video\/[\w.+-]+)$/;
 
 export const isImageAttachment = (mimeType: string) =>
   /^image\/(png|jpeg|gif|webp|avif|bmp|svg\+xml)$/.test(mimeType);
@@ -102,7 +99,7 @@ export async function openAttachment(
 ) {
   // The desktop shell hands new windows to the system browser, which cannot
   // read this page's blob URLs.
-  if (!INLINE_TYPES.test(attachment.mimeType) || window.desktopApi) {
+  if (!INLINE_ATTACHMENT_TYPE.test(attachment.mimeType) || window.desktopApi) {
     await downloadAttachment(transfers, attachment);
     return;
   }

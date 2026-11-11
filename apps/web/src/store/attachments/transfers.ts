@@ -4,6 +4,7 @@ import {
   attachmentById,
   attachmentRowStates,
   attachmentsByIds,
+  attachmentsTable,
   type Attachment,
   type AttachmentParentType,
   createAttachment,
@@ -68,7 +69,13 @@ export const idleTransferStatus: AttachmentTransferStatus = {
 };
 
 type Kind = "upload" | "download";
-type Job = { kind: Kind; attachment: Attachment; loaded: number };
+type Job = {
+  kind: Kind;
+  attachment: Attachment;
+  loaded: number;
+  // Completed syncs when the transfer started.
+  syncRound?: number;
+};
 type Message =
   | { type: "status"; status: AttachmentTransferStatus }
   | { type: "request-status" }
@@ -79,6 +86,7 @@ type Message =
 const CONCURRENCY = 3;
 // The server may lack bytes another device has not uploaded yet.
 const MISSING_RETRY_MS = 60_000;
+const MAX_RETRY_MS = 60 * 60_000;
 const STATUS_THROTTLE_MS = 200;
 
 class AttachmentHttpError extends Data.TaggedError("AttachmentHttpError")<{
@@ -208,6 +216,8 @@ export const makeAttachmentTransfers = ({
     };
     const retryAt = new Map<string, number>();
     const awaitingSync = new Set<string>();
+    const attempts = new Map<string, number>();
+    let syncRound = 0;
     const failed = new Set<string>();
     let storageFull = false;
     let error: string | null = null;
@@ -344,7 +354,14 @@ export const makeAttachmentTransfers = ({
         if (failure._tag === "AttachmentHttpError" && failure.status === 404) {
           // An upload waits for its row to sync; a download for another
           // device to upload the bytes.
-          if (job.kind === "upload") awaitingSync.add(id);
+          if (job.kind === "upload") {
+            // A sync that completed meanwhile may have delivered the row.
+            if (job.syncRound !== syncRound) {
+              enqueue("upload", job.attachment);
+              return;
+            }
+            awaitingSync.add(id);
+          }
         } else {
           error = failureMessage(job)(failure);
         }
@@ -368,8 +385,13 @@ export const makeAttachmentTransfers = ({
           yield* Effect.logError(`Attachment ${job.kind} failed`, failure);
         }
         // Uploads waiting for their row retry on the next sync instead.
+        // Others back off, since bytes may never arrive.
         if (!awaitingSync.has(id)) {
-          const at = (yield* Clock.currentTimeMillis) + MISSING_RETRY_MS;
+          const attempt = (attempts.get(id) ?? 0) + 1;
+          attempts.set(id, attempt);
+          const at =
+            (yield* Clock.currentTimeMillis) +
+            Math.min(MISSING_RETRY_MS * 2 ** (attempt - 1), MAX_RETRY_MS);
           retryAt.set(id, at);
           yield* wakeAt(at);
         }
@@ -398,6 +420,7 @@ export const makeAttachmentTransfers = ({
       for (const [id, job] of queue) {
         if (running.size >= CONCURRENCY) break;
         queue.delete(id);
+        job.syncRound = syncRound;
         running.set(id, job);
         runJob(transfer(job));
       }
@@ -413,6 +436,7 @@ export const makeAttachmentTransfers = ({
           onSuccess: () =>
             Effect.sync(() => {
               error = null;
+              attempts.delete(job.attachment.id);
             }),
           onFailure: (failure) => onFailure(job, failure),
         }),
@@ -491,15 +515,30 @@ export const makeAttachmentTransfers = ({
 
     if (leadership) {
       channel.post({ type: "request-status" });
-      // Each completed sync may have delivered rows that uploads waited for.
+      // A completed sync may have delivered rows that uploads waited for.
       yield* Effect.gen(function* () {
         while (true) {
           yield* syncStatus.waitFor(({ phase }) => phase === "synced");
-          awaitingSync.clear();
-          kick();
+          syncRound++;
+          if (awaitingSync.size > 0) {
+            awaitingSync.clear();
+            kick();
+          }
           yield* syncStatus.waitFor(({ phase }) => phase !== "synced");
         }
       }).pipe(Effect.forkScoped({ startImmediately: true }));
+      // Any write to the file rows, from this tab, another, or a sync, may
+      // need a transfer; other writes never do.
+      yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          database.hyperDB.subscribe((ops) => {
+            if (isLeader() && ops.some((op) => op.table === attachmentsTable)) {
+              Queue.offerUnsafe(wakes, undefined);
+            }
+          }),
+        ),
+        (unsubscribe) => Effect.sync(unsubscribe),
+      );
       yield* (yield* PageEvents).listen("window", "online", () => {
         retryAt.clear();
         kick();

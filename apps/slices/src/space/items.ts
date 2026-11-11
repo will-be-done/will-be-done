@@ -7,7 +7,7 @@ import { createStashEntrySibling } from "./stashEntries";
 import { deleteTasksByIds, taskById, defaultTask } from "./tasks";
 import { deleteTemplates, taskTemplateById } from "./taskTemplates";
 import { deleteNotes, noteById } from "./notes";
-import { deleteItemAttachmentLinksAndOrphans } from "./attachments";
+import { deleteItemAttachmentLinks } from "./attachments";
 import { appTypeSlicesMap } from "./maps";
 import {
   listItem,
@@ -169,7 +169,7 @@ export const deleteItemsByIds = action({
   handler: function* deleteItemsByIds({ ids }) {
     yield* deleteTasksByIds({ ids });
     yield* deleteTemplates({ taskTemplateIds: ids });
-    yield* deleteItemAttachmentLinksAndOrphans(noteType, ids);
+    yield* deleteItemAttachmentLinks(noteType, ids);
     yield* deleteNotes({ ids });
   },
 });

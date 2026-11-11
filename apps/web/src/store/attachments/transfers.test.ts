@@ -210,6 +210,30 @@ describe("attachment transfers", () => {
     expect(logger.errors()).toEqual([]);
   });
 
+  it("retries an upload whose row synced while it was refused", async () => {
+    const store = new FakeStore();
+    Effect.runSync(
+      Effect.all([
+        store.put("local", new Blob(["local"]), { uploaded: false }),
+        store.put("remote", new Blob(["remote"]), { uploaded: true }),
+      ]),
+    );
+
+    let uploads = 0;
+    const uploaded = store.done("uploaded:local");
+    const { syncStatus } = start(store, async (_url, init) => {
+      if (init.method !== "PUT") return new Response(null, { status: 404 });
+      uploads++;
+      if (uploads > 1) return new Response(null, { status: 204 });
+      // The row's sync completes before the server's refusal arrives.
+      syncStatus.set({ ...initialSyncStatus, phase: "synced" });
+      return new Response(null, { status: 404 });
+    });
+    await uploaded;
+
+    expect(uploads).toBe(2);
+  });
+
   it("opens files from the server once the device is out of storage", async () => {
     const store = new FakeStore();
     store.full = true;

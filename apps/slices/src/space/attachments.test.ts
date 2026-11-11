@@ -218,7 +218,9 @@ describe("attachments", () => {
     expect(listOf(db, "t2")).toEqual(["f2"]);
   });
 
-  test("removing from an item strips inline references and deletes unused files", () => {
+  // The server deletes files left unlisted once replicas have settled, so a
+  // replica never deletes one another replica has just listed.
+  test("removing from an item strips inline references and keeps the file", () => {
     const db = createDB();
     const { link } = addFile(db, "f1", "t1");
     syncDispatch(
@@ -256,7 +258,7 @@ describe("attachments", () => {
     syncDispatch(db, removeItemAttachment({ id: other!.id }));
 
     state = read(db);
-    expect(state.attachments).toEqual([]);
+    expect(state.attachments.map((a) => a.id)).toEqual(["f1"]);
     expect(state.links).toEqual([]);
   });
 
@@ -299,7 +301,7 @@ describe("attachments", () => {
     expect(listOf(db, "t1")).toEqual(["f1"]);
   });
 
-  test("trash keeps files until it is emptied", () => {
+  test("trash keeps links until it is emptied", () => {
     const db = createDB();
     addFile(db, "f1", "t1");
 
@@ -318,7 +320,7 @@ describe("attachments", () => {
 
     syncDispatch(db, trashTasks({ ids: ["t1"] }));
     syncDispatch(db, emptyTrash({}));
-    expect(read(db).attachments).toEqual([]);
+    expect(read(db).attachments.map((a) => a.id)).toEqual(["f1"]);
     expect(read(db).links).toEqual([]);
   });
 
@@ -409,30 +411,15 @@ describe("attachments", () => {
     expect(generate()).toEqual(ids);
   });
 
-  test("deleting items for good deletes the files only they used", () => {
+  test("deleting items for good removes their links", () => {
     const db = createDB();
     addFile(db, "f1", "t1");
-    addFile(db, "f2", "t1");
-    syncDispatch(
-      db,
-      attachToItem({
-        attachmentId: "f2",
-        parentType: taskType,
-        parentId: "t2",
-      }),
-    );
-    addFile(db, "f3", "t2");
+    addFile(db, "f2", "t2");
     const note = syncDispatch(db, convertTaskToNote({ taskId: "t2" }));
 
-    syncDispatch(db, deleteItemsByIds({ ids: ["t1"] }));
-    expect(
-      read(db)
-        .attachments.map(({ id }) => id)
-        .sort(),
-    ).toEqual(["f2", "f3"]);
+    syncDispatch(db, deleteItemsByIds({ ids: ["t1", note!.id] }));
 
-    syncDispatch(db, deleteItemsByIds({ ids: [note!.id] }));
-    expect(read(db).attachments).toEqual([]);
+    expect(read(db).links).toEqual([]);
   });
 
   test("backups carry files and their links", () => {

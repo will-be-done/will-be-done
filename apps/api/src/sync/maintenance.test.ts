@@ -116,7 +116,7 @@ describe("sync v4 maintenance", () => {
 
   test("purges expired trash in space databases", async () => {
     const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
-    // Purging deletes the links and files of the purged items.
+    // Purging deletes the links of the purged items.
     execSync(
       db.loadTables([
         ...serverSyncTables,

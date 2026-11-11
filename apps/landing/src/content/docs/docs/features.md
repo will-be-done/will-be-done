@@ -200,11 +200,11 @@ app downloads every file in the space so it can open offline. The sync
 indicator shows upload and download progress.
 
 Removing a file from an item's list also removes it from that item's title
-and description. A file no other item uses is then deleted. Tasks generated from a
-template share its files.
+and description. Tasks generated from a template share its files.
 
 **Space Settings → Files** lists every file in the space with the items that
-use it. Select an item to open it, or delete a file to remove it everywhere.
+use it. Select an item to open it, or delete a file to remove it everywhere. A
+file no item has used for 30 days is deleted automatically.
 
 ## Recurring tasks
 

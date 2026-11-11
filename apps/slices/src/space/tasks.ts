@@ -36,7 +36,7 @@ import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
 import {
-  deleteItemAttachmentLinksAndOrphans,
+  deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
   moveItemAttachments,
 } from "./attachments";
@@ -531,8 +531,8 @@ export const deleteTasksByIds = action({
   name: "deleteTasksByIds",
   args: { ids: v.array(v.string()) },
   handler: function* deleteTasksByIds({ ids }) {
-    // Nothing goes to the trash here, so files only these tasks used go too.
-    yield* deleteItemAttachmentLinksAndOrphans(taskType, ids);
+    // Nothing goes to the trash here, so their links go too.
+    yield* deleteItemAttachmentLinks(taskType, ids);
     yield* deleteTasks({ ids });
   },
 });
