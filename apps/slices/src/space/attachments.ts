@@ -5,6 +5,7 @@ import {
   upsert,
   v,
 } from "@will-be-done/hyperdb";
+import { withoutUndo } from "@will-be-done/hyperdb/undo";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
@@ -335,7 +336,10 @@ function* linkAttachments(
     });
   }
   const created = yield* withLinkIds(unlinked);
-  if (created.length > 0) yield* upsert(itemAttachmentsTable, created);
+  // Listing a file is never an undo step (see createAttachment).
+  if (created.length > 0) {
+    yield* withoutUndo(() => upsert(itemAttachmentsTable, created));
+  }
   return created;
 }
 
@@ -390,7 +394,9 @@ export const createAttachment = action({
       sha256: attachment.sha256,
       createdAt: Date.now(),
     };
-    yield* insert(attachmentsTable, [row]);
+    // Undo skips file changes: the text that references a file is not an undo
+    // step, so undoing them would leave references with no file or no link.
+    yield* withoutUndo(() => insert(attachmentsTable, [row]));
     const [link] = parent
       ? yield* linkAttachments(parent.parentType, parent.parentId, [row.id])
       : [];
@@ -517,12 +523,14 @@ export const removeItemAttachment = action({
   handler: function* removeItemAttachment({ id }) {
     const link = yield* itemAttachmentById({ id });
     if (!link) return;
-    yield* deleteRows(itemAttachmentsTable, [link.id]);
-    if (isAttachmentParentType(link.parentType)) {
-      yield* removeInlineReferences(link.parentType, link.parentId, [
-        link.attachmentId,
-      ]);
-    }
+    yield* withoutUndo(function* () {
+      yield* deleteRows(itemAttachmentsTable, [link.id]);
+      if (isAttachmentParentType(link.parentType)) {
+        yield* removeInlineReferences(link.parentType, link.parentId, [
+          link.attachmentId,
+        ]);
+      }
+    });
   },
 });
 
@@ -542,16 +550,18 @@ export const deleteAttachments = action({
         parents.set(`${parentType}:${parentId}`, { parentType, parentId });
       }
     }
-    if (links.length > 0) {
-      yield* deleteRows(
-        itemAttachmentsTable,
-        links.map((link) => link.id),
-      );
-    }
-    for (const { parentType, parentId } of parents.values()) {
-      yield* removeInlineReferences(parentType, parentId, ids);
-    }
-    yield* deleteRows(attachmentsTable, ids);
+    yield* withoutUndo(function* () {
+      if (links.length > 0) {
+        yield* deleteRows(
+          itemAttachmentsTable,
+          links.map((link) => link.id),
+        );
+      }
+      for (const { parentType, parentId } of parents.values()) {
+        yield* removeInlineReferences(parentType, parentId, ids);
+      }
+      yield* deleteRows(attachmentsTable, ids);
+    });
   },
 });
 

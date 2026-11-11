@@ -37,6 +37,11 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
   `Content-Length`: S3 must know it before the body arrives. Local storage
   checks into a temp file and renames; S3 checks the `x-amz-checksum-sha256`
   header, so wrong bytes never replace stored ones.
+- **Undo** skips adding, listing, removing, and deleting files. Edits to
+  titles and descriptions are not undo steps, so undoing a file change would
+  leave a reference with no file, or a file listed nowhere its text uses it.
+  Links that move or copy with an item (conversion, copying, generated tasks)
+  stay in that item's undo step.
 - **Removing from an item** deletes the link and the item's inline references
   but keeps the file, which Settings then shows as unused. Clients never delete
   a file implicitly: another replica may list it again meanwhile, and only the
@@ -66,8 +71,8 @@ and a device with a wrong clock must not shorten the wait.
 
 - Rows no item has listed for 30 days are deleted, which tombstones them on
   every replica. Relisting the file in the meantime restarts the wait.
-- Bytes whose row has been tombstoned for 7 days are deleted, so undo and
-  offline replicas that still hold the row can settle.
+- Bytes whose row has been tombstoned for 7 days are deleted, so offline
+  replicas that still hold the row can settle.
 - Bytes whose row never arrived are deleted after 30 days. A server
   restored from a backup has no rows for files added since the backup, and
   clients resend those rows as they reconnect
@@ -96,8 +101,7 @@ another, or a sync. Other syncs do not trigger a pass.
   it retries at once, since that sync may already have delivered the row.
 - Uploaded bytes without a row are deleted at startup. Pending bytes without a
   row are deleted only when the row has a tombstone; otherwise another tab may
-  not have persisted the new row yet. The pass runs once per session, so
-  undoing a removal still finds the bytes.
+  not have persisted the new row yet. The pass runs once per session.
 - Running out of browser storage stops downloads for the session. Files then
   stay on the server, and opening one fetches it without storing it.
 

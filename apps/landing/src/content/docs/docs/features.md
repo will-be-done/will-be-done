@@ -204,7 +204,8 @@ and description. Tasks generated from a template share its files.
 
 **Space Settings → Files** lists every file in the space with the items that
 use it. Select an item to open it, or delete a file to remove it everywhere. A
-file no item has used for 30 days is deleted automatically.
+file no item has used for 30 days is deleted automatically. Adding, removing,
+and deleting files can't be undone.
 
 ## Recurring tasks
 

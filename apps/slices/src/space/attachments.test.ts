@@ -4,12 +4,15 @@ import {
   createSelector,
   DB,
   execSync,
+  type HyperDB,
   insert,
   selectFrom,
   selectSync,
+  SubscribableDB,
   syncDispatch,
   v,
 } from "@will-be-done/hyperdb";
+import { undoMiddleware } from "@will-be-done/hyperdb/undo";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
 import { registeredSpaceSyncableTables } from "./syncMap";
@@ -171,10 +174,10 @@ function createDB() {
   return db;
 }
 
-const read = (db: DB) => selectSync(db, { selector: rows, args: {} });
+const read = (db: HyperDB) => selectSync(db, { selector: rows, args: {} });
 
 const listOf = (
-  db: DB,
+  db: HyperDB,
   parentId: string,
   parentType: AttachmentParentType = taskType,
 ) =>
@@ -183,7 +186,7 @@ const listOf = (
     args: { parentType, parentId },
   }).map(({ attachment }) => attachment.id);
 
-function addFile(db: DB, id: string, parentId?: string) {
+function addFile(db: HyperDB, id: string, parentId?: string) {
   return syncDispatch(
     db,
     createAttachment({
@@ -541,5 +544,51 @@ describe("attachments", () => {
 
     syncDispatch(db, deleteAttachments({ ids: ["f1"] }));
     expect(read(db).links).toEqual([]);
+  });
+
+  // Text edits are not undo steps, so undoing file changes would leave
+  // references behind with no file or no link.
+  test("adding, listing, and deleting files are not undo steps", () => {
+    const db = new SubscribableDB(createDB());
+    const history = undoMiddleware(db, {
+      tables: registeredSpaceSyncableTables,
+    });
+
+    addFile(db, "f1", "t1");
+    addFile(db, "f2");
+    syncDispatch(
+      db,
+      attachToItem({
+        attachmentId: "f2",
+        parentType: taskType,
+        parentId: "t1",
+      }),
+    );
+    syncDispatch(
+      db,
+      updateTask({ id: "t2", task: { content: "![f1](wbd-attachment:f1)" } }),
+    );
+    const [first] = selectSync(db, {
+      selector: itemAttachments,
+      args: { parentType: taskType, parentId: "t1" },
+    });
+    syncDispatch(db, removeItemAttachment({ id: first!.link.id }));
+    syncDispatch(db, deleteAttachments({ ids: ["f2"] }));
+
+    expect(history.canUndo).toBe(false);
+    expect(listOf(db, "t2")).toEqual(["f1"]);
+  });
+
+  test("undoing a conversion brings the item's files back", () => {
+    const db = new SubscribableDB(createDB());
+    addFile(db, "f1", "t1");
+    const history = undoMiddleware(db, {
+      tables: registeredSpaceSyncableTables,
+    });
+
+    syncDispatch(db, convertTaskToNote({ taskId: "t1" }));
+    execSync(history.undo());
+
+    expect(listOf(db, "t1")).toEqual(["f1"]);
   });
 });

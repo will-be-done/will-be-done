@@ -486,7 +486,6 @@ export const makeAttachmentTransfers = ({
       // Uploaded bytes without a row belong to a deleted file. Pending ones
       // go only once their row is known to be deleted: without a tombstone
       // they may be a new file whose row another tab has not persisted yet.
-      // Once per session, so undoing a removal still finds the bytes.
       if (!cleanedOrphans) {
         cleanedOrphans = true;
         const unlisted = [...stored].filter((id) => !live.has(id));
