@@ -307,6 +307,64 @@ export type MindmapNode = ExtractSchema<typeof mindmapNodesTable>;
 export type MindmapNodeSide = MindmapNode["side"];
 export const isMindmapNode = isObjectType<MindmapNode>(mindmapNodeType);
 
+export const attachmentType = "attachment";
+// A file in the space's library. Its bytes live outside the database: in each
+// browser's blob store and in the server's attachment storage, keyed by ID.
+export const attachmentsTable = defineTable("attachments", {
+  type: v.literal(attachmentType),
+  id: v.string(),
+  name: v.string(),
+  mimeType: v.string(),
+  size: v.number(),
+  // Hex SHA-256 of the bytes; uploads must match it.
+  sha256: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byCreatedAtId", ["createdAt", "id"]);
+registerSpaceSyncableTable(attachmentsTable, attachmentType);
+
+export type Attachment = ExtractSchema<typeof attachmentsTable>;
+export const isAttachment = isObjectType<Attachment>(attachmentType);
+
+export const itemAttachmentType = "itemAttachment";
+// The items this version links files to.
+export const attachmentParentType = v.union(
+  v.literal(taskType),
+  v.literal(taskTemplateType),
+  v.literal(noteType),
+);
+// A file shown as the background of a surface, named by `parentId`:
+// `<model>:<id>` such as `project:<id>`, or a view name such as `timeline`.
+// Reserved so a later version can add backgrounds without a sync version bump;
+// this one only shows the file as used.
+export const attachmentBackgroundType = "background";
+// Lists an Attachment under an Item. One file can be linked from several
+// items, such as a template and the tasks generated from it.
+export const itemAttachmentsTable = defineTable("item_attachments", {
+  type: v.literal(itemAttachmentType),
+  id: v.string(),
+  attachmentId: v.string(),
+  parentId: v.string(),
+  parentType: v.union(
+    attachmentParentType,
+    v.literal(attachmentBackgroundType),
+  ),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byParentOrder", ["parentType", "parentId", "orderToken"])
+  .index("byAttachmentId", ["attachmentId"]);
+registerSpaceSyncableTable(itemAttachmentsTable, itemAttachmentType);
+
+export type ItemAttachment = ExtractSchema<typeof itemAttachmentsTable>;
+export type AttachmentParentType = Infer<typeof attachmentParentType>;
+export const isAttachmentParentType = (
+  parentType: ItemAttachment["parentType"],
+): parentType is AttachmentParentType =>
+  parentType !== attachmentBackgroundType;
+
 export const trashedTaskType = "trashedTask";
 // A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts
 // the snapshot rows, which revives their tombstoned IDs.
@@ -458,7 +516,9 @@ export type AnyTable =
   | typeof externalCalendarsTable
   | typeof externalEventsTable
   | typeof mindmapsTable
-  | typeof mindmapNodesTable;
+  | typeof mindmapNodesTable
+  | typeof attachmentsTable
+  | typeof itemAttachmentsTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),

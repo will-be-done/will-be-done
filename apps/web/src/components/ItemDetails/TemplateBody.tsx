@@ -25,6 +25,7 @@ import {
   TimeDetailRow,
   DurationDetailRow,
 } from "./shared.tsx";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { ChecklistItems } from "@/components/Checklist/Checklist";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
@@ -121,6 +122,7 @@ export function TemplateBody({
         titleDoc={template.titleDoc}
         onSave={saveTitleDoc}
         setIsEditingTitle={setIsEditingTitle}
+        attachmentParent={{ parentType: "template", parentId: template.id }}
       />
 
       <div className="space-y-2 text-xs">
@@ -201,8 +203,11 @@ export function TemplateBody({
             contentDoc={template.contentDoc}
             onSave={saveContentDoc}
             setIsEditingDescription={setIsEditingDescription}
+            attachmentParent={{ parentType: "template", parentId: template.id }}
           />
         </div>
+
+        <ItemAttachments parentType="template" parentId={template.id} />
       </div>
 
       <button

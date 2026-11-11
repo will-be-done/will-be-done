@@ -13,6 +13,7 @@ import {
   spaceMigrationsTable,
 } from "@will-be-done/slices/space";
 import { serverSyncTables } from "../sync/tables";
+import { attachmentSweepMarksTable } from "../attachments/tables";
 
 export const userDBConfig = (dbId: string) => {
   return {
@@ -41,6 +42,7 @@ export const spaceDBConfig = (dbId: string) => {
       changesTable,
       syncStateTable,
       ...serverSyncTables,
+      attachmentSweepMarksTable,
     ],
     tableNameMap: registeredSpaceSyncableTableNameMap,
     syncTableNamesInDependencyOrder: [
@@ -51,6 +53,8 @@ export const spaceDBConfig = (dbId: string) => {
       "tasks",
       "task_templates",
       "notes",
+      "attachments",
+      "item_attachments",
       "checklist_items",
       "daily_entries",
       "stash_entries",

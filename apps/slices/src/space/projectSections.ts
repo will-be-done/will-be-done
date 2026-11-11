@@ -1,3 +1,4 @@
+import { ensureInlineAttachmentLinks } from "./attachments";
 import {
   deleteRows,
   insert,
@@ -376,6 +377,7 @@ export const createNoteInSection = action({
       projectSectionId,
     };
     yield* insert(notesTable, [note]);
+    yield* ensureInlineAttachmentLinks(noteType, note.id, note);
     return note;
   },
 });

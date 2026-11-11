@@ -34,6 +34,8 @@ import {
   taskTemplateType,
   taskType,
   trashedTasksTable,
+  attachmentsTable,
+  itemAttachmentsTable,
   mindmapNodesTable,
   type Project,
   type ProjectSection,
@@ -299,6 +301,8 @@ function setUpDatabases() {
       scheduledTodoTasksTable,
       stashEntriesTable,
       trashedTasksTable,
+      attachmentsTable,
+      itemAttachmentsTable,
       mindmapNodesTable,
     ]),
   );

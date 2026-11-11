@@ -6,6 +6,7 @@ import {
   dailyEntryByTaskId,
   dailyListById,
   dailyListsByIds,
+  ensureInlineAttachmentLinks,
   trashTasks,
   setDailyEntryTime,
   syncItemRichText,
@@ -62,6 +63,7 @@ const replaceTask = action({
   },
   handler: function* ({ task, scheduledTime }) {
     yield* upsert(tasksTable, [task]);
+    yield* ensureInlineAttachmentLinks("task", task.id, task);
     if (scheduledTime !== undefined) {
       yield* setDailyEntryTime({ taskId: task.id, time: scheduledTime });
     }

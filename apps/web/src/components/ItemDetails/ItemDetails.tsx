@@ -304,9 +304,13 @@ function useItemDetailsEditing(itemId: string | null) {
     (editingFieldKey?.startsWith(`${itemId}:`) === true ||
       isDescriptionEditRequested);
 
+  // A field's late blur must not end editing of the field focused after it.
   const setIsEditingTitle = useCallback(
-    (v: boolean) => setEditingFieldKey(v && itemId ? `${itemId}:title` : null),
-    [itemId],
+    (v: boolean) =>
+      setEditingFieldKey((key) =>
+        v ? titleFieldKey : key === titleFieldKey ? null : key,
+      ),
+    [titleFieldKey],
   );
   const setIsEditingDescription = useCallback(
     (v: boolean) => {
@@ -314,9 +318,11 @@ function useItemDetailsEditing(itemId: string | null) {
         useItemDetailsEditRequest.getState().clearRequest();
       }
 
-      setEditingFieldKey(v && itemId ? `${itemId}:description` : null);
+      setEditingFieldKey((key) =>
+        v ? descriptionFieldKey : key === descriptionFieldKey ? null : key,
+      );
     },
-    [itemId],
+    [descriptionFieldKey],
   );
 
   return {

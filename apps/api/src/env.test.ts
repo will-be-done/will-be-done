@@ -18,6 +18,10 @@ describe("environment config", () => {
       WBD_POSTHOG_HOST: "https://eu.i.posthog.com",
       WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: false,
       WBD_CALENDAR_SYNC_INTERVAL_MS: 900_000,
+      WBD_ATTACHMENTS_STORAGE: "local",
+      WBD_ATTACHMENTS_PATH: "/var/lib/will-be-done/attachments",
+      WBD_ATTACHMENTS_S3_REGION: "us-east-1",
+      WBD_ATTACHMENTS_S3_PREFIX: "attachments/",
       PORT: 3000,
     });
   });
@@ -51,6 +55,7 @@ describe("environment config", () => {
     ["a blank instance id", { WBD_INSTANCE_ID: "   " }],
     ["an invalid PostHog URL", { WBD_POSTHOG_HOST: "not a url" }],
     ["a short calendar key", { WBD_CALENDAR_ENCRYPTION_KEY: "short" }],
+    ["an unknown attachment storage", { WBD_ATTACHMENTS_STORAGE: "ftp" }],
   ])("rejects %s", (_label, env) => {
     expect(() => parseEnvConfig(env)).toThrow();
   });
@@ -63,6 +68,13 @@ describe("environment config", () => {
     [
       { WBD_DB_ENGINE: "tursod" },
       "Missing required tursod environment variables: WBD_TURSOD_URL, WBD_TURSOD_AUTH_TOKEN",
+    ],
+    [
+      {
+        WBD_ATTACHMENTS_STORAGE: "s3",
+        WBD_ATTACHMENTS_S3_BUCKET_NAME: "files",
+      },
+      "Missing required attachment S3 environment variables: WBD_ATTACHMENTS_S3_ACCESS_KEY_ID, WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY",
     ],
     [
       { WBD_SYNC_NOTIFICATIONS_BACKEND: "redis" },

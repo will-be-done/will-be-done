@@ -116,6 +116,7 @@ import {
   useSelectionActions,
 } from "@/components/Selection/useSelectionActions";
 import { useClipboardStore } from "@/components/Selection/clipboard";
+import { useAttachFiles } from "@/components/Attachments/attachmentFiles";
 import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker";
 
 export const DropTaskIndicator = ({
@@ -235,6 +236,7 @@ export const PreloadedTaskComp = ({
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const titleEditorRef = useRef<RichTextEditorHandle | null>(null);
+  const attachTitleFiles = useAttachFiles(item.type, taskId);
   const [titleCaretOffset, setTitleCaretOffset] = useState<number>();
   const datePickerAfterActionsCloseRef = useRef<"item" | "selection" | null>(
     null,
@@ -1716,6 +1718,7 @@ export const PreloadedTaskComp = ({
                     autoFocus
                     caretOffset={titleCaretOffset}
                     ariaLabel="Edit task title"
+                    attachFiles={attachTitleFiles}
                   />
                 </div>
               ) : (

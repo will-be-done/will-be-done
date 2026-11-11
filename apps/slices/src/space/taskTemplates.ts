@@ -30,6 +30,12 @@ import {
 import { registerModelSlice } from "./maps";
 import { updateNote } from "./notes";
 import { syncItemRichText } from "./richTextItems";
+import {
+  copyItemAttachments,
+  moveItemAttachments,
+  deleteItemAttachmentLinks,
+  ensureInlineAttachmentLinks,
+} from "./attachments";
 import { genUUIDV5 } from "../traits/";
 import {
   assertValidTaskDuration,
@@ -510,6 +516,7 @@ export const createTaskTemplate = action({
     };
 
     yield* insert(taskTemplatesTable, [newTemplate]);
+    yield* ensureInlineAttachmentLinks(taskTemplateType, id, newTemplate);
     return newTemplate;
   },
 });
@@ -531,6 +538,12 @@ export const updateTemplate = action({
       ...template,
     });
     yield* upsert(taskTemplatesTable, [updatedTemplate]);
+    yield* ensureInlineAttachmentLinks(
+      taskTemplateType,
+      id,
+      updatedTemplate,
+      templateInState,
+    );
     return updatedTemplate;
   },
 });
@@ -554,6 +567,7 @@ export const deleteTemplates = action({
       parentType: taskTemplateType,
     });
     yield* deleteRows(taskTemplatesTable, taskTemplateIds);
+    yield* deleteItemAttachmentLinks(taskTemplateType, taskTemplateIds);
   },
 });
 
@@ -574,6 +588,10 @@ export const createTaskTemplateFromTask = action({
       toParentId: newId,
       toParentType: taskTemplateType,
     });
+    yield* moveItemAttachments(
+      { parentType: taskType, parentId: task.id },
+      { parentType: taskTemplateType, parentId: newId },
+    );
     yield* deleteTasks({ ids: [task.id] });
 
     const template: TaskTemplate = {
@@ -731,6 +749,10 @@ function* generateTasksForTemplateIds({
         toParentId: task.id,
         toParentType: taskType,
       });
+      yield* copyItemAttachments(
+        { parentType: taskTemplateType, parentId: task.templateId },
+        { parentType: taskType, parentId: task.id },
+      );
 
       yield* createEntryInDailyList({
         taskId: task.id,

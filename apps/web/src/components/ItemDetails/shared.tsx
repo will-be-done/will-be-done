@@ -10,6 +10,8 @@ import {
 import { RichTextView } from "@/components/RichText/RichTextView";
 import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
+import { useAttachFiles } from "@/components/Attachments/attachmentFiles";
+import type { AttachmentParentType } from "@will-be-done/slices/space";
 
 // Editable title
 
@@ -21,6 +23,7 @@ export function EditableTitle({
   titleClassName,
   onSave,
   setIsEditingTitle,
+  attachmentParent,
 }: {
   icon: React.ReactNode;
   isEditing: boolean;
@@ -29,7 +32,12 @@ export function EditableTitle({
   titleClassName?: string;
   onSave: (titleDoc: string) => void;
   setIsEditingTitle: (v: boolean) => void;
+  attachmentParent: { parentType: AttachmentParentType; parentId: string };
 }) {
+  const attachFiles = useAttachFiles(
+    attachmentParent.parentType,
+    attachmentParent.parentId,
+  );
   const { text, doc, saveDoc } = useSavedRichText(
     title,
     titleDoc,
@@ -54,6 +62,7 @@ export function EditableTitle({
           caretOffset={caretOffset}
           placeholder="Untitled"
           ariaLabel="Edit task title"
+          attachFiles={attachFiles}
           className={cn(
             "text-sm font-medium leading-snug",
             titleClassName ?? "text-content",
@@ -122,14 +131,20 @@ export function EditableDescription({
   contentDoc,
   onSave,
   setIsEditingDescription,
+  attachmentParent,
 }: {
   isEditing: boolean;
   content: string;
   contentDoc: string | undefined;
   onSave: (contentDoc: string) => void;
   setIsEditingDescription: (v: boolean) => void;
+  attachmentParent: { parentType: AttachmentParentType; parentId: string };
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const attachFiles = useAttachFiles(
+    attachmentParent.parentType,
+    attachmentParent.parentId,
+  );
   const editorRef = useRef<RichTextEditorHandle | null>(null);
 
   // The `e` shortcut asks to edit the description.
@@ -162,6 +177,7 @@ export function EditableDescription({
         placeholder="Add a description"
         ariaLabel="Edit task description"
         className="min-h-[56px]"
+        attachFiles={attachFiles}
       />
     </div>
   );

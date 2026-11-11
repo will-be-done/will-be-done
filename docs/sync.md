@@ -5,14 +5,17 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 7, carried over the v4 transport routes. Version 5
+The current sync version is 8, carried over the v4 transport routes. Version 5
 added restore clocks; a v4 client would treat a restored entity as still deleted.
 Version 6 added the server-owned external calendar tables, which a v5 client
 cannot apply. Version 7 added the creation clock set (`rivalCreations`), which a
 v6 client would drop while still merging rival creations by first creator. The
 server rejects older clients and they must update. A new synced table always
-needs a version bump for the same reason. v3 upload and download procedures
-must not be reintroduced as an alternate path.
+needs a version bump for the same reason. Version 8 added the attachment
+tables and inline attachment nodes in titles and descriptions; a v7 client
+derives Markdown without the nodes and would sync that text. v3 upload and
+download procedures must not be reintroduced as an alternate path. Attachment
+bytes never travel over sync; see [attachments.md](attachments.md).
 
 ## Required Server-Backup Recovery Guarantee
 

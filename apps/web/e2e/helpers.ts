@@ -1,4 +1,6 @@
+import { deflateSync } from "node:zlib";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 
 import {
   expect,
@@ -193,6 +195,7 @@ export async function openSpaceSettings(
     | "Account"
     | "Calendars"
     | "API tokens"
+    | "Files"
     | "Backup"
     | "Import" = "General",
 ) {
@@ -364,3 +367,54 @@ export async function nextScroll(viewport: Locator) {
   }));
   return () => pending.evaluate(({ position }) => position);
 }
+
+// A solid-color PNG, large enough to see in screenshots.
+export function solidPng(width: number, height: number) {
+  const crc = (bytes: Buffer) => {
+    let c = ~0;
+    for (const byte of bytes) {
+      c ^= byte;
+      for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+    }
+    return ~c >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.concat([
+    Buffer.from([0]),
+    Buffer.alloc(width * 3, Buffer.from([220, 60, 60])),
+  ]);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.concat(Array(height).fill(row)))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+export type AttachmentStorageOptions = { attachmentStorage: "local" | "s3" };
+
+// Mirrors where scripts/e2e-web-server.ts points each server's storage.
+export const e2eAttachmentStorage = {
+  localRoot: path.join(
+    process.env.WBD_E2E_DB_PATH ??
+      path.resolve(import.meta.dirname, "../../../db/e2e"),
+    "attachments",
+  ),
+  s3: {
+    endpoint: `http://127.0.0.1:${process.env.PLAYWRIGHT_S3_PORT ?? "5234"}`,
+    bucket: "wbd-e2e-attachments",
+    prefix: "attachments/",
+    credentials: { accessKeyId: "e2e", secretAccessKey: "e2e-secret" },
+  },
+};

@@ -1,9 +1,18 @@
 import { defineConfig, devices } from "playwright/test";
+import type { AttachmentStorageOptions } from "./e2e/helpers";
 
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? "5174";
+const s3WebPort = process.env.PLAYWRIGHT_S3_WEB_PORT ?? "5175";
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
-export default defineConfig({
+const chromium = {
+  ...devices["Desktop Chrome"],
+  launchOptions: chromiumExecutablePath
+    ? { executablePath: chromiumExecutablePath }
+    : undefined,
+};
+
+export default defineConfig<AttachmentStorageOptions>({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -21,13 +30,15 @@ export default defineConfig({
     timeout: 120_000,
   },
   projects: [
+    { name: "chromium", use: chromium },
+    // Specs about attachment storage run again against the S3-backed server.
     {
-      name: "chromium",
+      name: "chromium-s3",
+      testMatch: "attachment-storage.spec.ts",
       use: {
-        ...devices["Desktop Chrome"],
-        launchOptions: chromiumExecutablePath
-          ? { executablePath: chromiumExecutablePath }
-          : undefined,
+        ...chromium,
+        baseURL: `http://127.0.0.1:${s3WebPort}`,
+        attachmentStorage: "s3",
       },
     },
   ],

@@ -13,6 +13,7 @@ import {
   CalendarDays,
   HardDrive,
   KeyRound,
+  Paperclip,
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
@@ -45,6 +46,7 @@ const SECTIONS = [
     label: "API tokens",
     icon: KeyRound,
   },
+  { to: "/spaces/$spaceId/settings/files", label: "Files", icon: Paperclip },
   { to: "/spaces/$spaceId/settings/backup", label: "Backup", icon: HardDrive },
   {
     to: "/spaces/$spaceId/settings/import",

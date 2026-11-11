@@ -21,6 +21,7 @@ import {
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 
 export function NoteBody({
@@ -84,6 +85,7 @@ export function NoteBody({
         titleDoc={note.titleDoc}
         onSave={saveTitleDoc}
         setIsEditingTitle={setIsEditingTitle}
+        attachmentParent={{ parentType: "note", parentId: noteId }}
       />
 
       <div className="space-y-2 text-xs">
@@ -120,8 +122,11 @@ export function NoteBody({
             contentDoc={note.contentDoc}
             onSave={saveContentDoc}
             setIsEditingDescription={setIsEditingDescription}
+            attachmentParent={{ parentType: "note", parentId: noteId }}
           />
         </div>
+
+        <ItemAttachments parentType="note" parentId={noteId} />
       </div>
 
       <button

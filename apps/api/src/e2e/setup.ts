@@ -11,6 +11,8 @@ const runsFullE2eSuite = process.argv.some((argument) => {
 
 process.env.WBD_API_E2E_DB_PATH = databasePath;
 process.env.WBD_DB_PATH = databasePath;
+process.env.WBD_ATTACHMENTS_STORAGE = "local";
+process.env.WBD_ATTACHMENTS_PATH = join(databasePath, "attachments");
 process.env.WBD_DB_ENGINE = "sqlite";
 process.env.WBD_SYNC_NOTIFICATIONS_BACKEND = "memory";
 

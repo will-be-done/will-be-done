@@ -10,7 +10,9 @@ import {
   replaceRichTextDocMarkdown,
   richTextDocToMarkdown,
   richTextMarkdownToPlainText,
+  removeRichTextDocAttachments,
   seedRichTextDoc,
+  attachmentIdsInMarkdown,
 } from "./richText";
 
 const editText = (
@@ -35,6 +37,8 @@ describe("rich text markdown", () => {
     "> quoted\n\n***\n\n```ts\nconst a = 1;\n```",
     "Literal \\*asterisks\\* and https://example.com",
     "Line one\\\nLine two",
+    "Screenshot ![shot.png](wbd-attachment:a1) inline\n\n![](wbd-attachment:b2)",
+    '![shot.png](wbd-attachment:a1 "width=320") resized',
   ])("round-trips content %j", (markdown) => {
     const normalized = normalizeRichTextMarkdown(markdown, "content");
     expect(normalizeRichTextMarkdown(normalized, "content")).toBe(normalized);
@@ -64,6 +68,10 @@ describe("rich text markdown", () => {
     ["Buy **oat** milk", "Buy **oat** milk"],
     ["Fix `node_modules` path", "Fix `node_modules` path"],
     ["Two\nlines", "Two lines"],
+    [
+      'Fix ![shot.png](wbd-attachment:a1 "width=80")',
+      'Fix ![shot.png](wbd-attachment:a1 "width=80")',
+    ],
   ])("keeps title %j as one inline line", (markdown, expected) => {
     expect(normalizeRichTextMarkdown(markdown, "title")).toBe(expected);
     expect(
@@ -136,14 +144,67 @@ describe("rich text markdown", () => {
     ).toEqual([{ type: "link", attrs: { href: "https://example.com" } }]);
   });
 
+  it("reads attachment images as inline nodes and other images as links", () => {
+    expect(
+      markdownToRichTextNodes(
+        '![a.png](wbd-attachment:a1 "width=240") ![b](https://x.test/b.png)',
+        "content",
+      ),
+    ).toEqual([
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "image",
+            attrs: { src: "wbd-attachment:a1", alt: "a.png", width: 240 },
+          },
+          { type: "text", text: " " },
+          {
+            type: "text",
+            text: "b",
+            marks: [{ type: "link", attrs: { href: "https://x.test/b.png" } }],
+          },
+        ],
+      },
+    ]);
+    expect(
+      attachmentIdsInMarkdown(
+        "![a](wbd-attachment:a1) [x](wbd-attachment:b2) ![a](wbd-attachment:a1)",
+      ),
+    ).toEqual(["a1", "b2"]);
+  });
+
   it("renders plain text without markdown syntax", () => {
     expect(richTextMarkdownToPlainText("Buy **oat** `milk`", "title")).toBe(
       "Buy oat milk",
     );
+    expect(
+      richTextMarkdownToPlainText(
+        "Fix ![shot.png](wbd-attachment:a1)",
+        "title",
+      ),
+    ).toBe("Fix shot.png");
   });
 });
 
 describe("rich text docs", () => {
+  it("removes attachment references and keeps concurrent typing", () => {
+    const base = seedRichTextDoc(
+      "Before ![a](wbd-attachment:a1) after\n\n![b](wbd-attachment:b2)",
+      "content",
+    );
+    const typed = editText(base, (text) => text.insert(0, "Hi "));
+    const removed = removeRichTextDocAttachments(base, ["a1"]);
+
+    expect(richTextDocToMarkdown(removed, "content")).toBe(
+      "Before  after\n\n![b](wbd-attachment:b2)",
+    );
+    expect(
+      richTextDocToMarkdown(mergeRichTextDocs(typed, removed), "content"),
+    ).toBe("Hi Before  after\n\n![b](wbd-attachment:b2)");
+    expect(removeRichTextDocAttachments(base, ["missing"])).toBe(base);
+  });
+
   it("seeds the same markdown into identical documents", () => {
     const a = seedRichTextDoc("Buy **milk**", "title");
     const b = seedRichTextDoc("Buy **milk**", "title");
