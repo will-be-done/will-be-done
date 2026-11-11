@@ -617,6 +617,9 @@ importers:
         specifier: ^5.0.8
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1075.0
+        version: 3.1075.0
       '@eslint/js':
         specifier: ^9.39.1
         version: 9.39.4
@@ -4353,6 +4356,7 @@ packages:
 
   '@tiptap/y-tiptap@3.0.11':
     resolution: {integrity: sha512-6qS59XDJVpAAzjxVunBPSpFRj7FALIE0sMrETskDORPqc3lDUKxQC7hCCua7yRogKo3eWUEreaJJ0xx7OuYN6w==}
+    deprecated: Persistent position migrations can cause excessive collaborative document growth. Upgrade all collaborating clients to 3.1.0 or later.
     peerDependencies:
       prosemirror-model: ^1.7.1
       prosemirror-state: ^1.2.3

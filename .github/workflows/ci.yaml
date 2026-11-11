@@ -176,8 +176,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install Radicale CalDAV server
-        run: pip install radicale==3.9.0
+      - name: Install Radicale CalDAV server and moto S3 server
+        run: pip install radicale==3.9.0 "moto[server]==5.2.5"
 
       - name: Run web e2e tests
         run: pnpm -C apps/web test:e2e

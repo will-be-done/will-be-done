@@ -364,9 +364,10 @@ pnpm test
 pnpm test:e2e
 ```
 
-The web E2E suite starts a [Radicale](https://radicale.org/) CalDAV server, so
-`radicale` must be on your `PATH` (`uv tool install radicale` or
-`pipx install radicale`).
+The web E2E suite starts a [Radicale](https://radicale.org/) CalDAV server and
+a [moto](https://docs.getmoto.org/) S3 server, so `radicale` and `moto_server`
+must be on your `PATH` (`uv tool install radicale` and
+`uv tool install "moto[server]"`, or the same with `pipx`).
 
 ## Why another task manager?
 

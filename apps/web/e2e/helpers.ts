@@ -1,5 +1,6 @@
 import { deflateSync } from "node:zlib";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 
 import {
   expect,
@@ -400,3 +401,20 @@ export function solidPng(width: number, height: number) {
     chunk("IEND", Buffer.alloc(0)),
   ]);
 }
+
+export type AttachmentStorageOptions = { attachmentStorage: "local" | "s3" };
+
+// Mirrors where scripts/e2e-web-server.ts points each server's storage.
+export const e2eAttachmentStorage = {
+  localRoot: path.join(
+    process.env.WBD_E2E_DB_PATH ??
+      path.resolve(import.meta.dirname, "../../../db/e2e"),
+    "attachments",
+  ),
+  s3: {
+    endpoint: `http://127.0.0.1:${process.env.PLAYWRIGHT_S3_PORT ?? "5234"}`,
+    bucket: "wbd-e2e-attachments",
+    prefix: "attachments/",
+    credentials: { accessKeyId: "e2e", secretAccessKey: "e2e-secret" },
+  },
+};
