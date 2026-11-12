@@ -63,6 +63,26 @@ export const attachmentRowProblem = ({
   return undefined;
 };
 
+// Safe integers, so the v1 API can serialize them.
+const isPixelSize = (value: number) => Number.isSafeInteger(value) && value > 0;
+
+// Why an image's stored pixel size is invalid, if it is.
+export const imageSizeProblem = ({
+  width,
+  height,
+}: Pick<Attachment, "width" | "height">) => {
+  if ((width === undefined) !== (height === undefined)) {
+    return "Attachment width and height go together";
+  }
+  if (width !== undefined && !isPixelSize(width)) {
+    return "Attachment width must be a positive whole number";
+  }
+  if (height !== undefined && !isPixelSize(height)) {
+    return "Attachment height must be a positive whole number";
+  }
+  return undefined;
+};
+
 export const attachmentById = selector({
   name: "attachmentById",
   args: { id: v.string() },
@@ -222,6 +242,24 @@ function* linksOfAttachments(attachmentIds: readonly string[]) {
   );
 }
 
+// The files of the item that lists this one, in list order. A file listed
+// by several items takes the first of them.
+export const attachmentSiblings = selector({
+  name: "attachmentSiblings",
+  args: { attachmentId: v.string() },
+  handler: function* attachmentSiblings({ attachmentId }) {
+    const links = yield* linksOfAttachments([attachmentId]);
+    const link = links.find((candidate) =>
+      isAttachmentParentType(candidate.parentType),
+    );
+    if (!link || !isAttachmentParentType(link.parentType)) return [];
+    return (yield* itemAttachments({
+      parentType: link.parentType,
+      parentId: link.parentId,
+    })).map(({ attachment }) => attachment);
+  },
+});
+
 export type AttachmentUsage = {
   parentType: ItemAttachment["parentType"];
   parentId: string;
@@ -373,6 +411,8 @@ export const createAttachment = action({
       mimeType: v.string(),
       size: v.number(),
       sha256: v.string(),
+      width: v.optional(v.number()),
+      height: v.optional(v.number()),
     }),
     parent: v.optional(
       v.object({ parentType: attachmentParentType, parentId: v.string() }),
@@ -380,7 +420,9 @@ export const createAttachment = action({
   },
   handler: function* createAttachment({ attachment, parent }) {
     const id = attachment.id || uuidv7();
-    const problem = attachmentRowProblem({ ...attachment, id });
+    const problem =
+      attachmentRowProblem({ ...attachment, id }) ??
+      imageSizeProblem(attachment);
     if (problem) throw new Error(problem);
     if (parent && !(yield* parentExists(parent.parentType, parent.parentId))) {
       throw new Error("Attachment parent not found");
@@ -393,6 +435,8 @@ export const createAttachment = action({
       size: attachment.size,
       sha256: attachment.sha256,
       createdAt: Date.now(),
+      ...(attachment.width !== undefined && { width: attachment.width }),
+      ...(attachment.height !== undefined && { height: attachment.height }),
     };
     // Undo skips file changes: the text that references a file is not an undo
     // step, so undoing them would leave references with no file or no link.
@@ -401,6 +445,20 @@ export const createAttachment = action({
       ? yield* linkAttachments(parent.parentType, parent.parentId, [row.id])
       : [];
     return { attachment: row, link };
+  },
+});
+
+// Fills in the size of an image that was stored without one.
+export const setAttachmentImageSize = action({
+  name: "setAttachmentImageSize",
+  args: { id: v.string(), width: v.number(), height: v.number() },
+  handler: function* setAttachmentImageSize({ id, width, height }) {
+    const attachment = yield* attachmentById({ id });
+    if (!attachment || attachment.width !== undefined) return;
+    const row = { ...attachment, width, height };
+    const problem = imageSizeProblem(row);
+    if (problem) throw new Error(problem);
+    yield* withoutUndo(() => upsert(attachmentsTable, [row]));
   },
 });
 

@@ -10025,6 +10025,18 @@ export type ListAttachments200AttachmentsItem = {
    * @maximum 9007199254740991
    */
   createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
   usages: ListAttachments200AttachmentsItemUsagesItem[];
 };
 
@@ -10187,6 +10199,18 @@ export type CreateAttachment201Attachment = {
    * @maximum 9007199254740991
    */
   createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
 };
 
 /**
@@ -10359,6 +10383,18 @@ export type GetAttachment200Attachment = {
    * @maximum 9007199254740991
    */
   createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
   usages: GetAttachment200AttachmentUsagesItem[];
 };
 
@@ -10841,6 +10877,18 @@ export type ListItemAttachments200ItemAttachmentsItemAttachment = {
    * @maximum 9007199254740991
    */
   createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
 };
 
 export type ListItemAttachments200ItemAttachmentsItem = {
@@ -11019,6 +11067,18 @@ export type CreateItemAttachment201ItemAttachmentAttachment = {
    * @maximum 9007199254740991
    */
   createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
 };
 
 export type CreateItemAttachment201ItemAttachment = {

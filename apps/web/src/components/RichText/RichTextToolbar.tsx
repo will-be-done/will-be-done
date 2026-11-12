@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import { useRef } from "react";
 import { useEditorState } from "@tiptap/react";
 import {
   Bold,
@@ -8,12 +9,15 @@ import {
   List,
   ListOrdered,
   type LucideIcon,
+  Paperclip,
   SquareCode,
   Strikethrough,
   TextQuote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ALT_KEY, MOD_KEY } from "./keys";
+import type { AttachFiles } from "./attachmentNode";
+import { attachPicked } from "./pendingInserts";
 
 type ToolbarAction = {
   label: string;
@@ -95,7 +99,20 @@ const groups: ToolbarAction[][] = [
 
 const actions = groups.flat();
 
-export function RichTextToolbar({ editor }: { editor: Editor }) {
+const buttonClass =
+  "flex size-[22px] cursor-pointer items-center justify-center rounded text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content";
+
+export function RichTextToolbar({
+  editor,
+  attachFiles,
+}: {
+  editor: Editor;
+  attachFiles?: AttachFiles;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const focusedOnPick = useRef(false);
+  // Tabbing from the editor to the button keeps the editor's selection.
+  const cameFromEditor = useRef(false);
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) =>
@@ -129,7 +146,7 @@ export function RichTextToolbar({ editor }: { editor: Editor }) {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => action.run(editor)}
                 className={cn(
-                  "flex size-6 cursor-pointer items-center justify-center rounded text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content",
+                  buttonClass,
                   isActive && "bg-task-panel-hover text-content",
                 )}
               >
@@ -139,6 +156,48 @@ export function RichTextToolbar({ editor }: { editor: Editor }) {
           })}
         </div>
       ))}
+      {attachFiles && (
+        <>
+          <button
+            type="button"
+            aria-label="Attach file"
+            title="Attach file"
+            onMouseDown={(event) => event.preventDefault()}
+            onFocus={(event) => {
+              cameFromEditor.current =
+                event.relatedTarget instanceof Node &&
+                editor.view.dom.contains(event.relatedTarget);
+            }}
+            onBlur={() => (cameFromEditor.current = false)}
+            onClick={() => {
+              focusedOnPick.current =
+                editor.isFocused || cameFromEditor.current;
+              inputRef.current?.click();
+            }}
+            className={cn(buttonClass, "ml-auto")}
+          >
+            <Paperclip className="size-3.5" strokeWidth={2.2} />
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (files.length === 0 || editor.isDestroyed) return;
+              attachPicked(
+                editor.view,
+                attachFiles,
+                files,
+                focusedOnPick.current,
+              );
+              editor.commands.focus();
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

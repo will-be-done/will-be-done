@@ -15945,6 +15945,18 @@
                             "maximum": 9007199254740991,
                             "description": "Creation time as Unix milliseconds"
                           },
+                          "width": {
+                            "description": "Image width in pixels, once a client has measured it",
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "height": {
+                            "description": "Image height in pixels, once a client has measured it",
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
                           "usages": {
                             "type": "array",
                             "items": {
@@ -16227,6 +16239,18 @@
                           "minimum": 0,
                           "maximum": 9007199254740991,
                           "description": "Creation time as Unix milliseconds"
+                        },
+                        "width": {
+                          "description": "Image width in pixels, once a client has measured it",
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "description": "Image height in pixels, once a client has measured it",
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -16469,6 +16493,18 @@
                           "minimum": 0,
                           "maximum": 9007199254740991,
                           "description": "Creation time as Unix milliseconds"
+                        },
+                        "width": {
+                          "description": "Image width in pixels, once a client has measured it",
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "description": "Image height in pixels, once a client has measured it",
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
                         },
                         "usages": {
                           "type": "array",
@@ -17276,6 +17312,18 @@
                                 "minimum": 0,
                                 "maximum": 9007199254740991,
                                 "description": "Creation time as Unix milliseconds"
+                              },
+                              "width": {
+                                "description": "Image width in pixels, once a client has measured it",
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "height": {
+                                "description": "Image height in pixels, once a client has measured it",
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
                               }
                             },
                             "required": [
@@ -17535,6 +17583,18 @@
                               "minimum": 0,
                               "maximum": 9007199254740991,
                               "description": "Creation time as Unix milliseconds"
+                            },
+                            "width": {
+                              "description": "Image width in pixels, once a client has measured it",
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "height": {
+                              "description": "Image height in pixels, once a client has measured it",
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
                             }
                           },
                           "required": [

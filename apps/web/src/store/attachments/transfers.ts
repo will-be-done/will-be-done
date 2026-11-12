@@ -166,6 +166,19 @@ export type AttachmentTransfers = {
   readonly subscribeBlob: (id: string, listener: () => void) => () => void;
 };
 
+// Images this browser cannot decode get their size once a client draws them.
+const imageSize = (file: File) =>
+  file.type.startsWith("image/") && typeof createImageBitmap === "function"
+    ? Effect.tryPromise(() => createImageBitmap(file)).pipe(
+        Effect.map((bitmap) => {
+          const size = { width: bitmap.width, height: bitmap.height };
+          bitmap.close();
+          return size;
+        }),
+        Effect.orElseSucceed(() => undefined),
+      )
+    : Effect.succeed(undefined);
+
 export const attachmentTransfersByDB = new WeakMap<
   HyperDB,
   AttachmentTransfers
@@ -596,6 +609,7 @@ export const makeAttachmentTransfers = ({
               Digest.sha256,
               new Uint8Array(bytes),
             );
+            const pixels = yield* imageSize(file);
             yield* store.put(id, file, { uploaded: !syncEnabled });
             const { attachment } = yield* database
               .dispatch(
@@ -606,6 +620,7 @@ export const makeAttachmentTransfers = ({
                     mimeType: file.type || "application/octet-stream",
                     size: file.size,
                     sha256,
+                    ...pixels,
                   },
                   ...(parent ? { parent } : {}),
                 }),

@@ -62,7 +62,7 @@ import {
   type TrashSnapshot,
 } from "./tables";
 import { uuidv7 } from "uuidv7";
-import { attachmentRowProblem } from "./attachments";
+import { attachmentRowProblem, imageSizeProblem } from "./attachments";
 
 // TODO: use type from  vackupValidator
 interface ProjectSectionBackup {
@@ -177,6 +177,8 @@ interface AttachmentBackup {
   size: number;
   sha256: string;
   createdAt: number;
+  width?: number;
+  height?: number;
 }
 
 interface ItemAttachmentBackup {
@@ -393,6 +395,8 @@ const backupSchema = v.object({
         size: v.number(),
         sha256: v.string(),
         createdAt: v.number(),
+        width: v.optional(v.number()),
+        height: v.optional(v.number()),
       }),
     ),
   ),
@@ -928,7 +932,12 @@ const getNewModels = action({
         console.warn(`Attachment ${attachment.id} omitted: ${problem}`);
         continue;
       }
-      attachments.push({ type: attachmentType, ...attachment });
+      // A bad size is only a hint; the file and its links stay.
+      const { width: _width, height: _height, ...unsized } = attachment;
+      attachments.push({
+        type: attachmentType,
+        ...(imageSizeProblem(attachment) ? unsized : attachment),
+      });
     }
     const attachmentIds = new Set(attachments.map(({ id }) => id));
     // Items in the trash keep their links too.

@@ -319,6 +319,10 @@ export const attachmentsTable = defineTable("attachments", {
   // Hex SHA-256 of the bytes; uploads must match it.
   sha256: v.string(),
   createdAt: v.number(),
+  // An image's pixel size, so it can take its space before its bytes load.
+  // Images without it get it from the first client that draws them.
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
 })
   .index("byIds", ["id"])
   .index("byCreatedAtId", ["createdAt", "id"]);

@@ -787,6 +787,18 @@ export const AttachmentSchema = z.object({
     .int()
     .nonnegative()
     .describe("Creation time as Unix milliseconds"),
+  width: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Image width in pixels, once a client has measured it"),
+  height: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Image height in pixels, once a client has measured it"),
 });
 
 export const AttachmentUsageSchema = z.object({
