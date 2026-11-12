@@ -312,8 +312,8 @@ Planned for v1.0:
 - [ ] Internationalization
 - [ ] End-to-end encryption
 
-
 Possible next features:
+
 - [ ] Mobile widgets
 - [ ] Notifications on web, mobile, and desktop
 
