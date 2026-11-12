@@ -302,14 +302,14 @@ Planned for v1.0:
 - [x] readonly CalDAV integration
 - [x] Multi-select tasks
 - [ ] Global search
-- [ ] Installable apps from app store
+- [ ] Project themes with custom backgrounds and task colors
+- [ ] Global themes
 - [ ] Task comments
+- [ ] Global command palette
+- [ ] Internationalization
 - [ ] CLI app
 - [ ] MCP integration
-- [ ] Project themes with custom backgrounds and task colors
-- [ ] Global command palette
-- [ ] Global themes
-- [ ] Internationalization
+- [ ] Installable apps from app store
 - [ ] End-to-end encryption
 
 Possible next features:
