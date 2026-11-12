@@ -563,9 +563,12 @@ export async function createTursoCloudSqlDriver(
     connection,
   );
   return {
-    driver: new AsyncSqlDriver(db, {
-      debug: logAsyncSqlDriverDebugEvent,
-    }),
+    driver: new AsyncSqlDriver(
+      db,
+      getEnvConfig().WBD_SQL_DEBUG === "true"
+        ? { debug: logAsyncSqlDriverDebugEvent }
+        : {},
+    ),
     close: () => db.close(),
   };
 }

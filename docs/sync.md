@@ -123,9 +123,12 @@ The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
 authority. A rejected subscription (a space the server does not know yet)
 wakes nothing and is re-established only after the next session completes, so
-a server that keeps rejecting it is retried at most once per session. Every
-started subscription, including one resent after a reconnect, wakes a session
-for changes made before the server registered it.
+a server that keeps rejecting it is retried at most once per session. The
+server therefore checks access before it reports the subscription started.
+Every started subscription, including one resent after a reconnect, wakes a
+session for changes made before the server registered it, but at most once per
+10 seconds: a socket that keeps reconnecting would otherwise sync nonstop. A
+start inside that window delays its session instead of dropping it.
 
 Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
 after the originating tab has persisted its changes. UI subscribers observe

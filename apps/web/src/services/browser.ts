@@ -10,6 +10,8 @@ export class AuthSession extends Context.Service<
 >()("@will-be-done/web/AuthSession") {}
 
 export type ServerChangeEvent =
+  // The subscription (re)started; changes made before it were not announced.
+  | { readonly _tag: "Started" }
   | { readonly _tag: "ChangesAvailable" }
   | { readonly _tag: "UpdateRequired" }
   | { readonly _tag: "Failed"; readonly cause: unknown };

@@ -38,6 +38,29 @@ describe("database sync notifications", () => {
     }
   });
 
+  // A started subscription tells the client to sync, so a subscription that
+  // can never deliver must fail before it starts.
+  test("rejects an inaccessible database before the subscription starts", async () => {
+    const caller = createAppRouter({
+      mainDB: new DB(new BptreeInmemDriver()),
+      captchaConfig: null,
+    }).createCaller({
+      user: { id: "user-1", email: "user@example.com" },
+    });
+
+    let error: unknown;
+    try {
+      await caller.onChangesAvailable({
+        dbId: "user-2",
+        dbType: "user",
+        syncVersion: 8,
+      });
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toMatchObject({ code: "FORBIDDEN" });
+  });
+
   test("delivers a notification received while the previous one is yielded", async () => {
     const caller = createAppRouter({
       mainDB: new DB(new BptreeInmemDriver()),

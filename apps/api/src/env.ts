@@ -39,6 +39,7 @@ const EnvConfigSchema = Schema.Struct({
   WBD_TURSOD_URL: Schema.optional(url),
   WBD_TURSOD_AUTH_TOKEN: optionalNonEmptyTrimmed,
   WBD_TURSOD_REQUEST_TIMEOUT_MS: withDefault(intFromString(100), "30000"),
+  WBD_SQL_DEBUG: withDefault(literals(["true", "false"]), "false"),
   WBD_INSTANCE_ID: optionalNonEmptyTrimmed,
   WBD_SYNC_NOTIFICATIONS_BACKEND: withDefault(
     literals(["memory", "redis"]),

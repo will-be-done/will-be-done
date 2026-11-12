@@ -1109,6 +1109,39 @@ describe("syncer notification baseline", () => {
     await stop(syncer, run);
   });
 
+  it("spaces out sessions woken by repeated subscription starts", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    let sessions = 0;
+    vi.spyOn(
+      syncer as unknown as SyncerTestAccess,
+      "syncV4",
+    ).mockImplementation(() => {
+      sessions += 1;
+      return Effect.succeed(true);
+    });
+
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sessions).toBe(1);
+
+    env.serverChanges.emit({ _tag: "Started" });
+    await vi.waitFor(() => expect(sessions).toBe(2));
+
+    // A reconnecting socket restarts subscriptions over and over; the missed
+    // changes they stand for are synced later instead of on every restart.
+    for (let restart = 0; restart < 5; restart += 1) {
+      env.serverChanges.emit({ _tag: "Started" });
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
+    expect(sessions).toBe(2);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(sessions).toBe(3);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sessions).toBe(3);
+    await stop(syncer, run);
+  });
+
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {
       env.serverChanges.emit({ _tag: "ChangesAvailable" });

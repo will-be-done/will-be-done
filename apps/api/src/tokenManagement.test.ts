@@ -116,6 +116,33 @@ describe("token management", () => {
         lastUsedUserAgent: "WillBeDoneTest/1.0",
       }),
     ]);
+
+    const usageAt = async (usedAt: string) => {
+      await authenticateBearerToken(`Bearer ${registered.token}`, mainDB, {
+        usedAt,
+        ip: "203.0.113.10",
+        userAgent: "WillBeDoneTest/1.0",
+      });
+      return syncDispatch(mainDB, getTokenById({ id: registered.token }))
+        ?.lastUsedAt;
+    };
+    expect(await usageAt("2026-07-26T12:04:59.000Z")).toBe(
+      "2026-07-26T12:00:00.000Z",
+    );
+    expect(await usageAt("2026-07-26T12:05:00.000Z")).toBe(
+      "2026-07-26T12:05:00.000Z",
+    );
+    await authenticateBearerToken(`Bearer ${registered.token}`, mainDB, {
+      usedAt: "2026-07-26T12:05:01.000Z",
+      ip: "203.0.113.10",
+      userAgent: "WillBeDoneTest/2.0",
+    });
+    expect(
+      syncDispatch(mainDB, getTokenById({ id: registered.token })),
+    ).toMatchObject({
+      lastUsedAt: "2026-07-26T12:05:01.000Z",
+      lastUsedUserAgent: "WillBeDoneTest/2.0",
+    });
   });
 
   test("records the client IP only through a trusted reverse proxy", async () => {
