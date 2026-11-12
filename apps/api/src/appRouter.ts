@@ -158,7 +158,9 @@ export function createAppRouter({
           syncVersion: z.number().int().optional(),
         }),
       )
-      .subscription(async function* (opts) {
+      // Checks run before the generator is returned: the client syncs when a
+      // subscription starts, and one that fails after starting would loop.
+      .subscription(async (opts) => {
         assertSupportedSyncVersion(opts.input.syncVersion);
         if (!opts.ctx.user) {
           throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -170,43 +172,45 @@ export function createAppRouter({
           opts.ctx.user.id,
         );
 
-        const state = new State<NotificationData[]>([]);
-        const unsubscribe = await subscriptionManager.subscribe(
-          opts.input.dbId,
-          opts.input.dbType,
-          (data) => {
-            state.modify((notifications) => [...notifications, data]);
-          },
-        );
-        const abortController = new AbortController();
-        const abort = () => abortController.abort(opts.signal?.reason);
-        if (opts.signal?.aborted) abort();
-        else opts.signal?.addEventListener("abort", abort, { once: true });
+        return (async function* () {
+          const state = new State<NotificationData[]>([]);
+          const unsubscribe = await subscriptionManager.subscribe(
+            opts.input.dbId,
+            opts.input.dbType,
+            (data) => {
+              state.modify((notifications) => [...notifications, data]);
+            },
+          );
+          const abortController = new AbortController();
+          const abort = () => abortController.abort(opts.signal?.reason);
+          if (opts.signal?.aborted) abort();
+          else opts.signal?.addEventListener("abort", abort, { once: true });
 
-        try {
-          while (true) {
-            await state.when(
-              (notifications) => notifications.length > 0,
-              abortController.signal,
-            );
-            const notifications = state.get();
-            state.set([]);
+          try {
+            while (true) {
+              await state.when(
+                (notifications) => notifications.length > 0,
+                abortController.signal,
+              );
+              const notifications = state.get();
+              state.set([]);
 
-            for (const notification of notifications) {
-              if (
-                opts.ctx.revalidateUser &&
-                !(await opts.ctx.revalidateUser())
-              ) {
-                throw new TRPCError({ code: "UNAUTHORIZED" });
+              for (const notification of notifications) {
+                if (
+                  opts.ctx.revalidateUser &&
+                  !(await opts.ctx.revalidateUser())
+                ) {
+                  throw new TRPCError({ code: "UNAUTHORIZED" });
+                }
+                yield notification;
               }
-              yield notification;
             }
+          } finally {
+            abortController.abort();
+            opts.signal?.removeEventListener("abort", abort);
+            await unsubscribe();
           }
-        } finally {
-          abortController.abort();
-          opts.signal?.removeEventListener("abort", abort);
-          await unsubscribe();
-        }
+        })();
       }),
 
     listTokens: protectedProcedure.query(async (opts) => {

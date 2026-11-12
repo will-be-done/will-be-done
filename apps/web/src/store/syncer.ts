@@ -62,6 +62,7 @@ import { markSyncUpdateRequired, syncChannelName } from "./syncCompatibility";
 
 const SYNC_POLL_INTERVAL_MS = 60000;
 const SYNC_START_DELAY_MS = 2000;
+const SUBSCRIPTION_START_WAKE_MS = 10_000;
 const SYNC_REQUEST_TIMEOUT_MS = 5 * 60_000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
@@ -276,18 +277,55 @@ export class Syncer {
     markSyncUpdateRequired();
   }
 
+  private wakeForServerChanges() {
+    if (this.status.get().phase === "synced") {
+      this.setStatus({ phase: "waiting", progress: null });
+    }
+    Queue.offerUnsafe(this.wakes, undefined);
+  }
+
+  private lastStartWakeAt = Number.NEGATIVE_INFINITY;
+  private startWakeScheduled = false;
+
+  // A socket that keeps reconnecting restarts its subscriptions each time, so
+  // these wakes are spaced out. One that comes too soon is delayed, not
+  // dropped: changes made while the socket was down still need a session.
+  private wakeForSubscriptionStart() {
+    return Effect.gen({ self: this }, function* () {
+      if (this.startWakeScheduled) return;
+      const now = yield* Clock.currentTimeMillis;
+      const delay = this.lastStartWakeAt + SUBSCRIPTION_START_WAKE_MS - now;
+      if (delay <= 0) {
+        this.lastStartWakeAt = now;
+        this.wakeForServerChanges();
+        return;
+      }
+      this.startWakeScheduled = true;
+      yield* Effect.sleep(delay).pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((wokeAt) => {
+          this.lastStartWakeAt = wokeAt;
+          this.wakeForServerChanges();
+        }),
+        Effect.ensuring(
+          Effect.sync(() => {
+            this.startWakeScheduled = false;
+          }),
+        ),
+        Effect.forkScoped,
+      );
+    });
+  }
+
   private onServerChange = Match.type<ServerChangeEvent>().pipe(
     Match.tagsExhaustive({
+      Started: () =>
+        Effect.logDebug("server change subscription started").pipe(
+          Effect.andThen(this.wakeForSubscriptionStart()),
+        ),
       ChangesAvailable: () =>
         Effect.logDebug("server reported new changes").pipe(
-          Effect.tap(
-            Effect.sync(() => {
-              if (this.status.get().phase === "synced") {
-                this.setStatus({ phase: "waiting", progress: null });
-              }
-              Queue.offerUnsafe(this.wakes, undefined);
-            }),
-          ),
+          Effect.tap(Effect.sync(() => this.wakeForServerChanges())),
         ),
       UpdateRequired: () => Effect.sync(() => this.stopForRequiredUpdate()),
       // Waking here would loop against a server that keeps rejecting it.

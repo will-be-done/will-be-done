@@ -5,6 +5,7 @@ import {
   type SqlValue,
   logAsyncSqlDriverDebugEvent,
 } from "@will-be-done/hyperdb/drivers/sqlite";
+import { getEnvConfig } from "../env";
 import { State } from "../utils/State";
 
 type TursodValue =
@@ -342,9 +343,12 @@ export async function createTursodSqlDriver(
   const executor = new TursodSqlExecutor(baseUrl, databaseName, config);
   await executor.open();
   return {
-    driver: new AsyncSqlDriver(executor, {
-      debug: logAsyncSqlDriverDebugEvent,
-    }),
+    driver: new AsyncSqlDriver(
+      executor,
+      getEnvConfig().WBD_SQL_DEBUG === "true"
+        ? { debug: logAsyncSqlDriverDebugEvent }
+        : {},
+    ),
     close: () => executor.close(),
   };
 }
