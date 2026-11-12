@@ -297,27 +297,25 @@ Planned for v1.0:
 - [x] Todoist / TickTick migration
 - [x] Desktop app with global quick add
 - [x] OpenAPI integration
-- [ ] CLI app
+- [x] Task attachments
 - [x] Undo / redo
-
-Possible next features:
-
+- [x] readonly CalDAV integration
+- [x] Multi-select tasks
+- [ ] Global search
+- [ ] Installable apps from app store
 - [ ] Task comments
-- [ ] Task attachments
-- [ ] CalDAV integration
+- [ ] CLI app
 - [ ] MCP integration
 - [ ] Project themes with custom backgrounds and task colors
 - [ ] Global command palette
-- [x] Multi-select tasks
 - [ ] Global themes
-- [ ] Drag and drop for project columns
 - [ ] Internationalization
-- [ ] More Vim keybindings
 - [ ] End-to-end encryption
-- [ ] Global search
+
+
+Possible next features:
 - [ ] Mobile widgets
 - [ ] Notifications on web, mobile, and desktop
-- [ ] Mobile app store builds (the web app packaged for iOS and Android)
 
 Not planned for now:
 
