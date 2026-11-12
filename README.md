@@ -302,7 +302,7 @@ Planned for v1.0:
 - [x] readonly CalDAV integration
 - [x] Multi-select tasks
 - [ ] Global search
-- [ ] Project themes with custom backgrounds and task colors
+- [ ] Project colors, backgrounds and task colors
 - [ ] Global themes
 - [ ] Task comments
 - [ ] Global command palette
