@@ -772,6 +772,30 @@ export const MoveMindmapNodeBodySchema = z
     { message: "Provide a parentId (and placement) or a position" },
   );
 
+export const SearchQuerySchema = z
+  .object({
+    q: z
+      .string()
+      .min(1)
+      .max(500)
+      .refine((query) => query.trim().length > 0, "Enter a search query")
+      .describe(
+        "Words to find. Each must start a word of the result; Chinese, Japanese, Korean and Thai text matches anywhere",
+      ),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+
+export const SearchResponseSchema = z
+  .object({
+    results: z.array(
+      z.discriminatedUnion("type", [TaskSchema, NoteSchema, MindmapNodeSchema]),
+    ),
+  })
+  .describe(
+    "Tasks, notes and mindmap topics matching every word, title matches first",
+  );
+
 const AttachmentParentTypeSchema = z
   .enum(["task", "template", "note"])
   .describe("Kind of item that lists the attachment");

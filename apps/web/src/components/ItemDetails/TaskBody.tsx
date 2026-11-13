@@ -43,10 +43,11 @@ import {
   DurationDetailRow,
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
-import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
+import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 
 export function TaskBody({
   task,
@@ -183,128 +184,134 @@ export function TaskBody({
   if (!project) return null;
 
   return (
-    <div className="px-3 py-3 space-y-3">
-      <EditableTitle
-        key={task.id}
-        icon={
-          <CheckboxComp
-            checked={task.state === "done"}
-            onChange={handleToggleState}
-          />
-        }
-        isEditing={isEditingTitle}
-        title={task.title}
-        titleDoc={task.titleDoc}
-        titleClassName={
-          task.state === "done"
-            ? "line-through text-content-tinted"
-            : "text-content"
-        }
-        onSave={saveTitleDoc}
-        setIsEditingTitle={setIsEditingTitle}
-        attachmentParent={{ parentType: "task", parentId: taskId }}
-      />
-
-      <div className="space-y-2 text-xs">
-        <ProjectDetailRow
-          project={project}
-          onOpenClick={() => openProject(project.id)}
-          onEditClick={() => setIsMoveProjectModalOpen(true)}
-        />
-
-        <SectionDetailRow
-          projectSectionId={task.projectSectionId}
-          projectSections={projectSections}
-          onChange={(projectSectionId) =>
-            void dispatch(
-              updateTask({
-                id: taskId,
-                task: {
-                  projectSectionId: projectSectionId,
-                },
-              }),
-            )
+    <ItemDetailsLayout
+      title={
+        <EditableTitle
+          key={task.id}
+          icon={
+            <CheckboxComp
+              checked={task.state === "done"}
+              onChange={handleToggleState}
+            />
           }
+          isEditing={isEditingTitle}
+          title={task.title}
+          titleDoc={task.titleDoc}
+          titleClassName={
+            task.state === "done"
+              ? "line-through text-content-tinted"
+              : "text-content"
+          }
+          onSave={saveTitleDoc}
+          setIsEditingTitle={setIsEditingTitle}
+          attachmentParent={{ parentType: "task", parentId: taskId }}
         />
+      }
+      properties={
+        <>
+          <ProjectDetailRow
+            project={project}
+            onOpenClick={() => openProject(project.id)}
+            onEditClick={() => setIsMoveProjectModalOpen(true)}
+          />
 
-        <DetailRow
-          icon={<Calendar className="h-3 w-3 shrink-0" />}
-          label="Scheduled"
-        >
-          <TaskDatePicker
-            taskId={taskId}
-            currentDate={scheduleDate}
-            trigger={
-              <button className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left">
-                {scheduleDate ? (
-                  format(scheduleDate, "MMM d, yyyy")
-                ) : (
-                  <span className="italic">No date</span>
-                )}
-              </button>
+          <SectionDetailRow
+            projectSectionId={task.projectSectionId}
+            projectSections={projectSections}
+            onChange={(projectSectionId) =>
+              void dispatch(
+                updateTask({
+                  id: taskId,
+                  task: {
+                    projectSectionId: projectSectionId,
+                  },
+                }),
+              )
             }
           />
-        </DetailRow>
 
-        {scheduleDate && (
-          <TimeDetailRow
-            time={dailyEntry?.time ?? null}
-            onChange={(time) =>
-              void dispatch(setDailyEntryTime({ taskId, time }))
+          <DetailRow
+            icon={<Calendar className="h-3 w-3 shrink-0" />}
+            label="Scheduled"
+          >
+            <TaskDatePicker
+              taskId={taskId}
+              currentDate={scheduleDate}
+              trigger={
+                <button className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left">
+                  {scheduleDate ? (
+                    format(scheduleDate, "MMM d, yyyy")
+                  ) : (
+                    <span className="italic">No date</span>
+                  )}
+                </button>
+              }
+            />
+          </DetailRow>
+
+          {scheduleDate && (
+            <TimeDetailRow
+              time={dailyEntry?.time ?? null}
+              onChange={(time) =>
+                void dispatch(setDailyEntryTime({ taskId, time }))
+              }
+            />
+          )}
+
+          <DurationDetailRow
+            durationMinutes={task.durationMinutes ?? null}
+            onChange={(durationMinutes) =>
+              void dispatch(
+                updateTask({ id: taskId, task: { durationMinutes } }),
+              )
             }
           />
-        )}
 
-        <DurationDetailRow
-          durationMinutes={task.durationMinutes ?? null}
-          onChange={(durationMinutes) =>
-            void dispatch(updateTask({ id: taskId, task: { durationMinutes } }))
-          }
-        />
+          {taskTemplateId && (
+            <DetailRow
+              icon={<RefreshCw className="h-3 w-3 shrink-0" />}
+              label="Repeat"
+            >
+              <span className="flex items-center gap-1">
+                <span className="italic">{ruleText || "custom"}</span>
+                <button
+                  onClick={() => setIsRepeatModalOpen(true)}
+                  title="Edit repeat"
+                  className="cursor-pointer text-content-tinted hover:text-content transition-colors"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={handleRemoveRepeat}
+                  title="Remove repeat"
+                  className="cursor-pointer text-content-tinted hover:text-content transition-colors"
+                >
+                  <XIcon className="h-3 w-3" />
+                </button>
+              </span>
+            </DetailRow>
+          )}
 
-        <DetailRow
-          icon={<CalendarDays className="h-3 w-3 shrink-0" />}
-          label="Created"
-        >
-          {format(new Date(task.createdAt), "MMM d, yyyy, h:mm a")}
-        </DetailRow>
+          <ItemMindmapsRow itemId={taskId} />
 
-        <ItemMindmapsRow itemId={taskId} />
-
-        {!!task.lastToggledAt && (
           <DetailRow
-            icon={<Clock className="h-3 w-3 shrink-0" />}
-            label="Last toggled"
+            icon={<CalendarDays className="h-3 w-3 shrink-0" />}
+            label="Created"
           >
-            {format(new Date(task.lastToggledAt), "MMM d, yyyy, h:mm a")}
+            {format(new Date(task.createdAt), "MMM d, yyyy, h:mm a")}
           </DetailRow>
-        )}
 
-        {taskTemplateId && (
-          <DetailRow
-            icon={<RefreshCw className="h-3 w-3 shrink-0" />}
-            label="Repeat"
-          >
-            <span className="flex items-center gap-1">
-              <span className="italic">{ruleText || "custom"}</span>
-              <button
-                onClick={() => setIsRepeatModalOpen(true)}
-                title="Edit repeat"
-                className="cursor-pointer text-content-tinted hover:text-content transition-colors"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-              <button
-                onClick={handleRemoveRepeat}
-                title="Remove repeat"
-                className="cursor-pointer text-content-tinted hover:text-content transition-colors"
-              >
-                <XIcon className="h-3 w-3" />
-              </button>
-            </span>
-          </DetailRow>
-        )}
-
+          {!!task.lastToggledAt && (
+            <DetailRow
+              icon={<Clock className="h-3 w-3 shrink-0" />}
+              label="Last toggled"
+            >
+              {format(new Date(task.lastToggledAt), "MMM d, yyyy, h:mm a")}
+            </DetailRow>
+          )}
+        </>
+      }
+      checklist={
         <ChecklistItems
           hasChecklistItems={undefined}
           parent={task}
@@ -312,40 +319,38 @@ export function TaskBody({
           showAddItem
           className="border-task-panel-divider"
         />
-
-        <div className="pt-1">
-          <EditableDescription
-            key={task.id}
-            isEditing={isEditingDescription}
-            content={task.content ?? ""}
-            contentDoc={task.contentDoc}
-            onSave={saveContentDoc}
-            setIsEditingDescription={setIsEditingDescription}
-            attachmentParent={{ parentType: "task", parentId: taskId }}
-          />
-        </div>
-
-        <ItemAttachments parentType="task" parentId={taskId} />
-      </div>
-
-      {!taskTemplateId && (
-        <button
-          onClick={() => setIsRepeatModalOpen(true)}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
-        >
-          <RefreshCw className="h-3 w-3" />
-          Make repeating
-        </button>
-      )}
-
-      <button
-        onClick={() => void noteConversion.toNote(taskId)}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
-      >
-        <StickyNote className="h-3 w-3" />
-        Convert to note
-      </button>
-
+      }
+      description={
+        <EditableDescription
+          key={task.id}
+          isEditing={isEditingDescription}
+          content={task.content ?? ""}
+          contentDoc={task.contentDoc}
+          onSave={saveContentDoc}
+          setIsEditingDescription={setIsEditingDescription}
+          attachmentParent={{ parentType: "task", parentId: taskId }}
+        />
+      }
+      attachments={<ItemAttachments parentType="task" parentId={taskId} />}
+      actions={
+        <>
+          {!taskTemplateId && (
+            <DetailsAction
+              icon={<RefreshCw className="h-3 w-3" />}
+              onClick={() => setIsRepeatModalOpen(true)}
+            >
+              Make repeating
+            </DetailsAction>
+          )}
+          <DetailsAction
+            icon={<StickyNote className="h-3 w-3" />}
+            onClick={() => void noteConversion.toNote(taskId)}
+          >
+            Convert to note
+          </DetailsAction>
+        </>
+      }
+    >
       {isMoveProjectModalOpen && (
         <MoveModal
           setIsOpen={setIsMoveProjectModalOpen}
@@ -366,6 +371,6 @@ export function TaskBody({
           onCancel={() => setIsRepeatModalOpen(false)}
         />
       )}
-    </div>
+    </ItemDetailsLayout>
   );
 }

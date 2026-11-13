@@ -106,6 +106,7 @@ import {
   useItemDetailsOpen,
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { useOpenItemPage } from "@/components/ItemPage/useOpenItemPage.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { formatTaskTime } from "@/lib/taskTime";
 import { ProjectIcon } from "@/components/ui/emoji";
@@ -268,6 +269,7 @@ export const PreloadedTaskComp = ({
   const selection = useSelectionActions();
   const select = useSelectAsync();
   const openProject = useOpenProject();
+  const openItemPage = useOpenItemPage();
 
   const persistTitleDoc = useCallback(
     async (titleDoc: string) => {
@@ -1604,6 +1606,7 @@ export const PreloadedTaskComp = ({
                   canAddChecklistItem={isTask(item) || isTaskTemplate(item)}
                   onOpenChange={setIsActionsOpen}
                   onMarkDone={handleTick}
+                  onOpenPage={() => openItemPage(item)}
                   onMoveToProject={handleOpenMoveModal}
                   onStashTask={handleStashTask}
                   onChangeDate={handleOpenDatePickerAfterActionsClose}

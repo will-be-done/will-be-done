@@ -392,8 +392,8 @@ test.describe("on a touch screen", () => {
     ).not.toBeInViewport();
 
     await page.getByRole("button", { name: "Details", exact: true }).tap();
-    await expect(page).toHaveURL(/\/item-details\//);
-    await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+    await expect(page).toHaveURL(/\/tasks\//);
+    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
     await expect(page.getByText("Idea", { exact: true }).first()).toBeVisible();
   });
 });

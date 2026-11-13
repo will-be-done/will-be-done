@@ -97,7 +97,7 @@ test("on a phone the projects list folds away and both panels resize by touch", 
   await expect(page.getByTestId("item-details-panel")).toBeHidden();
   await dailyTaskItem(page, "Plan week").tap();
   await page.getByRole("button", { name: "Task details" }).tap();
-  await expect(page).toHaveURL(/\/item-details\//);
+  await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.getByRole("main")).toContainText("Plan week");
   await page.goBack();
   await expect(page).toHaveURL(/\/timeline/);

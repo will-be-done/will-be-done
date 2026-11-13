@@ -27,6 +27,7 @@ import {
 } from "@/components/Focus/domNavigation.ts";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/KeyboardShortcutsDialog";
 import { QuickAddDialog } from "@/components/QuickAdd/QuickAddDialog";
+import { SearchDialog } from "@/components/Search/SearchDialog";
 
 const hasEditHistoryMenu = () => !!window.desktopApi?.onEditHistory;
 
@@ -317,6 +318,7 @@ export function GlobalListener() {
     <>
       <KeyboardShortcutsDialog />
       <QuickAddDialog />
+      <SearchDialog />
     </>
   );
 }

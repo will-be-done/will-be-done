@@ -41,7 +41,8 @@ import {
   isActiveDropTarget,
   type DndModelData,
 } from "@/lib/dnd/models";
-import { CalendarDays, GanttChart, Network } from "lucide-react";
+import { CalendarDays, GanttChart, Network, Search } from "lucide-react";
+import { openSearch } from "@/components/Search/searchStore.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const CalendarIcon = () => (
@@ -216,6 +217,26 @@ const InboxNavItem = ({
   );
 };
 
+const SearchNavItem = () => {
+  const closeMobile = useCloseMobileOnNav();
+
+  return (
+    <button
+      type="button"
+      aria-label="Search"
+      onClick={() => {
+        closeMobile?.();
+        openSearch();
+      }}
+      className="mb-1.5 flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] text-content-tinted ring-1 ring-ring/40 transition-colors hover:bg-surface hover:text-content hover:ring-ring"
+    >
+      <Search className="size-3.5 shrink-0" />
+      <span className="flex-1 text-left">Search</span>
+      <kbd className="font-sans opacity-50 max-sm:hidden">/</kbd>
+    </button>
+  );
+};
+
 const TrashNavItem = () => {
   const spaceId = Route.useParams().spaceId;
   const closeMobile = useCloseMobileOnNav();
@@ -345,6 +366,7 @@ export const AppSidebar = () => {
       <SidebarRail />
       <SidebarHeader className="px-2 pt-3 md:pt-0 desktop-macos:pt-0 pb-0 gap-0">
         <NavStrip />
+        <SearchNavItem />
         {/* Today + Inbox */}
         <div className="grid grid-cols-2 gap-1.5">
           <TodayNavItem />

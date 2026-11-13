@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import {
   CornerDownRight,
   Ellipsis,
@@ -13,7 +12,7 @@ import {
   ToolbarButton,
 } from "@/components/Task/MobileTaskToolbar.tsx";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
-import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
+import { useOpenItemPage } from "@/components/ItemPage/useOpenItemPage.ts";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import type { MindmapNodeActions } from "./MindmapNodeCard.tsx";
 import {
@@ -32,8 +31,7 @@ export function MindmapMobileToolbar({
   actions: MindmapNodeActions;
 }) {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
-  const { spaceId } = SpaceRoute.useParams();
+  const openItemPage = useOpenItemPage();
   const focusKey = useFocusStore((s) =>
     s.isFocusDisabled || s.editItemKey ? null : s.focusItemKey,
   );
@@ -74,12 +72,7 @@ export function MindmapMobileToolbar({
               <ToolbarButton
                 icon={<Info size={18} />}
                 label="Details"
-                onPress={() =>
-                  void navigate({
-                    to: "/spaces/$spaceId/item-details/$itemId",
-                    params: { spaceId, itemId: item.id },
-                  })
-                }
+                onPress={() => openItemPage(item)}
               />
             </>
           )}

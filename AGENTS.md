@@ -103,6 +103,11 @@ Before changing mindmap schema, tree repair, placement, Task or Note links, the 
 or the canvas interaction model, read @docs/mindmap.md. Update it in the same change whenever
 mindmap behavior changes.
 
+# Search
+
+Before changing the search index, tokenizer, ranking, highlighting, which models are searchable,
+or how results open, read @docs/search.md. Update it in the same change.
+
 # Query Performance
 
 For API handlers, request hooks, and user-triggered actions:

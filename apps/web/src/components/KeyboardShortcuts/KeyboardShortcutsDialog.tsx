@@ -5,7 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ALT_KEY, MOD_KEY } from "@/components/RichText/keys";
 import { useDevtoolsEnabled } from "@/lib/devtools";
 import { useFocusStore } from "@/store/focusSlice";
-import { isInputElement } from "@/utils/isInputElement";
+import { isEditingText } from "@/utils/isEditingText";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DESKTOP_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
@@ -56,6 +56,7 @@ const shortcutGroups: ShortcutGroup[] = [
     description: "Available anywhere in a space",
     shortcuts: [
       { bindings: [["Ctrl", "A"]], description: "Quick add task" },
+      { bindings: [["/"]], description: "Search" },
       { bindings: [["\\"]], description: "Toggle stash" },
       { bindings: [["V"]], description: "Toggle task details" },
       { bindings: [["P"]], description: "Toggle project view" },
@@ -373,8 +374,10 @@ export function KeyboardShortcutsDialog() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const isQuestionMark =
+        event.key === "?" || (event.code === "Slash" && event.shiftKey);
       if (
-        event.key !== "?" ||
+        !isQuestionMark ||
         event.repeat ||
         event.ctrlKey ||
         event.metaKey ||
@@ -385,9 +388,7 @@ export function KeyboardShortcutsDialog() {
         return;
       }
 
-      const target =
-        event.target instanceof Element ? event.target : document.activeElement;
-      if (target && isInputElement(target)) return;
+      if (isEditingText(event.target)) return;
 
       event.preventDefault();
       setIsOpen(true);

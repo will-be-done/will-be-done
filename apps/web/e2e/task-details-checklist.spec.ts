@@ -76,7 +76,7 @@ test("edits task details and persists checklist items", async ({ page }) => {
 
   await page.reload();
 
-  await expect(page).toHaveURL(/\/spaces\/[^/]+\/item-details\/[^/]+$/);
+  await expect(page).toHaveURL(/\/spaces\/[^/]+\/tasks\/[^/]+$/);
   await expect(page.getByTestId("task-description")).toHaveText(description);
 
   const reloadedRow = checklistItemRow(page);
@@ -88,7 +88,7 @@ test("edits task details and persists checklist items", async ({ page }) => {
     reloadedRow.getByRole("textbox", { name: "Checklist item" }),
   ).toHaveText(checklistItem);
 
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/dates\/\d{4}-\d{2}-\d{2}$/);
   await expect(
     taskItem(page, taskTitle).getByText(checklistItem),

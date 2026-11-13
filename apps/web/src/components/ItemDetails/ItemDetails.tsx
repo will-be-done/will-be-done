@@ -1,5 +1,9 @@
 import { useRef, useState, useCallback } from "react";
-import { ArrowLeft } from "lucide-react";
+import { Maximize2 } from "lucide-react";
+import { itemPageLocation } from "@/components/ItemPage/useOpenItemPage.ts";
+import { Link } from "@tanstack/react-router";
+import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
+import { useItemDetailsEditing } from "./useItemDetailsEditing.ts";
 import { cn } from "@/lib/utils";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
@@ -11,7 +15,6 @@ import {
   isNote,
   type Item,
   type ListItemType,
-  projectSectionItemById,
   stashEntryType,
   taskTemplateType,
   noteType,
@@ -28,7 +31,6 @@ import { AttachmentDropZone } from "@/components/Attachments/AttachmentDropZone.
 import {
   useItemDetailsSize,
   useItemDetailsOpen,
-  useItemDetailsEditRequest,
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 
 const isListItemType = (type: string): type is ListItemType =>
@@ -61,6 +63,7 @@ export function ItemDetails() {
   const itemId = focusedItem?.id ?? null;
   const isVisible = focusedItem !== undefined;
 
+  const { spaceId } = SpaceRoute.useParams();
   const width = useItemDetailsSize((s) => s.width);
   const setWidth = useItemDetailsSize((s) => s.setWidth);
   const { isOpen: isPanelOpen, toggle } = useItemDetailsOpen();
@@ -210,6 +213,16 @@ export function ItemDetails() {
                 <span className="text-content-tinted text-xs font-medium flex-1">
                   Item Details
                 </span>
+                {focusedItem && (
+                  <Link
+                    {...itemPageLocation(spaceId, focusedItem)}
+                    title="Open as page"
+                    aria-label="Open as page"
+                    className="-my-1 cursor-pointer rounded p-1 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
 
               {focusedItem ? (
@@ -233,126 +246,9 @@ export function ItemDetails() {
   );
 }
 
-export function ItemDetailsPage({
-  itemId,
-  onBack,
-  onItemIdChange,
-}: {
-  itemId: string;
-  onBack: () => void;
-  onItemIdChange?: (itemId: string) => void;
-}) {
-  const { data: item } = useAsyncSelector({
-    selector: projectSectionItemById,
-    args: { id: itemId },
-  });
-  const {
-    isEditingTitle,
-    setIsEditingTitle,
-    isEditingDescription,
-    setIsEditingDescription,
-  } = useItemDetailsEditing(itemId);
-
-  return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-task-panel/95 text-content shadow-2xl backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none">
-      <div
-        className="sticky top-0 z-10 border-b border-task-panel-divider bg-task-panel/95 px-3 pb-2 backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none"
-        style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}
-      >
-        <div className="flex h-10 items-center gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content active:bg-task-panel-hover cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-          <span className="min-w-0 flex-1 text-center text-sm font-medium text-content">
-            Task details
-          </span>
-          <div aria-hidden className="h-9 w-[68px]" />
-        </div>
-      </div>
-
-      <AttachmentDropZone
-        parent={item ? { parentType: item.type, parentId: item.id } : undefined}
-        className="min-h-0 flex-1"
-      >
-        <ScrollArea
-          rootClassName="h-full"
-          style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
-        >
-          {item ? (
-            <ItemDetailsBody
-              item={item}
-              isEditingTitle={isEditingTitle}
-              setIsEditingTitle={setIsEditingTitle}
-              isEditingDescription={isEditingDescription}
-              setIsEditingDescription={setIsEditingDescription}
-              onItemIdChange={onItemIdChange}
-            />
-          ) : (
-            <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-content-tinted/60">
-              Task details are not available.
-            </div>
-          )}
-        </ScrollArea>
-      </AttachmentDropZone>
-    </div>
-  );
-}
-
-function useItemDetailsEditing(itemId: string | null) {
-  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
-  const titleFieldKey = itemId ? `${itemId}:title` : null;
-  const descriptionFieldKey = itemId ? `${itemId}:description` : null;
-  const editRequest = useItemDetailsEditRequest((s) => s.request);
-  const isDescriptionEditRequested =
-    !!itemId &&
-    editRequest?.itemId === itemId &&
-    editRequest.field === "description";
-  const isEditingTitle = editingFieldKey === titleFieldKey;
-  const isEditingDescription =
-    editingFieldKey === descriptionFieldKey || isDescriptionEditRequested;
-  const isEditingAnyField =
-    !!itemId &&
-    (editingFieldKey?.startsWith(`${itemId}:`) === true ||
-      isDescriptionEditRequested);
-
-  // A field's late blur must not end editing of the field focused after it.
-  const setIsEditingTitle = useCallback(
-    (v: boolean) =>
-      setEditingFieldKey((key) =>
-        v ? titleFieldKey : key === titleFieldKey ? null : key,
-      ),
-    [titleFieldKey],
-  );
-  const setIsEditingDescription = useCallback(
-    (v: boolean) => {
-      if (!v) {
-        useItemDetailsEditRequest.getState().clearRequest();
-      }
-
-      setEditingFieldKey((key) =>
-        v ? descriptionFieldKey : key === descriptionFieldKey ? null : key,
-      );
-    },
-    [descriptionFieldKey],
-  );
-
-  return {
-    isEditingTitle,
-    setIsEditingTitle,
-    isEditingDescription,
-    setIsEditingDescription,
-    isEditingAnyField,
-  };
-}
-
 // ─── Body dispatcher ──────────────────────────────────────────────────────────
 
-function ItemDetailsBody({
+export function ItemDetailsBody({
   item,
   isEditingTitle,
   setIsEditingTitle,

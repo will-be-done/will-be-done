@@ -46,7 +46,7 @@
     "@trpc/server": "^11.27.0",
     "@tursodatabase/api": "^2.0.5",
     "@tursodatabase/serverless": "^1.4.0",
-    "@will-be-done/hyperdb": "^0.10.0",
+    "@will-be-done/hyperdb": "^0.11.0",
     "@will-be-done/slices": "workspace:*",
     "await-lock": "^3.0.0",
     "date-fns": "^4.1.0",
