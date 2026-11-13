@@ -207,7 +207,11 @@ export function TemplateBody({
           />
         </div>
 
-        <ItemAttachments parentType="template" parentId={template.id} />
+        <ItemAttachments
+          parentType="template"
+          parentId={template.id}
+          coverAttachmentId={template.coverAttachmentId}
+        />
       </div>
 
       <button

@@ -58,8 +58,10 @@ root missing a coordinate sits at 0 on that axis.
 A node is exactly one kind:
 
 - **topic**: neither `taskId` nor `noteId`; it owns its title;
-- **task**: `taskId` set; it shows and edits the Task's title and state;
-- **note**: `noteId` set; it shows and edits the Note's title.
+- **task**: `taskId` set; it shows and edits the Task's title and state, and
+  shows its selected cover image;
+- **note**: `noteId` set; it shows and edits the Note's title and shows its
+  selected cover image.
 
 Only structure and floating roots' points are stored. Every other position,
 and sizes, branch colors, and depth, are derived on the client and never

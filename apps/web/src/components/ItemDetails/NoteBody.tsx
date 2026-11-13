@@ -126,7 +126,11 @@ export function NoteBody({
           />
         </div>
 
-        <ItemAttachments parentType="note" parentId={noteId} />
+        <ItemAttachments
+          parentType="note"
+          parentId={noteId}
+          coverAttachmentId={note.coverAttachmentId}
+        />
       </div>
 
       <button

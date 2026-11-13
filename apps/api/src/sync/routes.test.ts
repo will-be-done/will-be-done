@@ -76,7 +76,7 @@ describe("sync v4 routes", () => {
         url: `/api/sync/v4/user/${auth.userId}/sessions`,
         headers: { authorization: `Bearer ${auth.token}` },
         payload: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: auth.userId,
           dbType: "user",
           clientId: "client",
@@ -94,7 +94,7 @@ describe("sync v4 routes", () => {
         url: `/api/sync/v4/user/${auth.userId}/sessions`,
         headers: { authorization: `Bearer ${auth.token}` },
         payload: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: auth.userId,
           dbType: "user",
           clientId: "client",

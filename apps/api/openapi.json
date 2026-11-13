@@ -3641,6 +3641,10 @@
                               },
                               { "type": "null" }
                             ]
+                          },
+                          "coverAttachmentId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }],
+                            "description": "Image attachment shown on the task card, or null for no cover"
                           }
                         },
                         "required": [
@@ -3654,7 +3658,8 @@
                           "lastToggledAt",
                           "scheduledDate",
                           "scheduledTime",
-                          "durationMinutes"
+                          "durationMinutes",
+                          "coverAttachmentId"
                         ],
                         "additionalProperties": false
                       }
@@ -3945,6 +3950,10 @@
                               },
                               { "type": "null" }
                             ]
+                          },
+                          "coverAttachmentId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }],
+                            "description": "Image attachment shown on the task card, or null for no cover"
                           }
                         },
                         "required": [
@@ -3958,7 +3967,8 @@
                           "lastToggledAt",
                           "scheduledDate",
                           "scheduledTime",
-                          "durationMinutes"
+                          "durationMinutes",
+                          "coverAttachmentId"
                         ],
                         "additionalProperties": false
                       }
@@ -4223,6 +4233,13 @@
                                   },
                                   { "type": "null" }
                                 ]
+                              },
+                              "coverAttachmentId": {
+                                "anyOf": [
+                                  { "type": "string" },
+                                  { "type": "null" }
+                                ],
+                                "description": "Image attachment shown on the task card, or null for no cover"
                               }
                             },
                             "required": [
@@ -4236,7 +4253,8 @@
                               "lastToggledAt",
                               "scheduledDate",
                               "scheduledTime",
-                              "durationMinutes"
+                              "durationMinutes",
+                              "coverAttachmentId"
                             ],
                             "additionalProperties": false
                           },
@@ -4658,6 +4676,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -4671,7 +4693,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -4941,6 +4964,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -4954,7 +4981,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -5146,6 +5174,9 @@
                       },
                       { "type": "null" }
                     ]
+                  },
+                  "coverAttachmentId": {
+                    "anyOf": [{ "type": "string" }, { "type": "null" }]
                   }
                 },
                 "additionalProperties": false
@@ -5241,6 +5272,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -5254,7 +5289,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -5924,6 +5960,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -5937,7 +5977,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     },
@@ -6273,6 +6314,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -6286,7 +6331,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -6612,6 +6658,13 @@
                                     },
                                     { "type": "null" }
                                   ]
+                                },
+                                "coverAttachmentId": {
+                                  "anyOf": [
+                                    { "type": "string" },
+                                    { "type": "null" }
+                                  ],
+                                  "description": "Image attachment shown on the task card, or null for no cover"
                                 }
                               },
                               "required": [
@@ -6625,7 +6678,8 @@
                                 "lastToggledAt",
                                 "scheduledDate",
                                 "scheduledTime",
-                                "durationMinutes"
+                                "durationMinutes",
+                                "coverAttachmentId"
                               ],
                               "additionalProperties": false
                             }
@@ -6897,6 +6951,10 @@
                               },
                               { "type": "null" }
                             ]
+                          },
+                          "coverAttachmentId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }],
+                            "description": "Image attachment shown on the task card, or null for no cover"
                           }
                         },
                         "required": [
@@ -6910,7 +6968,8 @@
                           "lastToggledAt",
                           "scheduledDate",
                           "scheduledTime",
-                          "durationMinutes"
+                          "durationMinutes",
+                          "coverAttachmentId"
                         ],
                         "additionalProperties": false
                       }
@@ -8872,6 +8931,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -8885,7 +8948,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -10206,6 +10270,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -10219,7 +10287,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -12478,6 +12547,10 @@
                               },
                               { "type": "null" }
                             ]
+                          },
+                          "coverAttachmentId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }],
+                            "description": "Image attachment shown on the task card, or null for no cover"
                           }
                         },
                         "required": [
@@ -12491,7 +12564,8 @@
                           "lastToggledAt",
                           "scheduledDate",
                           "scheduledTime",
-                          "durationMinutes"
+                          "durationMinutes",
+                          "coverAttachmentId"
                         ],
                         "additionalProperties": false
                       }
@@ -12800,6 +12874,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -12813,7 +12891,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }
@@ -13144,6 +13223,10 @@
                             },
                             { "type": "null" }
                           ]
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the task card, or null for no cover"
                         }
                       },
                       "required": [
@@ -13157,7 +13240,8 @@
                         "lastToggledAt",
                         "scheduledDate",
                         "scheduledTime",
-                        "durationMinutes"
+                        "durationMinutes",
+                        "coverAttachmentId"
                       ],
                       "additionalProperties": false
                     }

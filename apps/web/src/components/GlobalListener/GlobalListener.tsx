@@ -3,12 +3,28 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { getModelDropTarget, isModelDNDData } from "@/lib/dnd/models";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { appHandleDrop } from "@will-be-done/slices/space";
-import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
+import {
+  appHandleDrop,
+  type AttachmentParentType,
+  dailyEntryType,
+  isTask,
+  itemsOfListItems,
+  noteType,
+  setItemCoverAttachment,
+  stashEntryType,
+  taskTemplateType,
+  taskType,
+} from "@will-be-done/slices/space";
+import {
+  useAsyncDispatch,
+  useDB,
+  useSelectAsync,
+} from "@will-be-done/hyperdb/react";
 import { replayAndFocus } from "@/store/undo";
 import {
   FocusKey,
   focusElementByKey,
+  parseColumnKey,
   useFocusStore,
 } from "@/store/focusSlice.ts";
 import { isApple } from "@/components/RichText/keys";
@@ -18,6 +34,7 @@ import {
 } from "@/components/Selection/useSelectionActions";
 import {
   copyItems,
+  isItemClipboardEvent,
   itemPasteOf,
   useClipboardStore,
 } from "@/components/Selection/clipboard";
@@ -27,13 +44,21 @@ import {
 } from "@/components/Focus/domNavigation.ts";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/KeyboardShortcutsDialog";
 import { QuickAddDialog } from "@/components/QuickAdd/QuickAddDialog";
+import {
+  attachFilesToItem,
+  isImageAttachment,
+  useAttachmentTransfers,
+} from "@/components/Attachments/attachmentFiles";
+import { pastedFiles } from "@/components/RichText/filePaste";
 
 const hasEditHistoryMenu = () => !!window.desktopApi?.onEditHistory;
 
 export function GlobalListener() {
   const dispatch = useAsyncDispatch();
   const db = useDB();
+  const select = useSelectAsync();
   const selection = useSelectionActions();
+  const attachmentTransfers = useAttachmentTransfers();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -245,6 +270,65 @@ export function GlobalListener() {
     const handleCopy = (e: ClipboardEvent) => copyItems(e, "copy");
     const handleCut = (e: ClipboardEvent) => copyItems(e, "cut");
     const handlePaste = (e: ClipboardEvent) => {
+      const files = pastedFiles(e.clipboardData);
+      const focusKey = useFocusStore.getState().focusItemKey;
+      const parsed = focusKey ? parseColumnKey(focusKey) : null;
+      const hasImage = files.some((file) => isImageAttachment(file.type));
+      const isSupportedItem =
+        parsed?.type === taskType ||
+        parsed?.type === taskTemplateType ||
+        parsed?.type === noteType ||
+        parsed?.type === dailyEntryType ||
+        parsed?.type === stashEntryType;
+
+      if (hasImage && parsed && isSupportedItem && isItemClipboardEvent(e)) {
+        e.preventDefault();
+        void (async () => {
+          let parent:
+            | { parentType: AttachmentParentType; parentId: string }
+            | undefined;
+          if (
+            parsed.type === taskType ||
+            parsed.type === taskTemplateType ||
+            parsed.type === noteType
+          ) {
+            parent = { parentType: parsed.type, parentId: parsed.id };
+          } else if (
+            parsed.type === dailyEntryType ||
+            parsed.type === stashEntryType
+          ) {
+            const [task] = await select({
+              selector: itemsOfListItems,
+              args: {
+                listItems: [{ id: parsed.id, modelType: parsed.type }],
+              },
+            });
+            if (task && isTask(task)) {
+              parent = { parentType: task.type, parentId: task.id };
+            }
+          }
+          if (!parent) return;
+
+          const added = await attachFilesToItem(
+            attachmentTransfers,
+            parent.parentType,
+            parent.parentId,
+            files,
+          );
+          const cover = added.find((attachment) =>
+            isImageAttachment(attachment.mimeType),
+          );
+          if (!cover) return;
+          await dispatch(
+            setItemCoverAttachment({
+              ...parent,
+              attachmentId: cover.id,
+            }),
+          );
+        })();
+        return;
+      }
+
       const paste = itemPasteOf(e);
       if (!paste) return;
 
@@ -263,7 +347,7 @@ export function GlobalListener() {
       document.removeEventListener("cut", handleCut);
       document.removeEventListener("paste", handlePaste);
     };
-  }, [selection]);
+  }, [attachmentTransfers, dispatch, select, selection]);
 
   useEffect(() => {
     return monitorForElements({

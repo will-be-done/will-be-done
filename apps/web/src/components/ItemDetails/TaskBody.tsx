@@ -325,7 +325,11 @@ export function TaskBody({
           />
         </div>
 
-        <ItemAttachments parentType="task" parentId={taskId} />
+        <ItemAttachments
+          parentType="task"
+          parentId={taskId}
+          coverAttachmentId={task.coverAttachmentId}
+        />
       </div>
 
       {!taskTemplateId && (

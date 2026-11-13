@@ -2223,6 +2223,8 @@ export type ListTasks200TasksItem = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -2415,6 +2417,8 @@ export type ListScheduledTasks200TasksItem = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -2565,6 +2569,8 @@ export type ListSectionItems200ItemsItem =
       /** Time on the schedule date in HH:mm, or null when the task has no time */
       scheduledTime: string | null;
       durationMinutes: number | null;
+      /** Image attachment shown on the task card, or null for no cover */
+      coverAttachmentId: string | null;
     }
   | {
       type: "template";
@@ -2816,6 +2822,8 @@ export type CreateSectionTask201Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -2996,6 +3004,8 @@ export type GetTask200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -3132,6 +3142,7 @@ export type UpdateTaskBody = {
   /** Time on the current schedule date; the task must be scheduled */
   scheduledTime?: string | null;
   durationMinutes?: number | null;
+  coverAttachmentId?: string | null;
 };
 
 export type UpdateTask200TaskType =
@@ -3185,6 +3196,8 @@ export type UpdateTask200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -3604,6 +3617,8 @@ export type ScheduleTask200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 export type ScheduleTask200 = {
@@ -3817,6 +3832,8 @@ export type MoveTask200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -4026,6 +4043,8 @@ export type ListDailyLists200DailyListsItemItemsItem = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 export type ListDailyLists200DailyListsItem = {
@@ -4205,6 +4224,8 @@ export type ListDailyListItems200ItemsItem = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 export type ListDailyListItems200 = {
@@ -5402,6 +5423,8 @@ export type ConvertTaskTemplateToTask200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -6226,6 +6249,8 @@ export type ConvertNoteToTask200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -7709,6 +7734,8 @@ export type ListStashTasks200TasksItem = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -7920,6 +7947,8 @@ export type CreateStashTask201Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**
@@ -8132,6 +8161,8 @@ export type PutTaskInStash200Task = {
   /** Time on the schedule date in HH:mm, or null when the task has no time */
   scheduledTime: string | null;
   durationMinutes: number | null;
+  /** Image attachment shown on the task card, or null for no cover */
+  coverAttachmentId: string | null;
 };
 
 /**

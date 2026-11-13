@@ -21,6 +21,7 @@ import { RichTextView } from "@/components/RichText/RichTextView";
 import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 import { useAttachFiles } from "@/components/Attachments/attachmentFiles";
+import { ItemCover } from "@/components/Attachments/ItemCover";
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
 import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker.tsx";
@@ -267,6 +268,11 @@ export function MindmapNodeCard({
           : undefined,
       }}
     >
+      <ItemCover
+        attachmentId={item?.coverAttachmentId}
+        muted={isDone}
+        className="mb-1.5 aspect-[3/1] max-h-20 min-w-44 rounded-md"
+      />
       <div className="flex items-start gap-2">
         {task && (
           <CheckboxComp
