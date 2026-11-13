@@ -29,6 +29,7 @@ export * from "./trash";
 export * from "./attachments";
 export * from "./externalEvents";
 export * from "./mindmaps";
+export * from "./search";
 export * from "./backup";
 export * from "./importer/ticktick";
 export * from "./selection";

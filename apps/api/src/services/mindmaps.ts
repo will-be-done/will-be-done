@@ -69,7 +69,7 @@ const toPublicMindmap = (mindmap: Mindmap): PublicMindmap => ({
 
 // A node can link both a task and a note after concurrent conversions; it
 // shows whichever exists, task first, as the tree does.
-const toPublicNode = (
+export const toPublicNode = (
   { node, task, note }: { node: MindmapNode; task?: Task; note?: Note },
   parentId: string | null,
 ): PublicMindmapNode => {

@@ -6,6 +6,7 @@ import {
   dailyListsTable,
   generateTasksFromTemplates,
   installProjectTaskStatsHooks,
+  installSearchIndexHooks,
   loadSpaceBackup,
   migrateProjectSectionTaskStats,
   migrateScheduledTodoTasks,
@@ -17,6 +18,7 @@ import {
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
   scheduledTodoTasksTable,
+  searchIndexTables,
   spaceMigrationsTable,
   stashEntriesTable,
   dailyEntriesTable,
@@ -49,7 +51,9 @@ const runSpaceMaintenance = Effect.gen(function* () {
 });
 
 const installSpaceHooks = Effect.gen(function* () {
-  installProjectTaskStatsHooks((yield* Database).hyperDB);
+  const { hyperDB } = yield* Database;
+  installProjectTaskStatsHooks(hyperDB);
+  installSearchIndexHooks(hyperDB);
 });
 
 const demoDbId = "e89b6c8f-1d6c-4bf4-9d27-478339773fc9";
@@ -80,11 +84,13 @@ export const spaceDBConfig = (dbId: string) => {
       ...registeredSpaceSyncableTables,
       projectSectionTaskStatsTable,
       scheduledTodoTasksTable,
+      ...searchIndexTables,
       spaceMigrationsTable,
       changesTable,
       syncStateTable,
       ...clientSyncV4Tables,
     ],
+    uncachedTables: searchIndexTables,
     syncableDBTables: registeredSpaceSyncableTables,
     tableNameMap: registeredSpaceSyncableTableNameMap,
     beforeInit: installSpaceHooks,

@@ -25,10 +25,11 @@ import {
   TimeDetailRow,
   DurationDetailRow,
 } from "./shared.tsx";
-import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { ChecklistItems } from "@/components/Checklist/Checklist";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 
 export function TemplateBody({
   template,
@@ -108,85 +109,92 @@ export function TemplateBody({
   if (!project) return null;
 
   return (
-    <div className="px-3 py-3 space-y-3">
-      <EditableTitle
-        key={template.id}
-        icon={
-          <RefreshCw
-            className="h-4 w-4 text-content shrink-0 mt-0.5"
-            strokeWidth={2.5}
-          />
-        }
-        isEditing={isEditingTitle}
-        title={template.title}
-        titleDoc={template.titleDoc}
-        onSave={saveTitleDoc}
-        setIsEditingTitle={setIsEditingTitle}
-        attachmentParent={{ parentType: "template", parentId: template.id }}
-      />
-
-      <div className="space-y-2 text-xs">
-        <ProjectDetailRow
-          project={project}
-          onOpenClick={() => openProject(project.id)}
-          onEditClick={() => setIsMoveProjectModalOpen(true)}
-        />
-
-        <SectionDetailRow
-          projectSectionId={template.projectSectionId}
-          projectSections={projectSections}
-          onChange={(projectSectionId) =>
-            void dispatch(
-              updateTemplate({
-                id: templateId,
-                template: {
-                  projectSectionId: projectSectionId,
-                },
-              }),
-            )
+    <ItemDetailsLayout
+      title={
+        <EditableTitle
+          key={template.id}
+          icon={
+            <RefreshCw
+              className="h-4 w-4 text-content shrink-0 mt-0.5"
+              strokeWidth={2.5}
+            />
           }
+          isEditing={isEditingTitle}
+          title={template.title}
+          titleDoc={template.titleDoc}
+          onSave={saveTitleDoc}
+          setIsEditingTitle={setIsEditingTitle}
+          attachmentParent={{ parentType: "template", parentId: templateId }}
         />
+      }
+      properties={
+        <>
+          <ProjectDetailRow
+            project={project}
+            onOpenClick={() => openProject(project.id)}
+            onEditClick={() => setIsMoveProjectModalOpen(true)}
+          />
 
-        <DetailRow
-          icon={<RefreshCw className="h-3 w-3 shrink-0" />}
-          label="Repeat"
-        >
-          <button
-            className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left italic"
-            onClick={() => setIsRepeatModalOpen(true)}
-          >
-            {ruleText || "custom"}
-          </button>
-        </DetailRow>
-
-        {/* Sub-daily rules carry their own time in each occurrence. */}
-        {isDailyOrCoarser(template.repeatRule) && (
-          <TimeDetailRow
-            time={template.time ?? null}
-            onChange={(time) =>
+          <SectionDetailRow
+            projectSectionId={template.projectSectionId}
+            projectSections={projectSections}
+            onChange={(projectSectionId) =>
               void dispatch(
-                updateTemplate({ id: templateId, template: { time } }),
+                updateTemplate({
+                  id: templateId,
+                  template: {
+                    projectSectionId: projectSectionId,
+                  },
+                }),
               )
             }
           />
-        )}
 
-        <DurationDetailRow
-          durationMinutes={template.durationMinutes ?? null}
-          onChange={(durationMinutes) =>
-            void dispatch(
-              updateTemplate({ id: templateId, template: { durationMinutes } }),
-            )
-          }
-        />
+          <DetailRow
+            icon={<RefreshCw className="h-3 w-3 shrink-0" />}
+            label="Repeat"
+          >
+            <button
+              className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left italic"
+              onClick={() => setIsRepeatModalOpen(true)}
+            >
+              {ruleText || "custom"}
+            </button>
+          </DetailRow>
 
-        <DetailRow
-          icon={<CalendarDays className="h-3 w-3 shrink-0" />}
-          label="Created"
-        >
-          {format(new Date(template.createdAt), "MMM d, yyyy, h:mm a")}
-        </DetailRow>
+          {/* Sub-daily rules carry their own time in each occurrence. */}
+          {isDailyOrCoarser(template.repeatRule) && (
+            <TimeDetailRow
+              time={template.time ?? null}
+              onChange={(time) =>
+                void dispatch(
+                  updateTemplate({ id: templateId, template: { time } }),
+                )
+              }
+            />
+          )}
 
+          <DurationDetailRow
+            durationMinutes={template.durationMinutes ?? null}
+            onChange={(durationMinutes) =>
+              void dispatch(
+                updateTemplate({
+                  id: templateId,
+                  template: { durationMinutes },
+                }),
+              )
+            }
+          />
+
+          <DetailRow
+            icon={<CalendarDays className="h-3 w-3 shrink-0" />}
+            label="Created"
+          >
+            {format(new Date(template.createdAt), "MMM d, yyyy, h:mm a")}
+          </DetailRow>
+        </>
+      }
+      checklist={
         <ChecklistItems
           hasChecklistItems={undefined}
           parent={template}
@@ -194,34 +202,34 @@ export function TemplateBody({
           showAddItem
           className="border-task-panel-divider"
         />
-
-        <div className="pt-1">
-          <EditableDescription
-            key={template.id}
-            isEditing={isEditingDescription}
-            content={template.content ?? ""}
-            contentDoc={template.contentDoc}
-            onSave={saveContentDoc}
-            setIsEditingDescription={setIsEditingDescription}
-            attachmentParent={{ parentType: "template", parentId: template.id }}
-          />
-        </div>
-
+      }
+      description={
+        <EditableDescription
+          key={template.id}
+          isEditing={isEditingDescription}
+          content={template.content ?? ""}
+          contentDoc={template.contentDoc}
+          onSave={saveContentDoc}
+          setIsEditingDescription={setIsEditingDescription}
+          attachmentParent={{ parentType: "template", parentId: templateId }}
+        />
+      }
+      attachments={
         <ItemAttachments
           parentType="template"
-          parentId={template.id}
+          parentId={templateId}
           coverAttachmentId={template.coverAttachmentId}
         />
-      </div>
-
-      <button
-        onClick={handleConvertToTask}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
-      >
-        <SquareCheckboxIcon className="h-3 w-3" />
-        Convert to task
-      </button>
-
+      }
+      actions={
+        <DetailsAction
+          icon={<SquareCheckboxIcon className="h-3 w-3" />}
+          onClick={handleConvertToTask}
+        >
+          Convert to task
+        </DetailsAction>
+      }
+    >
       {isMoveProjectModalOpen && (
         <MoveModal
           setIsOpen={setIsMoveProjectModalOpen}
@@ -245,6 +253,6 @@ export function TemplateBody({
           onCancel={() => setIsRepeatModalOpen(false)}
         />
       )}
-    </div>
+    </ItemDetailsLayout>
   );
 }

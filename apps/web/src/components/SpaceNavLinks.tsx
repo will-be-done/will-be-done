@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { HoverCard } from "radix-ui";
+import { Search } from "lucide-react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { mindmapsWithTitlesByIds } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
@@ -8,6 +9,7 @@ import {
   useRecentMindmaps,
 } from "@/components/Mindmap/recentMindmaps.ts";
 import { mindmapTitle } from "@/components/Mindmap/useCreateMindmap.ts";
+import { openSearch } from "@/components/Search/searchStore.ts";
 
 const linkClass = (isActive: boolean) =>
   cn(
@@ -55,7 +57,14 @@ const RecentMindmapsCard = ({ spaceId }: { spaceId: string }) => {
   );
 };
 
-export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
+// The sidebar has its own search row; its strip has no room for the button.
+export const SpaceNavLinks = ({
+  spaceId,
+  withSearch = false,
+}: {
+  spaceId: string;
+  withSearch?: boolean;
+}) => {
   const isProjectsActive = useRouterState({
     select: (s) =>
       s.matches.some((m) => {
@@ -116,6 +125,17 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
           <RecentMindmapsCard spaceId={spaceId} />
         </HoverCard.Portal>
       </HoverCard.Root>
+      {withSearch && (
+        <button
+          type="button"
+          aria-label="Search"
+          title="Search (/)"
+          onClick={openSearch}
+          className={cn(linkClass(false), "cursor-pointer")}
+        >
+          <Search className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 };

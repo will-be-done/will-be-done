@@ -1,6 +1,6 @@
 ---
 title: Keyboard shortcuts
-description: Keys for navigation, task actions, project actions, text formatting, and quick add.
+description: Keys for navigation, search, task actions, project actions, text formatting, and quick add.
 sidebar:
   order: 2
 ---
@@ -20,6 +20,12 @@ uses `Ctrl` on macOS too.
 Press `Ctrl+A` outside a text field to add a task from anywhere in a space.
 Type the title, pick a project, section, and date, then press `Enter`. The
 project and date start from the page you are on.
+
+## Search
+
+Press `/` outside a text field to [search](/docs/features/#search) tasks, notes,
+and mindmap topics. Use `ArrowUp` and `ArrowDown` to pick a result and `Enter`
+to open it.
 
 ## Panels
 

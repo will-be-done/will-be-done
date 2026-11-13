@@ -10,6 +10,7 @@ import {
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
   scheduledTodoTasksTable,
+  searchIndexTables,
   spaceMigrationsTable,
 } from "@will-be-done/slices/space";
 import { serverSyncTables } from "../sync/tables";
@@ -38,6 +39,7 @@ export const spaceDBConfig = (dbId: string) => {
       ...registeredSpaceSyncableTables,
       projectSectionTaskStatsTable,
       scheduledTodoTasksTable,
+      ...searchIndexTables,
       spaceMigrationsTable,
       changesTable,
       syncStateTable,

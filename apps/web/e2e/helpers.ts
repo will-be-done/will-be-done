@@ -167,7 +167,7 @@ export async function openTaskDetails(page: Page, title: string) {
 
   if (hasDetailsRouteButton) {
     await detailsButton.click();
-    await expect(page).toHaveURL(/\/spaces\/[^/]+\/item-details\/[^/]+$/);
+    await expect(page).toHaveURL(/\/spaces\/[^/]+\/tasks\/[^/]+$/);
     await description.focus();
 
     return { item, description };

@@ -12,6 +12,7 @@ import {
   ListChecks,
   FolderOpen,
   ListTodo,
+  Maximize2,
   MoreHorizontal,
   Plus,
   SquareCheck,
@@ -32,6 +33,7 @@ import {
 import type { MindmapTreeNode } from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import type { MindmapNodeActions } from "./MindmapNodeCard.tsx";
+import { useOpenItemPage } from "@/components/ItemPage/useOpenItemPage.ts";
 
 // The node's actions, as the "…" menu of a task in a list. Items mirror the
 // canvas keys; a few that keys cannot reach (delete, convert) live only here.
@@ -62,6 +64,7 @@ export function MindmapNodeMenu({
   const label = task ? "task" : note ? "note" : "topic";
   const isDone = task?.state === "done";
   const isMobile = useIsMobile();
+  const openItemPage = useOpenItemPage();
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -92,6 +95,10 @@ export function MindmapNodeMenu({
           {item && (
             <>
               <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => openItemPage(item)}>
+                  <Maximize2 />
+                  Open page
+                </DropdownMenuItem>
                 {task && (
                   <DropdownMenuItem onSelect={() => actions.toggleTask(id)}>
                     <CircleCheck />

@@ -10001,6 +10001,200 @@ export type MoveMindmapNode500 = {
   message: string;
 };
 
+export type SearchSpaceParams = {
+  /**
+   * Words to find. Each must start a word of the result; Chinese, Japanese, Korean and Thai text matches anywhere
+   * @minLength 1
+   * @maxLength 500
+   */
+  q: string;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type SearchSpace200ResultsItem =
+  | {
+      type: "task";
+      /** Task identifier */
+      id: string;
+      title: string;
+      content?: string;
+      state: "todo" | "done";
+      /** Parent project section identifier */
+      projectSectionId: string;
+      nature: "red" | "green" | "unknown";
+      /**
+       * Creation time as Unix milliseconds
+       * @minimum 0
+       * @maximum 9007199254740991
+       */
+      createdAt: number;
+      /**
+       * Last state change time as Unix milliseconds
+       * @minimum 0
+       * @maximum 9007199254740991
+       */
+      lastToggledAt: number;
+      /** Current schedule date, or null when the task is unscheduled */
+      scheduledDate: string | null;
+      /** Time on the schedule date in HH:mm, or null when the task has no time */
+      scheduledTime: string | null;
+      durationMinutes: number | null;
+      /** Image attachment shown on the task card, or null for no cover */
+      coverAttachmentId: string | null;
+    }
+  | {
+      type: "note";
+      /** Note identifier */
+      id: string;
+      title: string;
+      content?: string;
+      /** Parent project section identifier */
+      projectSectionId: string;
+      /**
+       * @minimum 0
+       * @maximum 9007199254740991
+       */
+      createdAt: number;
+    }
+  | {
+      type: "mindmapNode";
+      /** Mindmap node identifier */
+      id: string;
+      mindmapId: string;
+      /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
+      parentId: string | null;
+      /** A topic owns its title; a task or note node shows that item */
+      kind: "topic" | "task" | "note";
+      taskId: string | null;
+      noteId: string | null;
+      /** Topic text, or the task's or note's title */
+      title: string;
+      /** Side of its root a main branch sits on */
+      side: "left" | "right";
+      /** Set on floating topics only */
+      position: {
+        x: number;
+        y: number;
+      } | null;
+      collapsed: boolean;
+      /**
+       * @minimum 0
+       * @maximum 9007199254740991
+       */
+      createdAt: number;
+    };
+
+/**
+ * Tasks, notes and mindmap topics matching every word, title matches first
+ */
+export type SearchSpace200 = {
+  results: SearchSpace200ResultsItem[];
+};
+
+export type SearchSpace400Code =
+  (typeof SearchSpace400Code)[keyof typeof SearchSpace400Code];
+
+export const SearchSpace400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type SearchSpace400 = {
+  code: SearchSpace400Code;
+  message: string;
+};
+
+export type SearchSpace401Code =
+  (typeof SearchSpace401Code)[keyof typeof SearchSpace401Code];
+
+export const SearchSpace401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type SearchSpace401 = {
+  code: SearchSpace401Code;
+  message: string;
+};
+
+export type SearchSpace403Code =
+  (typeof SearchSpace403Code)[keyof typeof SearchSpace403Code];
+
+export const SearchSpace403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type SearchSpace403 = {
+  code: SearchSpace403Code;
+  message: string;
+};
+
+export type SearchSpace404Code =
+  (typeof SearchSpace404Code)[keyof typeof SearchSpace404Code];
+
+export const SearchSpace404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type SearchSpace404 = {
+  code: SearchSpace404Code;
+  message: string;
+};
+
+export type SearchSpace500Code =
+  (typeof SearchSpace500Code)[keyof typeof SearchSpace500Code];
+
+export const SearchSpace500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type SearchSpace500 = {
+  code: SearchSpace500Code;
+  message: string;
+};
+
 export type ListAttachmentsParams = {
   /**
    * @minLength 1
@@ -16391,6 +16585,96 @@ export const moveMindmapNode = async (
     status: res.status,
     headers: res.headers,
   } as moveMindmapNodeResponse;
+};
+
+export type searchSpaceResponse200 = {
+  data: SearchSpace200;
+  status: 200;
+};
+
+export type searchSpaceResponse400 = {
+  data: SearchSpace400;
+  status: 400;
+};
+
+export type searchSpaceResponse401 = {
+  data: SearchSpace401;
+  status: 401;
+};
+
+export type searchSpaceResponse403 = {
+  data: SearchSpace403;
+  status: 403;
+};
+
+export type searchSpaceResponse404 = {
+  data: SearchSpace404;
+  status: 404;
+};
+
+export type searchSpaceResponse500 = {
+  data: SearchSpace500;
+  status: 500;
+};
+
+export type searchSpaceResponseSuccess = searchSpaceResponse200 & {
+  headers: Headers;
+};
+export type searchSpaceResponseError = (
+  | searchSpaceResponse400
+  | searchSpaceResponse401
+  | searchSpaceResponse403
+  | searchSpaceResponse404
+  | searchSpaceResponse500
+) & {
+  headers: Headers;
+};
+
+export type searchSpaceResponse =
+  | searchSpaceResponseSuccess
+  | searchSpaceResponseError;
+
+export const getSearchSpaceUrl = (
+  spaceId: string,
+  params: SearchSpaceParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/search?${stringifiedParams}`
+    : `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/search`;
+};
+
+/**
+ * Matches titles and descriptions of tasks and notes, and the text of mindmap topics.
+ * @summary Search tasks, notes and mindmap topics
+ */
+export const searchSpace = async (
+  spaceId: string,
+  params: SearchSpaceParams,
+  options?: RequestInit,
+): Promise<searchSpaceResponse> => {
+  const res = await fetch(getSearchSpaceUrl(spaceId, params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: searchSpaceResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as searchSpaceResponse;
 };
 
 export type listAttachmentsResponse200 = {

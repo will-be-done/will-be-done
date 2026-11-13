@@ -13,6 +13,7 @@ import {
   Clock,
   FolderOpen,
   ListPlus,
+  Maximize2,
   MoreHorizontal,
   Plus,
   SquareCheck,
@@ -100,6 +101,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   selectionCount,
   onOpenChange,
   onMarkDone,
+  onOpenPage,
   onMoveToProject,
   onStashTask,
   onChangeDate,
@@ -136,6 +138,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   selectionCount?: number;
   onOpenChange: (open: boolean) => void;
   onMarkDone: () => void;
+  onOpenPage: () => void;
   onMoveToProject: () => void;
   onStashTask: () => void;
   onChangeDate: () => void;
@@ -219,6 +222,17 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
           }}
         >
           <DropdownMenuGroup>
+            {!isBulk && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onOpenPage();
+                }}
+              >
+                <Maximize2 />
+                Open page
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={onMarkDone} disabled={!canMarkDone}>
               <CircleCheck />
               {isBulk

@@ -7,6 +7,8 @@ export interface SyncConfig {
   dbId: string;
   dbType: "user" | "space";
   persistDBTables: TableDefinition[];
+  // Large derived tables read through bounded queries; never held in memory.
+  uncachedTables?: TableDefinition[];
   syncableDBTables: TableDefinition[];
   tableNameMap: Record<string, TableDefinition>;
   // Run in the store's scope: work forked there stops with the store.
