@@ -3,14 +3,17 @@ import { action, selector } from "../builders";
 import { inboxProjectSectionId, projectSectionById } from "./projectSections";
 import { taskTemplateById } from "./taskTemplates";
 import { mindmapById } from "./mindmaps";
+import { deleteItemAttachmentLinks } from "./attachments";
 import {
   checklistItemsTable,
   dailyEntriesTable,
   type MindmapNode,
   mindmapNodesTable,
   notesTable,
+  noteType,
   stashEntriesTable,
   tasksTable,
+  taskType,
   trashedTasksTable,
   type TrashedTask,
   type TrashedTaskRow,
@@ -105,11 +108,33 @@ export const restoreTrashedTasks = action({
   },
 });
 
+// Trashed items keep their file links until they are purged.
+function* purgeTrashRows(rows: TrashedTaskRow[]) {
+  if (rows.length === 0) return;
+  yield* deleteRows(
+    trashedTasksTable,
+    rows.map((row) => row.id),
+  );
+  const items = rows.map(decodeTrashedTask);
+  yield* deleteItemAttachmentLinks(
+    taskType,
+    items.filter((item) => "task" in item).map((item) => item.id),
+  );
+  yield* deleteItemAttachmentLinks(
+    noteType,
+    items.filter((item) => "note" in item).map((item) => item.id),
+  );
+}
+
 export const deleteTrashedTasks = action({
   name: "deleteTrashedTasks",
   args: { ids: v.array(v.string()) },
   handler: function* deleteTrashedTasks({ ids }) {
-    yield* deleteRows(trashedTasksTable, ids);
+    if (ids.length === 0) return;
+    const rows = yield* selectFrom(trashedTasksTable, "byId").where((q) =>
+      ids.map((id) => q.eq("id", id)),
+    );
+    yield* purgeTrashRows(rows);
   },
 });
 
@@ -117,10 +142,8 @@ export const emptyTrash = action({
   name: "emptyTrash",
   args: {},
   handler: function* emptyTrash() {
-    const rows = yield* selectFrom(trashedTasksTable, "byTrashedAtId");
-    yield* deleteRows(
-      trashedTasksTable,
-      rows.map((row) => row.id),
+    yield* purgeTrashRows(
+      yield* selectFrom(trashedTasksTable, "byTrashedAtId"),
     );
   },
 });
@@ -132,10 +155,6 @@ export const purgeExpiredTrash = action({
     const expired = yield* selectFrom(trashedTasksTable, "byTrashedAtId").where(
       (q) => q.lt("trashedAt", now - TRASH_RETENTION_MS),
     );
-    if (expired.length === 0) return;
-    yield* deleteRows(
-      trashedTasksTable,
-      expired.map((row) => row.id),
-    );
+    yield* purgeTrashRows(expired);
   },
 });

@@ -349,6 +349,8 @@ test.describe("auto-scroll while dragging", () => {
     source: Locator,
     scroller: Locator,
   ) {
+    // Later weekdays' timeline columns start past the viewport's right edge.
+    await scroller.scrollIntoViewIfNeeded();
     const scrolled = await nextScroll(scroller);
     const dataTransfer = await startDrag(page, source);
     const box = await scroller.boundingBox();

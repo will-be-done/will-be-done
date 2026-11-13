@@ -1,6 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 import { createBackendAnalytics, type BackendAnalytics } from "./analytics";
 import { createAppRouter } from "./appRouter";
+import { attachmentCleanup } from "./attachments/cleanup";
+import { AttachmentStorage } from "./attachments/storage";
 import { Calendars, calendarSyncLoop } from "./calendars/scheduler";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
@@ -118,6 +120,7 @@ export class ApiServer extends Context.Service<
       const accountEmail = yield* AccountEmail;
       const google = yield* Google;
       const calendars = yield* Calendars;
+      const attachmentStorage = yield* AttachmentStorage;
       const server = yield* Effect.acquireRelease(
         Effect.sync(() =>
           createServer({
@@ -139,6 +142,7 @@ export class ApiServer extends Context.Service<
               globalOverride: { max: env.WBD_RATE_LIMIT_GLOBAL_MAX },
             },
             analytics,
+            attachmentStorage,
           }),
         ),
         (server) => Effect.promise(() => server.close()),
@@ -176,6 +180,14 @@ const CalendarSyncLive = Layer.effectDiscard(
       Effect.provideContext(calendars),
       Effect.forkScoped,
     );
+  }),
+);
+
+// Deletes files no item uses while the server runs.
+const AttachmentCleanupLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    yield* ApiServer;
+    yield* attachmentCleanup.pipe(Effect.forkScoped);
   }),
 );
 
@@ -264,11 +276,17 @@ const BackupWorkerLive = Layer.effectDiscard(
 export const AppLive = Layer.mergeAll(
   EmailWorkerLive,
   BackupWorkerLive,
+  AttachmentCleanupLive,
   CalendarSyncLive,
 ).pipe(
   Layer.provideMerge(ApiServer.layer),
   Layer.provideMerge(
-    Layer.mergeAll(AccountEmail.layer, Google.layer, Calendars.layer),
+    Layer.mergeAll(
+      AccountEmail.layer,
+      Google.layer,
+      Calendars.layer,
+      AttachmentStorage.layer,
+    ),
   ),
   Layer.provideMerge(Analytics.layer),
   Layer.provideMerge(MainDatabase.layer),

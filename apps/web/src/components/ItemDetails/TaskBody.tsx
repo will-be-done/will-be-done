@@ -47,6 +47,7 @@ import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
 import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 
 export function TaskBody({
   task,
@@ -203,6 +204,7 @@ export function TaskBody({
           }
           onSave={saveTitleDoc}
           setIsEditingTitle={setIsEditingTitle}
+          attachmentParent={{ parentType: "task", parentId: taskId }}
         />
       }
       properties={
@@ -326,8 +328,10 @@ export function TaskBody({
           contentDoc={task.contentDoc}
           onSave={saveContentDoc}
           setIsEditingDescription={setIsEditingDescription}
+          attachmentParent={{ parentType: "task", parentId: taskId }}
         />
       }
+      attachments={<ItemAttachments parentType="task" parentId={taskId} />}
       actions={
         <>
           {!taskTemplateId && (

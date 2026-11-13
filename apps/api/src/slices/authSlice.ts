@@ -165,6 +165,10 @@ export const generateToken = action({
   },
 });
 
+// Every authenticated request validates its token, so usage is recorded
+// coarsely to keep the request path from writing to the main database.
+const TOKEN_USAGE_WRITE_INTERVAL_MS = 5 * 60 * 1000;
+
 export const validateToken = action({
   name: "validateToken",
   args: {
@@ -184,16 +188,24 @@ export const validateToken = action({
       return null as User | null;
     }
 
-    yield* upsert(tokensTable, [
-      {
-        id: token.id,
-        userId: token.userId,
-        createdAt: token.createdAt,
-        lastUsedAt: usedAt,
-        ...(ip !== undefined ? { lastUsedIp: ip } : {}),
-        ...(userAgent !== undefined ? { lastUsedUserAgent: userAgent } : {}),
-      },
-    ]);
+    const usageIsFresh =
+      token.lastUsedAt !== undefined &&
+      Date.parse(usedAt) - Date.parse(token.lastUsedAt) <
+        TOKEN_USAGE_WRITE_INTERVAL_MS &&
+      (ip === undefined || ip === token.lastUsedIp) &&
+      (userAgent === undefined || userAgent === token.lastUsedUserAgent);
+    if (!usageIsFresh) {
+      yield* upsert(tokensTable, [
+        {
+          id: token.id,
+          userId: token.userId,
+          createdAt: token.createdAt,
+          lastUsedAt: usedAt,
+          ...(ip !== undefined ? { lastUsedIp: ip } : {}),
+          ...(userAgent !== undefined ? { lastUsedUserAgent: userAgent } : {}),
+        },
+      ]);
+    }
 
     return user;
   },

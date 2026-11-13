@@ -8,6 +8,11 @@ const repoRoot = path.resolve(scriptDir, "..");
 const apiPort = process.env.PLAYWRIGHT_API_PORT ?? "3200";
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? "5174";
 const caldavPort = process.env.PLAYWRIGHT_CALDAV_PORT ?? "5233";
+// A second API and web pair stores attachments in S3, served by moto.
+const s3ApiPort = process.env.PLAYWRIGHT_S3_API_PORT ?? "3201";
+const s3WebPort = process.env.PLAYWRIGHT_S3_WEB_PORT ?? "5175";
+const s3Port = process.env.PLAYWRIGHT_S3_PORT ?? "5234";
+const s3Bucket = "wbd-e2e-attachments";
 const e2eDbPath =
   process.env.WBD_E2E_DB_PATH ?? path.join(repoRoot, "db", "e2e");
 
@@ -123,11 +128,68 @@ async function main() {
     { cwd: repoRoot },
   );
 
-  console.log(`Starting API on http://127.0.0.1:${apiPort}`);
-  console.log(`Using E2E DB path: ${e2eDbPath}`);
+  console.log(`Starting moto S3 on http://127.0.0.1:${s3Port}`);
+  spawnService("moto", "moto_server", ["-H", "127.0.0.1", "-p", s3Port], {
+    cwd: repoRoot,
+  });
 
+  console.log(`Using E2E DB path: ${e2eDbPath}`);
+  startApi("api", apiPort, e2eDbPath, {
+    WBD_ATTACHMENTS_PATH: path.join(e2eDbPath, "attachments"),
+  });
+  startApi("api-s3", s3ApiPort, path.join(e2eDbPath, "s3-api"), {
+    WBD_ATTACHMENTS_STORAGE: "s3",
+    WBD_ATTACHMENTS_S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
+    WBD_ATTACHMENTS_S3_BUCKET_NAME: s3Bucket,
+    WBD_ATTACHMENTS_S3_ACCESS_KEY_ID: "e2e",
+    WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY: "e2e-secret",
+  });
+
+  try {
+    await waitForReady("moto", `http://127.0.0.1:${s3Port}/`, 30_000);
+    // moto keeps buckets in memory, so every run starts with an empty one.
+    const bucket = await fetch(`http://127.0.0.1:${s3Port}/${s3Bucket}`, {
+      method: "PUT",
+    });
+    if (!bucket.ok) throw new Error(`Creating ${s3Bucket}: ${bucket.status}`);
+    await waitForReady(
+      "api",
+      `http://127.0.0.1:${apiPort}/api/health`,
+      120_000,
+    );
+    await waitForReady(
+      "api-s3",
+      `http://127.0.0.1:${s3ApiPort}/api/health`,
+      120_000,
+    );
+    await waitForReady(
+      "radicale",
+      `http://127.0.0.1:${caldavPort}/.web/`,
+      30_000,
+    );
+    // Playwright waits only for the main web server.
+    startWeb("web-s3", s3WebPort, s3ApiPort);
+    await waitForReady("web-s3", `http://127.0.0.1:${s3WebPort}`, 120_000);
+  } catch (error) {
+    console.error(error);
+    shutdown(1);
+    await sleep(300);
+    process.exit(1);
+  }
+
+  startWeb("web", webPort, apiPort);
+}
+
+function startApi(
+  name: string,
+  port: string,
+  dbPath: string,
+  storageEnv: NodeJS.ProcessEnv,
+) {
+  console.log(`Starting ${name} on http://127.0.0.1:${port}`);
+  fs.mkdirSync(dbPath, { recursive: true });
   spawnService(
-    "api",
+    name,
     "bun",
     [
       "run",
@@ -140,9 +202,9 @@ async function main() {
       cwd: path.join(repoRoot, "apps", "api"),
       env: {
         NODE_ENV: "development",
-        PORT: apiPort,
+        PORT: port,
         WBD_DB_ENGINE: "sqlite",
-        WBD_DB_PATH: e2eDbPath,
+        WBD_DB_PATH: dbPath,
         WBD_CF_CAPTCHA_ENABLED: "false",
         WBD_BACKUP_S3_ENABLED: "false",
         WBD_RATE_LIMIT_ENABLED: "false",
@@ -154,39 +216,21 @@ async function main() {
         WBD_EMAIL_PUBLIC_APP_URL: "",
         WBD_CALENDAR_ENCRYPTION_KEY: "e2e-calendar-encryption-key-0123456789",
         WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: "true",
+        ...storageEnv,
       },
     },
   );
+}
 
-  try {
-    await waitForReady(
-      "api",
-      `http://127.0.0.1:${apiPort}/api/health`,
-      120_000,
-    );
-    await waitForReady(
-      "radicale",
-      `http://127.0.0.1:${caldavPort}/.web/`,
-      30_000,
-    );
-  } catch (error) {
-    console.error(error);
-    shutdown(1);
-    await sleep(300);
-    process.exit(1);
-  }
-
-  console.log(`Starting web on http://127.0.0.1:${webPort}`);
-
+function startWeb(name: string, port: string, apiPort: string) {
+  console.log(`Starting ${name} on http://127.0.0.1:${port}`);
   spawnService(
-    "web",
+    name,
     "pnpm",
-    ["exec", "vite", "--host", "127.0.0.1", "--port", webPort, "--strictPort"],
+    ["exec", "vite", "--host", "127.0.0.1", "--port", port, "--strictPort"],
     {
       cwd: path.join(repoRoot, "apps", "web"),
-      env: {
-        VITE_API_PORT: apiPort,
-      },
+      env: { VITE_API_PORT: apiPort },
     },
   );
 }

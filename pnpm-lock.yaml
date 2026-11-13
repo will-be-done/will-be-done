@@ -64,11 +64,11 @@ importers:
         specifier: ^10.70.0
         version: 10.70.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
       '@trpc/client':
-        specifier: ^11.7.2
-        version: 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
+        specifier: ^11.27.0
+        version: 11.27.0(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(typescript@5.9.3)
       '@trpc/server':
-        specifier: ^11.7.2
-        version: 11.18.0(typescript@5.9.3)
+        specifier: ^11.27.0
+        version: 11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3)
       '@tursodatabase/api':
         specifier: ^2.0.5
         version: 2.0.5
@@ -479,11 +479,11 @@ importers:
         specifier: ^3.0.10
         version: 3.0.11(prosemirror-model@1.25.12)(prosemirror-state@1.4.4)(prosemirror-view@1.42.8)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33)
       '@trpc/client':
-        specifier: ^11.7.2
-        version: 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
+        specifier: ^11.27.0
+        version: 11.27.0(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(typescript@5.9.3)
       '@trpc/tanstack-react-query':
-        specifier: ^11.7.2
-        version: 11.18.0(@tanstack/react-query@5.101.1(react@19.2.7))(@trpc/client@11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.18.0(typescript@5.9.3))(react@19.2.7)(typescript@5.9.3)
+        specifier: ^11.27.0
+        version: 11.27.0(@tanstack/react-query@5.101.1(react@19.2.7))(@trpc/client@11.27.0(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(react@19.2.7)(typescript@5.9.3)
       '@will-be-done/api':
         specifier: workspace:*
         version: link:../api
@@ -520,6 +520,9 @@ importers:
       fast-equals:
         specifier: ^5.3.3
         version: 5.4.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       fractional-indexing-jittered:
         specifier: ^1.0.0
         version: 1.0.0
@@ -614,6 +617,9 @@ importers:
         specifier: ^5.0.8
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1075.0
+        version: 3.1075.0
       '@eslint/js':
         specifier: ^9.39.1
         version: 9.39.4
@@ -4362,26 +4368,39 @@ packages:
     resolution: {integrity: sha512-/67zpWDBLV+oYAEL682s1ktXL0HgqX76f6gaVGkGnVZlBbm1zd0v4Bz8MFF2GGhoX9rvfq3KSQHubFHwa6w6/Q==}
     engines: {node: '>=12'}
 
-  '@trpc/client@11.18.0':
-    resolution: {integrity: sha512-wOqeg3Fvl25V1ZisQhUD3K8G60ZJDlSGJNSyeXrLH24xAo5w6GSR2Kzb1cSNY9Y+IQ2YZvYGZstBU+V/ulo/ow==}
-    hasBin: true
+  '@trpc/client@11.27.0':
+    resolution: {integrity: sha512-nr7fVsMCO+h4s0itiNCFqbWCGHroTtv2sgulGV0vYSLUEFrw6j9nOgSf3ePBfObcMZBSlYTRUo9hOhsmI5Xvkw==}
     peerDependencies:
-      '@trpc/server': 11.18.0
+      '@trpc/server': 11.27.0
       typescript: '>=5.7.2'
 
-  '@trpc/server@11.18.0':
-    resolution: {integrity: sha512-JAvXOuNTxgXjIDfQaOvDq1j66LMNfDJUH1IU7Slfn8EvRv2EkH6ehu3A7zpYhjO0syHHiYg77v2lG2JFJgvw7Q==}
-    hasBin: true
+  '@trpc/server@11.27.0':
+    resolution: {integrity: sha512-11+mYLTbE9wq6vS+jihjzkc1G2tOs0o/SB40/U18k0D1Er7EgV1eQGIRsIJzD1lrAe0pqjzMy0S1x0TPuCQjaA==}
     peerDependencies:
+      '@types/aws-lambda': '*'
+      '@types/express': '*'
+      '@types/ws': '*'
+      fastify: '*'
+      next: '*'
       typescript: '>=5.7.2'
+    peerDependenciesMeta:
+      '@types/aws-lambda':
+        optional: true
+      '@types/express':
+        optional: true
+      '@types/ws':
+        optional: true
+      fastify:
+        optional: true
+      next:
+        optional: true
 
-  '@trpc/tanstack-react-query@11.18.0':
-    resolution: {integrity: sha512-dm5xIlN0SEzJAbQ34EHdb1Kgd/zWZ63ZMviQEw3WCWCIPz8MjLKAhquncPcn+YxFUJa+Qi4qatdGFymmM4HmAQ==}
-    hasBin: true
+  '@trpc/tanstack-react-query@11.27.0':
+    resolution: {integrity: sha512-MgpPSQIBrDN9s1NXgiMVyvxyMhkrp5b1lIo3qLXB99dK1CKuhl/+evA/txoijqS+PXPbyfW2fdNEQmeIEZStBA==}
     peerDependencies:
       '@tanstack/react-query': ^5.80.3
-      '@trpc/client': 11.18.0
-      '@trpc/server': 11.18.0
+      '@trpc/client': 11.27.0
+      '@trpc/server': 11.27.0
       react: 19.2.7
       typescript: '>=5.7.2'
 
@@ -5787,9 +5806,6 @@ packages:
   fast-sha256@1.3.0:
     resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
 
-  fast-uri@3.1.2:
-    resolution: {integrity: sha512-rVjf7ArG3LTk+FS6Yw81V1DLuZl1bRbNrev6Tmd/9RaroeeRRJhAt7jg/6YFxbvAQXUCavSoZhPPj6oOx+5KjQ==}
-
   fast-uri@3.1.3:
     resolution: {integrity: sha512-i70LwGWUduXqzicKXWshooq+sWL1K3WUU5rKZNG/0i3a1OSoX3HqhH5WbWwTmqWfor4urUakGPiRQcleRZTwOg==}
 
@@ -5845,6 +5861,9 @@ packages:
 
   fflate@0.4.8:
     resolution: {integrity: sha512-FJqqoDBR00Mdj9ppamLa/Y7vxm+PRmNWA67N846RvsoYVMKB4q3y/de5PA7gUmRMYK/8CMz2GDZQmCRN1wBcWA==}
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   figures@6.1.0:
     resolution: {integrity: sha512-d+l3qxjSesT4V7v2fh+QnmFnUWv9lSpjarhShNTgBOfA0ttejbQUAlHLitbjkoRiDulW0OPoQPYIGhIC8ohejg==}
@@ -10922,7 +10941,7 @@ snapshots:
     dependencies:
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
-      fast-uri: 3.1.2
+      fast-uri: 3.1.3
 
   '@fastify/busboy@3.2.0': {}
 
@@ -13238,20 +13257,23 @@ snapshots:
       magic-string: 0.30.21
       string.prototype.matchall: 4.0.12
 
-  '@trpc/client@11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)':
+  '@trpc/client@11.27.0(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
-      '@trpc/server': 11.18.0(typescript@5.9.3)
+      '@trpc/server': 11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3)
       typescript: 5.9.3
 
-  '@trpc/server@11.18.0(typescript@5.9.3)':
+  '@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
+    optionalDependencies:
+      '@types/ws': 8.18.2
+      fastify: 5.8.5
 
-  '@trpc/tanstack-react-query@11.18.0(@tanstack/react-query@5.101.1(react@19.2.7))(@trpc/client@11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.18.0(typescript@5.9.3))(react@19.2.7)(typescript@5.9.3)':
+  '@trpc/tanstack-react-query@11.27.0(@tanstack/react-query@5.101.1(react@19.2.7))(@trpc/client@11.27.0(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(react@19.2.7)(typescript@5.9.3)':
     dependencies:
       '@tanstack/react-query': 5.101.1(react@19.2.7)
-      '@trpc/client': 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
-      '@trpc/server': 11.18.0(typescript@5.9.3)
+      '@trpc/client': 11.27.0(@trpc/server@11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3))(typescript@5.9.3)
+      '@trpc/server': 11.27.0(@types/ws@8.18.2)(fastify@5.8.5)(typescript@5.9.3)
       react: 19.2.7
       typescript: 5.9.3
 
@@ -15118,7 +15140,7 @@ snapshots:
       '@fastify/merge-json-schemas': 0.2.1
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
-      fast-uri: 3.1.2
+      fast-uri: 3.1.3
       json-schema-ref-resolver: 3.0.0
       rfdc: 1.4.1
 
@@ -15129,8 +15151,6 @@ snapshots:
       fast-decode-uri-component: 1.0.1
 
   fast-sha256@1.3.0: {}
-
-  fast-uri@3.1.2: {}
 
   fast-uri@3.1.3: {}
 
@@ -15207,6 +15227,8 @@ snapshots:
       web-streams-polyfill: 3.3.3
 
   fflate@0.4.8: {}
+
+  fflate@0.8.3: {}
 
   figures@6.1.0:
     dependencies:

@@ -23,6 +23,14 @@ import {
 } from "./syncMap";
 import {
   AnyModel,
+  type Attachment,
+  attachmentBackgroundType,
+  attachmentParentType,
+  attachmentsTable,
+  attachmentType,
+  type ItemAttachment,
+  itemAttachmentsTable,
+  itemAttachmentType,
   ChecklistItem,
   checklistItemType,
   ChecklistParentType,
@@ -54,6 +62,7 @@ import {
   type TrashSnapshot,
 } from "./tables";
 import { uuidv7 } from "uuidv7";
+import { attachmentRowProblem, imageSizeProblem } from "./attachments";
 
 // TODO: use type from  vackupValidator
 interface ProjectSectionBackup {
@@ -161,6 +170,26 @@ interface MindmapNodeBackup {
   createdAt: number;
 }
 
+interface AttachmentBackup {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  createdAt: number;
+  width?: number;
+  height?: number;
+}
+
+interface ItemAttachmentBackup {
+  id: string;
+  attachmentId: string;
+  parentId: string;
+  parentType: ItemAttachment["parentType"];
+  orderToken: string;
+  createdAt: number;
+}
+
 interface TrashedTaskBackup {
   id: string;
   trashedAt: number;
@@ -179,6 +208,9 @@ export interface Backup {
   mindmaps?: MindmapBackup[];
   mindmapNodes?: MindmapNodeBackup[];
   notes?: NoteBackup[];
+  // File bytes travel next to the backup, in the export archive.
+  attachments?: AttachmentBackup[];
+  itemAttachments?: ItemAttachmentBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -351,6 +383,37 @@ const backupSchema = v.object({
         orderToken: v.string(),
         createdAt: v.number(),
         projectSectionId: v.string(),
+      }),
+    ),
+  ),
+  attachments: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        mimeType: v.string(),
+        size: v.number(),
+        sha256: v.string(),
+        createdAt: v.number(),
+        width: v.optional(v.number()),
+        height: v.optional(v.number()),
+      }),
+    ),
+  ),
+  itemAttachments: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        attachmentId: v.string(),
+        parentId: v.string(),
+        // Background links are dropped on load: this version restores no
+        // backgrounds.
+        parentType: v.union(
+          attachmentParentType,
+          v.literal(attachmentBackgroundType),
+        ),
+        orderToken: v.string(),
+        createdAt: v.number(),
       }),
     ),
   ),
@@ -808,10 +871,14 @@ const getNewModels = action({
         .map(({ id }) => id),
     );
     const trashedTasks: TrashedTaskRow[] = [];
+    const trashedParents: string[] = [];
     for (const row of backup.trashedTasks || []) {
       if (liveItemIds.has(row.id)) continue;
       const snapshot = parseTrashSnapshot(row);
       if (!snapshot) continue;
+      trashedParents.push(
+        `${"note" in snapshot ? noteType : taskType}:${row.id}`,
+      );
       if ("note" in snapshot) {
         trashedTasks.push({
           type: trashedTaskType,
@@ -858,7 +925,53 @@ const getNewModels = action({
       mindmapNodes.push({ type: mindmapNodeType, ...node });
     }
 
-    return { models, trashedTasks, mindmaps, mindmapNodes };
+    const attachments: Attachment[] = [];
+    for (const attachment of backup.attachments || []) {
+      const problem = attachmentRowProblem(attachment);
+      if (problem) {
+        console.warn(`Attachment ${attachment.id} omitted: ${problem}`);
+        continue;
+      }
+      // A bad size is only a hint; the file and its links stay.
+      const { width: _width, height: _height, ...unsized } = attachment;
+      attachments.push({
+        type: attachmentType,
+        ...(imageSizeProblem(attachment) ? unsized : attachment),
+      });
+    }
+    const attachmentIds = new Set(attachments.map(({ id }) => id));
+    // Items in the trash keep their links too.
+    const parentIds = new Set([
+      ...models
+        .filter(
+          (model) =>
+            model.type === taskType ||
+            model.type === noteType ||
+            model.type === taskTemplateType,
+        )
+        .map(({ type, id }) => `${type}:${id}`),
+      ...trashedParents,
+    ]);
+    const itemAttachments: ItemAttachment[] = [];
+    for (const link of backup.itemAttachments || []) {
+      if (
+        !attachmentIds.has(link.attachmentId) ||
+        !parentIds.has(`${link.parentType}:${link.parentId}`)
+      ) {
+        console.warn(`Attachment link ${link.id} omitted: target not found`);
+        continue;
+      }
+      itemAttachments.push({ type: itemAttachmentType, ...link });
+    }
+
+    return {
+      models,
+      trashedTasks,
+      mindmaps,
+      mindmapNodes,
+      attachments,
+      itemAttachments,
+    };
   },
 });
 
@@ -878,10 +991,16 @@ export const loadSpaceBackup = action({
       yield* deleteRows(table, allIds);
     }
 
-    const { models, trashedTasks, mindmaps, mindmapNodes } =
-      yield* getNewModels({
-        backup: normalizeSpaceBackup(backup),
-      });
+    const {
+      models,
+      trashedTasks,
+      mindmaps,
+      mindmapNodes,
+      attachments,
+      itemAttachments,
+    } = yield* getNewModels({
+      backup: normalizeSpaceBackup(backup),
+    });
     const modelsByTable = new Map<
       (typeof registeredSpaceSyncableTables)[number],
       AnyModel[]
@@ -906,6 +1025,10 @@ export const loadSpaceBackup = action({
     if (mindmapNodes.length > 0) {
       yield* insert(mindmapNodesTable, mindmapNodes);
     }
+    if (attachments.length > 0) yield* insert(attachmentsTable, attachments);
+    if (itemAttachments.length > 0) {
+      yield* insert(itemAttachmentsTable, itemAttachments);
+    }
   },
 });
 
@@ -921,6 +1044,8 @@ export const getSpaceBackup = selector({
     const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
     const mindmaps = yield* selectFrom(mindmapsTable, "byIds");
     const mindmapNodes = yield* selectFrom(mindmapNodesTable, "byIds");
+    const attachments = yield* selectFrom(attachmentsTable, "byIds");
+    const itemAttachments = yield* selectFrom(itemAttachmentsTable, "byIds");
     const dailyLists: DailyList[] = [];
 
     // Get all daily lists
@@ -1033,6 +1158,12 @@ export const getSpaceBackup = selector({
         orderToken: note.orderToken,
         createdAt: note.createdAt,
         projectSectionId: note.projectSectionId,
+      })),
+      attachments: attachments.map(({ type: _type, ...attachment }) => ({
+        ...attachment,
+      })),
+      itemAttachments: itemAttachments.map(({ type: _type, ...link }) => ({
+        ...link,
       })),
     } satisfies Backup;
   },

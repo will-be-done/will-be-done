@@ -27,6 +27,7 @@ import { NoteBody } from "./NoteBody.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AttachmentDropZone } from "@/components/Attachments/AttachmentDropZone.tsx";
 import {
   useItemDetailsSize,
   useItemDetailsOpen,
@@ -78,6 +79,7 @@ export function ItemDetails() {
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (
       e.key === "Escape" &&
+      !e.defaultPrevented &&
       isVisible &&
       !isEditingAnyField &&
       !useFocusStore.getState().isFocusDisabled
@@ -197,38 +199,47 @@ export function ItemDetails() {
           )}
           style={{ width: `${width}px` }}
         >
-          <ScrollArea rootClassName="h-full">
-            {/* Header */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
-              <span className="text-content-tinted text-xs font-medium flex-1">
-                Item Details
-              </span>
-              {focusedItem && (
-                <Link
-                  {...itemPageLocation(spaceId, focusedItem)}
-                  title="Open as page"
-                  aria-label="Open as page"
-                  className="-my-1 cursor-pointer rounded p-1 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
-                >
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </Link>
-              )}
-            </div>
-
-            {focusedItem ? (
-              <ItemDetailsBody
-                item={focusedItem}
-                isEditingTitle={isEditingTitle}
-                setIsEditingTitle={setIsEditingTitle}
-                isEditingDescription={isEditingDescription}
-                setIsEditingDescription={setIsEditingDescription}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
-                Select a task
+          <AttachmentDropZone
+            parent={
+              focusedItem
+                ? { parentType: focusedItem.type, parentId: focusedItem.id }
+                : undefined
+            }
+            className="h-full"
+          >
+            <ScrollArea rootClassName="h-full">
+              {/* Header */}
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
+                <span className="text-content-tinted text-xs font-medium flex-1">
+                  Item Details
+                </span>
+                {focusedItem && (
+                  <Link
+                    {...itemPageLocation(spaceId, focusedItem)}
+                    title="Open as page"
+                    aria-label="Open as page"
+                    className="-my-1 cursor-pointer rounded p-1 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
-            )}
-          </ScrollArea>
+
+              {focusedItem ? (
+                <ItemDetailsBody
+                  item={focusedItem}
+                  isEditingTitle={isEditingTitle}
+                  setIsEditingTitle={setIsEditingTitle}
+                  isEditingDescription={isEditingDescription}
+                  setIsEditingDescription={setIsEditingDescription}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
+                  Select a task
+                </div>
+              )}
+            </ScrollArea>
+          </AttachmentDropZone>
         </div>
       </div>
     </div>

@@ -102,6 +102,20 @@ The commands below assume the container and volume names from **Start the
 server**. If you already have an installation, use its actual names and mounts.
 Do not switch an existing installation to a new empty volume during an update.
 
+Attached files are stored in `/var/lib/will-be-done/attachments` by default;
+set `WBD_ATTACHMENTS_PATH` to use another directory. Back them up together with
+the databases. To store files in S3-compatible storage instead, which several
+server instances can share, set:
+
+```sh
+WBD_ATTACHMENTS_STORAGE=s3
+WBD_ATTACHMENTS_S3_ACCESS_KEY_ID=your-access-key
+WBD_ATTACHMENTS_S3_SECRET_ACCESS_KEY=your-secret-key
+WBD_ATTACHMENTS_S3_BUCKET_NAME=will-be-done-attachments
+WBD_ATTACHMENTS_S3_ENDPOINT=https://s3.us-east-1.amazonaws.com
+WBD_ATTACHMENTS_S3_REGION=us-east-1
+```
+
 Back up each SQLite database manually, including before updates. Use SQLite's
 `.backup` command to create consistent backup files while the server is running.
 It includes committed changes from the WAL, so no separate checkpoint is needed.

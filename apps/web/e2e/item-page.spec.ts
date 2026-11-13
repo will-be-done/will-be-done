@@ -42,6 +42,14 @@ test("opens a task page from its menu and edits the task there", async ({
   const done = page.getByRole("checkbox").first();
   await done.click();
   await expect(done).toBeChecked();
+  await page.getByTestId("attachment-input").setInputFiles({
+    name: "report-notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Report notes"),
+  });
+  await expect(
+    page.getByTestId("item-attachments").getByText("report-notes.txt"),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Close" }).click();
   await expect(page).toHaveURL(/\/projects\//);

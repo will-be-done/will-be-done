@@ -29,6 +29,7 @@ import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { ChecklistItems } from "@/components/Checklist/Checklist";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 
 export function TemplateBody({
   template,
@@ -123,6 +124,7 @@ export function TemplateBody({
           titleDoc={template.titleDoc}
           onSave={saveTitleDoc}
           setIsEditingTitle={setIsEditingTitle}
+          attachmentParent={{ parentType: "template", parentId: templateId }}
         />
       }
       properties={
@@ -209,7 +211,11 @@ export function TemplateBody({
           contentDoc={template.contentDoc}
           onSave={saveContentDoc}
           setIsEditingDescription={setIsEditingDescription}
+          attachmentParent={{ parentType: "template", parentId: templateId }}
         />
+      }
+      attachments={
+        <ItemAttachments parentType="template" parentId={templateId} />
       }
       actions={
         <DetailsAction

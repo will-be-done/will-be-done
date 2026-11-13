@@ -1,3 +1,4 @@
+import { copyAttachmentsToItemCopies } from "./attachments";
 import {
   insert,
   selectFrom,
@@ -328,6 +329,13 @@ export function* insertItemCopies(
       yield* insert(checklistItemsTable, checklistCopies);
     }
   }
+  yield* copyAttachmentsToItemCopies(
+    placed.map(({ original, copy }) => ({
+      parentType: original.type,
+      originalId: original.id,
+      copyId: copy.id,
+    })),
+  );
   return new Map(placed.map(({ original, copy }) => [original.id, copy]));
 }
 

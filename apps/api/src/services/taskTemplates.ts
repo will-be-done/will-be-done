@@ -5,6 +5,7 @@ import {
   createTaskTemplate,
   createTaskTemplateFromTask,
   deleteTemplates,
+  ensureInlineAttachmentLinks,
   syncItemRichText,
   taskById,
   taskTemplateById,
@@ -34,6 +35,7 @@ const replaceTaskTemplate = action({
   args: { template: taskTemplatesTable.v() },
   handler: function* ({ template }) {
     yield* upsert(taskTemplatesTable, [template]);
+    yield* ensureInlineAttachmentLinks("template", template.id, template);
   },
 });
 

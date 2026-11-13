@@ -8,6 +8,8 @@ kill_timeout = "15s"
 
 [env]
   PORT = "3000"
+  # Machines have no persistent disk. Needs the WBD_ATTACHMENTS_S3_* secrets.
+  WBD_ATTACHMENTS_STORAGE = "s3"
   WBD_BACKUP_S3_ENABLED = "false"
   WBD_CF_CAPTCHA_ENABLED = "false"
   WBD_DB_ENGINE = "tursod"

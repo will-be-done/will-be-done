@@ -17,6 +17,12 @@ import {
   getSyncUpdateRequired,
   subscribeSyncUpdateRequired,
 } from "@/store/syncCompatibility";
+import {
+  attachmentTransfersByDB,
+  idleTransferStatus,
+  type TransferProgress,
+} from "@/store/attachments/transfers";
+import { formatFileSize } from "@/components/Attachments/attachmentFiles";
 
 const phaseLabels: Record<SyncPhase, string> = {
   waiting: "Waiting to sync",
@@ -30,6 +36,43 @@ const phaseLabels: Record<SyncPhase, string> = {
   error: "Sync interrupted",
   "update-required": "Update required",
 };
+
+function ProgressBar({
+  label,
+  detail,
+  value,
+  max,
+}: {
+  label: string;
+  detail: string;
+  value: number;
+  max: number;
+}) {
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 flex justify-between gap-2 text-[11px] text-content-tinted tabular-nums">
+        <span>{label}</span>
+        <span>{detail}</span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        className="h-1 overflow-hidden rounded-full bg-content/10"
+      >
+        <div
+          className="h-full rounded-full bg-yellow-400 motion-safe:transition-[width]"
+          style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+const fileTransferLabel = (verb: string, { files }: TransferProgress) =>
+  `${verb} ${files} ${files === 1 ? "file" : "files"}`;
 
 function SyncingDot() {
   const [slow, setSlow] = useState(false);
@@ -61,6 +104,11 @@ export function SyncIndicator() {
     (listener) => store?.leader.subscribe(listener) ?? (() => {}),
     () => store?.leader.get() ?? false,
   );
+  const transfers = attachmentTransfersByDB.get(db);
+  const transferStatus = useSyncExternalStore(
+    (listener) => transfers?.status.subscribe(listener) ?? (() => {}),
+    () => transfers?.status.get() ?? idleTransferStatus,
+  );
   const updateRequired = useSyncExternalStore(
     subscribeSyncUpdateRequired,
     getSyncUpdateRequired,
@@ -85,8 +133,14 @@ export function SyncIndicator() {
   const phase = updateRequired ? "update-required" : status.phase;
   const disconnected =
     !online || phase === "error" || phase === "update-required";
-  const syncing = !disconnected && phase !== "synced";
-  const label = !online ? "Offline" : phaseLabels[phase];
+  const { uploading, downloading } = transferStatus;
+  const transferring = uploading.files + downloading.files > 0;
+  const syncing = !disconnected && (phase !== "synced" || transferring);
+  const label = !online
+    ? "Offline"
+    : phase === "synced" && transferring
+      ? "Transferring files"
+      : phaseLabels[phase];
   const progress =
     !disconnected && status.progress?.total ? status.progress : null;
 
@@ -134,34 +188,38 @@ export function SyncIndicator() {
               ? "Update the app to resume syncing."
               : phase === "error"
                 ? status.error
-                : phase === "synced"
+                : phase === "synced" && !transferring
                   ? "This space is up to date on the server."
                   : "Your changes are saved on this device while sync finishes."}
         </p>
         {progress && (
-          <div className="mt-3">
-            <div className="mb-1.5 flex justify-between text-[11px] text-content-tinted tabular-nums">
-              <span>Transfer progress</span>
-              <span>
-                {progress.completed} / {progress.total} batches
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-label={phaseLabels[phase]}
-              aria-valuemin={0}
-              aria-valuemax={progress.total}
-              aria-valuenow={progress.completed}
-              className="h-1 overflow-hidden rounded-full bg-content/10"
-            >
-              <div
-                className="h-full rounded-full bg-yellow-400 motion-safe:transition-[width]"
-                style={{
-                  width: `${(progress.completed / progress.total) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
+          <ProgressBar
+            label="Transfer progress"
+            detail={`${progress.completed} / ${progress.total} batches`}
+            value={progress.completed}
+            max={progress.total}
+          />
+        )}
+        {uploading.files > 0 && (
+          <ProgressBar
+            label={fileTransferLabel("Uploading", uploading)}
+            detail={`${formatFileSize(uploading.bytesDone)} / ${formatFileSize(uploading.bytesTotal)}`}
+            value={uploading.bytesDone}
+            max={uploading.bytesTotal}
+          />
+        )}
+        {downloading.files > 0 && (
+          <ProgressBar
+            label={fileTransferLabel("Downloading", downloading)}
+            detail={`${formatFileSize(downloading.bytesDone)} / ${formatFileSize(downloading.bytesTotal)}`}
+            value={downloading.bytesDone}
+            max={downloading.bytesTotal}
+          />
+        )}
+        {transferStatus.error && (
+          <p className="mt-2 text-[11px] leading-relaxed text-amber-400/90">
+            {transferStatus.error}
+          </p>
         )}
         <div className="mt-3 border-t border-white/10 pt-2 text-[11px]">
           <span className="text-content-tinted">Last successful sync</span>

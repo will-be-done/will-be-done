@@ -20,6 +20,7 @@ import { RichTextEditor } from "@/components/RichText/RichTextEditor";
 import { RichTextView } from "@/components/RichText/RichTextView";
 import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
+import { useAttachFiles } from "@/components/Attachments/attachmentFiles";
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
 import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker.tsx";
@@ -132,6 +133,7 @@ export function MindmapNodeCard({
     enabled: !!task,
   });
   const color = branchColor(layout.branch);
+  const attachFiles = useAttachFiles(item?.type ?? "task", item?.id ?? "");
 
   const stored = item
     ? { text: item.title, doc: item.titleDoc }
@@ -303,6 +305,7 @@ export function MindmapNodeCard({
                 onExit={handleExit}
                 onBlur={handleBlur}
                 required={!!item}
+                {...(item ? { attachFiles } : {})}
                 autoFocus
                 caretOffset={caretOffset}
                 placeholder={placeholder}

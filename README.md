@@ -297,27 +297,25 @@ Planned for v1.0:
 - [x] Todoist / TickTick migration
 - [x] Desktop app with global quick add
 - [x] OpenAPI integration
-- [ ] CLI app
+- [x] Task attachments
 - [x] Undo / redo
+- [x] readonly CalDAV integration
+- [x] Multi-select tasks
+- [ ] Global search
+- [ ] Project colors, backgrounds and task colors
+- [ ] Global themes
+- [ ] Task comments
+- [ ] Global command palette
+- [ ] Internationalization
+- [ ] CLI app
+- [ ] MCP integration
+- [ ] Installable apps from app store
+- [ ] End-to-end encryption
 
 Possible next features:
 
-- [ ] Task comments
-- [ ] Task attachments
-- [ ] CalDAV integration
-- [ ] MCP integration
-- [ ] Project themes with custom backgrounds and task colors
-- [ ] Global command palette
-- [x] Multi-select tasks
-- [ ] Global themes
-- [ ] Drag and drop for project columns
-- [ ] Internationalization
-- [ ] More Vim keybindings
-- [ ] End-to-end encryption
-- [ ] Global search
 - [ ] Mobile widgets
 - [ ] Notifications on web, mobile, and desktop
-- [ ] Mobile app store builds (the web app packaged for iOS and Android)
 
 Not planned for now:
 
@@ -364,9 +362,10 @@ pnpm test
 pnpm test:e2e
 ```
 
-The web E2E suite starts a [Radicale](https://radicale.org/) CalDAV server, so
-`radicale` must be on your `PATH` (`uv tool install radicale` or
-`pipx install radicale`).
+The web E2E suite starts a [Radicale](https://radicale.org/) CalDAV server and
+a [moto](https://docs.getmoto.org/) S3 server, so `radicale` and `moto_server`
+must be on your `PATH` (`uv tool install radicale` and
+`uv tool install "moto[server]"`, or the same with `pipx`).
 
 ## Why another task manager?
 

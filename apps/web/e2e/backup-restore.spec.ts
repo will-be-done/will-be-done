@@ -1,7 +1,9 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "playwright/test";
 
 import {
   createSpace,
+  createTodayTask,
   dailyTaskItem,
   openSpace,
   closeSpaceSettings,
@@ -10,6 +12,7 @@ import {
   projectSidebarLink,
   projectTaskItem,
   signupUser,
+  solidPng,
   uniqueE2EName,
 } from "./helpers";
 
@@ -74,6 +77,57 @@ test("restores a JSON backup through settings", async ({ page }) => {
 
   await page.getByRole("link", { name: /today/i }).click();
   await expect(dailyTaskItem(page, taskTitle)).toBeVisible();
+});
+
+test("restores a ZIP backup with its files into another space", async ({
+  page,
+}) => {
+  const sourceSpace = uniqueE2EName("E2E Archive Source");
+  const targetSpace = uniqueE2EName("E2E Archive Target");
+  const taskTitle = uniqueE2EName("E2E archived task");
+  await signupUser(page);
+  await createSpace(page, sourceSpace);
+  await openSpace(page, sourceSpace);
+  await createTodayTask(page, taskTitle);
+  await openTaskDetails(page, taskTitle);
+  await page.getByTestId("attachment-input").setInputFiles({
+    name: "shot.png",
+    mimeType: "image/png",
+    buffer: solidPng(40, 30),
+  });
+  await expect(
+    page
+      .getByTestId("item-attachments")
+      .getByRole("button", { name: "Open shot.png" }),
+  ).toBeVisible();
+
+  const source = await openSpaceSettings(page, "Backup");
+  const downloadPromise = page.waitForEvent("download");
+  await source.getByRole("button", { name: "Download" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.zip$/);
+  const archive = await readFile(await download.path());
+  await page.goto("/spaces");
+  await createSpace(page, targetSpace);
+  await openSpace(page, targetSpace);
+  const target = await openSpaceSettings(page, "Backup");
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByTestId("backup-restore-input").setInputFiles({
+    name: download.suggestedFilename(),
+    mimeType: "application/zip",
+    buffer: archive,
+  });
+  await expect(target.getByText("Restored successfully")).toBeVisible();
+
+  // The thumbnail shows only once the bytes are on this device.
+  await page
+    .getByRole("navigation", { name: "Settings" })
+    .getByRole("link", { name: "Files", exact: true })
+    .click();
+  await expect(
+    target.getByRole("button", { name: "Open shot.png" }).locator("img"),
+  ).toBeVisible();
+  await expect(target.getByRole("link", { name: taskTitle })).toBeVisible();
 });
 
 function createTinyBackup({

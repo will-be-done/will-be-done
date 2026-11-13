@@ -5,6 +5,7 @@ export function ItemDetailsLayout({
   properties,
   checklist,
   description,
+  attachments,
   actions,
   children,
 }: {
@@ -12,6 +13,7 @@ export function ItemDetailsLayout({
   properties: React.ReactNode;
   checklist?: React.ReactNode;
   description: React.ReactNode;
+  attachments?: React.ReactNode;
   actions: React.ReactNode;
   children?: React.ReactNode;
 }) {
@@ -25,6 +27,7 @@ export function ItemDetailsLayout({
           {properties}
           {checklist}
           <div className="pt-1">{description}</div>
+          {attachments}
         </div>
         {actions}
         {children}
@@ -47,6 +50,7 @@ export function ItemDetailsLayout({
       <div className="px-5 pb-16 pt-6 sm:px-10 lg:col-start-1 lg:row-start-2">
         <div className="mx-auto w-full max-w-3xl space-y-8">
           {description}
+          {attachments}
           {checklist && (
             <section>
               <h2 className="mb-2 text-xs font-medium text-content-tinted">

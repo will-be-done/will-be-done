@@ -49,8 +49,8 @@
     "@tiptap/react": "3.32.0",
     "@tiptap/starter-kit": "3.32.0",
     "@tiptap/y-tiptap": "^3.0.10",
-    "@trpc/client": "^11.7.2",
-    "@trpc/tanstack-react-query": "^11.7.2",
+    "@trpc/client": "^11.27.0",
+    "@trpc/tanstack-react-query": "^11.27.0",
     "@will-be-done/api": "workspace:*",
     "@will-be-done/hyperdb": "^0.11.0",
     "@will-be-done/hyperdb-devtool": "^0.4.13",
@@ -63,6 +63,7 @@
     "effect": "^4.1.2",
     "es-toolkit": "^1.42.0",
     "fast-equals": "^5.3.3",
+    "fflate": "^0.8.3",
     "fractional-indexing-jittered": "^1.0.0",
     "frimousse": "^0.3.0",
     "kysely": "^0.28.8",
@@ -96,6 +97,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
     "@eslint/js": "^9.39.1",
     "@types/bun": "latest",
     "@types/node": "^24.10.1",

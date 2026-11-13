@@ -86,6 +86,18 @@ field and fights concurrent edits. Things that would otherwise drift:
 - **Bare `www.` links** parse to `https://` hrefs and are written back bare.
 - **Emphasis edges.** Whitespace inside `**` is moved outside, since Markdown
   cannot open or close emphasis on whitespace.
+- **Attachments.** `![name](wbd-attachment:<id>)` in an item title or
+  description is an inline `image` node with `src`, `alt`, and `width`
+  attributes, for any file type; other image URLs stay links. Checklist and
+  topic editors have the node too, so such text can't stop their writes, but
+  don't create it from pasted HTML: they have no item to list the file under.
+  A resized image keeps its width in the Markdown image title,
+  `"width=320"`, so the size survives text writes. The node name and attributes must match the Tiptap node in
+  `RichText/attachmentNode.tsx`. An editor that lacks a node stops writing the
+  doc instead of deleting it, but older converters drop the node from the text,
+  which is why adding it bumped the sync version. Seeds needed no
+  `SEED_VERSION` bump: the parsed nodes are part of the seed's client ID, so
+  the new parse cannot collide with an old seed.
 
 ## Editor
 

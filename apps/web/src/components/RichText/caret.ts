@@ -13,7 +13,12 @@ export function viewTextOffset(event: MouseEvent) {
   const range = document.createRange();
   range.setStart(view, 0);
   range.setEnd(caret.node, caret.offset);
-  return range.toString().length;
+  // A file chip's label is not text in the editor.
+  let offset = range.toString().length;
+  for (const atom of view.querySelectorAll("[data-rich-text-atom]")) {
+    if (range.intersectsNode(atom)) offset -= atom.textContent.length;
+  }
+  return offset;
 }
 
 const caretAt = (x: number, y: number) => {

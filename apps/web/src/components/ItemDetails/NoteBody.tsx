@@ -23,6 +23,7 @@ import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 
 export function NoteBody({
   note,
@@ -86,6 +87,7 @@ export function NoteBody({
           titleDoc={note.titleDoc}
           onSave={saveTitleDoc}
           setIsEditingTitle={setIsEditingTitle}
+          attachmentParent={{ parentType: "note", parentId: noteId }}
         />
       }
       properties={
@@ -124,8 +126,10 @@ export function NoteBody({
           contentDoc={note.contentDoc}
           onSave={saveContentDoc}
           setIsEditingDescription={setIsEditingDescription}
+          attachmentParent={{ parentType: "note", parentId: noteId }}
         />
       }
+      attachments={<ItemAttachments parentType="note" parentId={noteId} />}
       actions={
         <DetailsAction
           icon={<SquareCheckboxIcon className="h-3 w-3" />}

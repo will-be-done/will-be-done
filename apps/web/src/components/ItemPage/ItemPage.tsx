@@ -13,6 +13,7 @@ import {
 import { ItemDetailsBody } from "@/components/ItemDetails/ItemDetails.tsx";
 import { useItemDetailsEditing } from "@/components/ItemDetails/useItemDetailsEditing.ts";
 import { DetailsVariantProvider } from "@/components/ItemDetails/detailsVariant.ts";
+import { AttachmentDropZone } from "@/components/Attachments/AttachmentDropZone.tsx";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { LayoutWithSidebar } from "@/components/Layout/LayoutWithSidebar";
@@ -98,7 +99,10 @@ export function ItemPage({ itemId }: { itemId: string }) {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <AttachmentDropZone
+        parent={item ? { parentType: item.type, parentId: item.id } : undefined}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
         {item ? (
           <DetailsVariantProvider value="page">
             <ItemDetailsBody
@@ -122,7 +126,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
             </button>
           </div>
         )}
-      </div>
+      </AttachmentDropZone>
     </div>
   );
 }

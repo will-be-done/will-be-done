@@ -1,0 +1,214 @@
+import { expect, test } from "playwright/test";
+import {
+  closeSpaceSettings,
+  createSpace,
+  createTodayTask,
+  openSpace,
+  openSpaceSettings,
+  openTaskDetails,
+  signInUser,
+  signupUser,
+  solidPng,
+  uniqueE2EName,
+} from "./helpers";
+
+const png = solidPng(160, 100);
+
+test("attaches, pastes, syncs, and lists files", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  const spaceName = uniqueE2EName("Attachments");
+  const taskTitle = uniqueE2EName("Task with files");
+  const credentials = await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createTodayTask(page, taskTitle);
+  let { description } = await openTaskDetails(page, taskTitle);
+
+  const list = page.getByTestId("item-attachments");
+  await page.getByTestId("attachment-input").setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("meeting notes"),
+  });
+  await expect(list.getByText("notes.txt")).toBeVisible();
+
+  // Files open in a tab named after them.
+  const notesTab = page.waitForEvent("popup");
+  await list.getByText("notes.txt").click();
+  await expect(await notesTab).toHaveTitle("notes.txt");
+  await (await notesTab).close();
+
+  await description.focus();
+  await description.evaluate(
+    (element, bytes) => {
+      const data = new DataTransfer();
+      data.items.add(
+        new File([new Uint8Array(bytes)], "shot.png", { type: "image/png" }),
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: data, bubbles: true }),
+      );
+    },
+    [...png],
+  );
+  const shotTile = list.getByRole("button", { name: "Open shot.png" });
+  await expect(shotTile).toBeVisible();
+
+  // The toolbar's button attaches files into the description.
+  const chooser = page.waitForEvent("filechooser");
+  await page
+    .getByRole("toolbar", { name: "Formatting" })
+    .getByRole("button", { name: "Attach file" })
+    .click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "agenda.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("agenda"),
+  });
+  await expect(
+    description.getByRole("button", { name: "agenda.txt" }),
+  ).toBeVisible();
+  await expect(list.getByText("agenda.txt")).toBeVisible();
+
+  // Drag the corner handle to shrink the image to 100px.
+  const image = description.locator('img[alt="shot.png"]');
+  await image.hover();
+  const handle = description.getByTestId("image-resize-handle");
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 60 + box.width / 2, box.y, { steps: 5 });
+  await page.mouse.up();
+  await expect(image).toHaveCSS("width", "100px");
+  // The stored size keeps the box before the bytes load.
+  await expect(image).toHaveAttribute("style", /aspect-ratio: auto 160 \/ 100/);
+
+  // Files pasted into the title show inline in the title and in the card.
+  await page.getByTestId("task-title").click();
+  const titleEditor = page.getByLabel("Edit task title");
+  await titleEditor.evaluate(
+    (element, bytes) => {
+      const data = new DataTransfer();
+      data.items.add(
+        new File([new Uint8Array(bytes)], "title.png", { type: "image/png" }),
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: data, bubbles: true }),
+      );
+    },
+    [...png],
+  );
+  const titleChip = { name: /title\.png/ };
+  await expect(titleEditor.getByRole("button", titleChip)).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByTestId("task-title").getByRole("button", titleChip),
+  ).toBeVisible();
+  await expect(
+    page.locator("[data-rich-text-atom]", { hasText: "title.png" }),
+  ).toHaveCount(2);
+  await expect(
+    list.getByRole("button", { name: "Open title.png" }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("title.png") });
+
+  // Clicking the image previews it full screen, with a download button.
+  await image.click();
+  const preview = page.getByTestId("attachment-preview");
+  await expect(preview.getByRole("img", { name: "shot.png" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("preview.png") });
+  // Arrows page through the item's images.
+  await page.keyboard.press("ArrowRight");
+  await expect(preview.getByRole("img", { name: "title.png" })).toBeVisible();
+  await expect(preview.getByText("2 / 2")).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  await expect(preview.getByRole("img", { name: "shot.png" })).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await preview.getByRole("button", { name: "Download" }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe("shot.png");
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+  await expect(description).toBeVisible();
+  await expect(description.locator('img[alt="shot.png"]')).toBeVisible();
+
+  const indicator = page.getByRole("button", { name: /^Sync status:/ });
+  await expect(indicator).toHaveAttribute("data-sync-state", "synced", {
+    timeout: 30_000,
+  });
+  await page.screenshot({ path: testInfo.outputPath("task-details.png") });
+
+  const settings = await openSpaceSettings(page, "Files");
+  const rows = settings.getByTestId("attachment-row");
+  await expect(rows).toHaveCount(4);
+  await expect(
+    rows.first().getByRole("link", { name: taskTitle }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("settings-files.png") });
+  await closeSpaceSettings(page);
+  ({ description } = await openTaskDetails(page, taskTitle));
+
+  // Another device downloads the files from the server.
+  const other = await browser.newPage({
+    baseURL: testInfo.project.use.baseURL,
+  });
+  await signInUser(other, credentials);
+  await openSpace(other, spaceName);
+  const remote = await openTaskDetails(other, taskTitle);
+  await expect(remote.description.locator('img[alt="shot.png"]')).toHaveCSS(
+    "width",
+    "100px",
+    { timeout: 30_000 },
+  );
+  await expect(
+    remote.description.locator('img[alt="shot.png"]'),
+  ).toHaveAttribute("style", /aspect-ratio: auto 160 \/ 100/);
+  await expect(
+    other.getByTestId("item-attachments").getByText("notes.txt"),
+  ).toBeVisible();
+  await other.screenshot({ path: testInfo.outputPath("other-device.png") });
+
+  // A file dragged from the list lands inline in the description.
+  await list
+    .getByText("notes.txt")
+    .dragTo(description, { targetPosition: { x: 200, y: 10 } });
+  await expect(
+    description.getByRole("button", { name: /notes\.txt/ }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("dropped.png") });
+
+  // Removing asks first, then removes the file from the description too.
+  const removeShot = list.getByRole("button", { name: "Remove shot.png" });
+  await removeShot.click({ force: true });
+  // Escape cancels without also closing the item's details.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Cancel" })).toHaveCount(0);
+  await expect(shotTile).toBeVisible();
+  await removeShot.click({ force: true });
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(description.locator('img[alt="shot.png"]')).toHaveCount(0);
+  await expect(shotTile).toHaveCount(0);
+  await expect(list.getByText("notes.txt")).toBeVisible();
+
+  // Files dropped anywhere on the details attach to the item.
+  await page
+    .getByRole("button", { name: "Add checklist item" })
+    .evaluate((element) => {
+      const data = new DataTransfer();
+      data.items.add(new File(["x"], "dropped.txt", { type: "text/plain" }));
+      for (const type of ["dragover", "drop"]) {
+        element.dispatchEvent(
+          new DragEvent(type, {
+            dataTransfer: data,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+    });
+  await expect(list.getByText("dropped.txt")).toBeVisible();
+});

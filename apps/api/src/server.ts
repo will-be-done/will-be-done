@@ -22,7 +22,12 @@ import {
 } from "fastify-type-provider-zod";
 import type { AppRouter } from "./appRouter";
 import { createContext } from "./trpc";
+import { getEnvConfig } from "./env";
 import { v1Routes } from "./http/v1";
+import {
+  makeAttachmentStorage,
+  type AttachmentStore,
+} from "./attachments/storage";
 import { syncV4Routes } from "./sync/routes";
 import type { DB } from "@will-be-done/hyperdb";
 import { setupSentryErrorHandler } from "./instrument";
@@ -36,6 +41,8 @@ export interface CreateServerOptions {
   mainDB?: DB;
   analytics?: BackendAnalytics;
   google?: GoogleService;
+  // Built from the environment when not given.
+  attachmentStorage?: AttachmentStore;
 }
 
 export function createServer({
@@ -46,6 +53,7 @@ export function createServer({
   mainDB,
   analytics = noopBackendAnalytics,
   google,
+  attachmentStorage = makeAttachmentStorage(getEnvConfig()),
 }: CreateServerOptions) {
   const rateLimitEnabled = rateLimit.enabled ?? true;
   const server = fastify({
@@ -128,6 +136,7 @@ export function createServer({
   server.register(v1Routes, {
     prefix: "/api/v1",
     analytics,
+    attachmentStorage,
   });
   server.register(syncV4Routes, {
     prefix: "/api/sync/v4",

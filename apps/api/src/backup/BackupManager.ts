@@ -20,6 +20,11 @@ import {
   deleteBackupWithFiles,
 } from "../slices/backupSlice";
 import type { BackupConfig, BackupTier } from "./types";
+import { Effect } from "effect";
+import { makeLocalAttachmentStorage } from "../attachments/storage";
+import { getEnvConfig } from "../env";
+
+const ATTACHMENT_BACKUP_PREFIX = "attachments/";
 
 export class BackupManager {
   private s3Client: S3Client;
@@ -202,6 +207,8 @@ export class BackupManager {
         }
       }
 
+      await this.mirrorLocalAttachments();
+
       const totalDurationMs = Date.now() - startTime;
 
       // Mark all backups as completed
@@ -337,6 +344,44 @@ export class BackupManager {
       }
     } catch (error) {
       console.error(`[Backup] Cleanup failed for ${tier}:`, error);
+    }
+  }
+
+  // Attachment bytes never change, so new files are copied once and every
+  // database backup can find the files it references. The mirror is
+  // append-only: a file deleted later stays for older database backups.
+  private async mirrorLocalAttachments(): Promise<void> {
+    const env = getEnvConfig();
+    if (env.WBD_ATTACHMENTS_STORAGE !== "local") return;
+    const root = env.WBD_ATTACHMENTS_PATH;
+    const storage = makeLocalAttachmentStorage(root);
+    const mirrored = new Set(
+      await this.s3Client.listFiles(ATTACHMENT_BACKUP_PREFIX),
+    );
+    let copied = 0;
+    let failed = 0;
+    for (const spaceId of await Effect.runPromise(storage.listSpaces)) {
+      for (const file of await Effect.runPromise(storage.list(spaceId))) {
+        const key = `${ATTACHMENT_BACKUP_PREFIX}${spaceId}/${file.id}`;
+        if (mirrored.has(key)) continue;
+        try {
+          await this.s3Client.uploadFile(
+            path.join(root, spaceId, file.id),
+            key,
+          );
+          copied++;
+        } catch (error) {
+          // Cleanup deleted it since it was listed.
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+          failed++;
+          console.error(`[Backup] Failed to copy attachment ${key}:`, error);
+        }
+      }
+    }
+    console.log(`[Backup] Copied ${copied} new attachment files`);
+    // Database backups would reference files the bucket does not have.
+    if (failed > 0) {
+      throw new Error(`Failed to copy ${failed} attachment files`);
     }
   }
 

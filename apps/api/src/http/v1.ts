@@ -10,6 +10,9 @@ import { checklistItemRoutes } from "./v1/checklistItems";
 import { stashRoutes } from "./v1/stash";
 import { mindmapRoutes } from "./v1/mindmaps";
 import { searchRoutes } from "./v1/search";
+
+import type { AttachmentStore } from "../attachments/storage";
+import { attachmentRoutes } from "./v1/attachments";
 import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
 import { sendError } from "./errors";
@@ -25,6 +28,7 @@ import { getAuthenticatedRequestUser } from "../services/authentication";
 
 interface V1RoutesOptions {
   analytics?: BackendAnalytics;
+  attachmentStorage: AttachmentStore;
 }
 
 function getOperationId(request: {
@@ -45,11 +49,22 @@ const lastRecurrenceCheckAt = new WeakMap<object, number>();
 
 export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
   server,
-  { analytics = noopBackendAnalytics },
+  { analytics = noopBackendAnalytics, attachmentStorage },
 ) => {
   server.setErrorHandler((error, _request, reply) => {
     if (error instanceof Error && "validation" in error && error.validation) {
       return reply.code(400).send({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    }
+    // Raised by the body parser, before any route handler runs.
+    if (
+      error instanceof Error &&
+      "statusCode" in error &&
+      error.statusCode === 413
+    ) {
+      return reply.code(413).send({
         code: "BAD_REQUEST",
         message: error.message,
       });
@@ -131,4 +146,6 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
   server.register(stashRoutes);
   server.register(mindmapRoutes);
   server.register(searchRoutes);
+
+  server.register(attachmentRoutes, { storage: attachmentStorage });
 };

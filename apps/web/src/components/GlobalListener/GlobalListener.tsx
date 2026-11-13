@@ -216,6 +216,32 @@ export function GlobalListener() {
     [db],
   );
 
+  // A file dropped where nothing takes it would replace the app with the file.
+  useEffect(() => {
+    const refuseFiles = (e: DragEvent) => {
+      if (e.defaultPrevented || !e.dataTransfer?.types.includes("Files")) {
+        return;
+      }
+      if (e.type === "dragover") {
+        // Editors accept drops natively and handle them on drop.
+        if (
+          e.target instanceof Element &&
+          e.target.closest('[contenteditable="true"], input, textarea')
+        ) {
+          return;
+        }
+        e.dataTransfer.dropEffect = "none";
+      }
+      e.preventDefault();
+    };
+    window.addEventListener("dragover", refuseFiles);
+    window.addEventListener("drop", refuseFiles);
+    return () => {
+      window.removeEventListener("dragover", refuseFiles);
+      window.removeEventListener("drop", refuseFiles);
+    };
+  }, []);
+
   useEffect(() => {
     const handleCopy = (e: ClipboardEvent) => copyItems(e, "copy");
     const handleCut = (e: ClipboardEvent) => copyItems(e, "cut");

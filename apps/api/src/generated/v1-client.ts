@@ -10162,6 +10162,1340 @@ export type SearchSpace500 = {
   message: string;
 };
 
+export type ListAttachmentsParams = {
+  /**
+   * @minLength 1
+   */
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+/**
+ * Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view
+ */
+export type ListAttachments200AttachmentsItemUsagesItemParentType =
+  (typeof ListAttachments200AttachmentsItemUsagesItemParentType)[keyof typeof ListAttachments200AttachmentsItemUsagesItemParentType];
+
+export const ListAttachments200AttachmentsItemUsagesItemParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+  background: "background",
+} as const;
+
+export type ListAttachments200AttachmentsItemUsagesItem = {
+  /** Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view */
+  parentType: ListAttachments200AttachmentsItemUsagesItemParentType;
+  parentId: string;
+  /** Item title; empty for items in the trash */
+  title: string;
+  /** Whether the item is in the trash */
+  trashed: boolean;
+};
+
+export type ListAttachments200AttachmentsItem = {
+  /** Attachment identifier */
+  id: string;
+  /** File name */
+  name: string;
+  mimeType: string;
+  /**
+   * Size in bytes
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  size: number;
+  /** Hex SHA-256 of the file content */
+  sha256: string;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
+  usages: ListAttachments200AttachmentsItemUsagesItem[];
+};
+
+/**
+ * Page of attachments, newest first
+ */
+export type ListAttachments200 = {
+  attachments: ListAttachments200AttachmentsItem[];
+  nextCursor: string | null;
+};
+
+export type ListAttachments400Code =
+  (typeof ListAttachments400Code)[keyof typeof ListAttachments400Code];
+
+export const ListAttachments400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListAttachments400 = {
+  code: ListAttachments400Code;
+  message: string;
+};
+
+export type ListAttachments401Code =
+  (typeof ListAttachments401Code)[keyof typeof ListAttachments401Code];
+
+export const ListAttachments401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListAttachments401 = {
+  code: ListAttachments401Code;
+  message: string;
+};
+
+export type ListAttachments403Code =
+  (typeof ListAttachments403Code)[keyof typeof ListAttachments403Code];
+
+export const ListAttachments403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListAttachments403 = {
+  code: ListAttachments403Code;
+  message: string;
+};
+
+export type ListAttachments404Code =
+  (typeof ListAttachments404Code)[keyof typeof ListAttachments404Code];
+
+export const ListAttachments404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListAttachments404 = {
+  code: ListAttachments404Code;
+  message: string;
+};
+
+export type ListAttachments500Code =
+  (typeof ListAttachments500Code)[keyof typeof ListAttachments500Code];
+
+export const ListAttachments500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListAttachments500 = {
+  code: ListAttachments500Code;
+  message: string;
+};
+
+export type CreateAttachmentParams = {
+  /**
+   * File name
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  /**
+   * Content type; defaults to application/octet-stream
+   * @minLength 1
+   */
+  mimeType?: string;
+  /**
+   * Kind of item that lists the attachment
+   */
+  parentType?: CreateAttachmentParentType;
+  /**
+   * @minLength 1
+   */
+  parentId?: string;
+};
+
+export type CreateAttachmentParentType =
+  (typeof CreateAttachmentParentType)[keyof typeof CreateAttachmentParentType];
+
+export const CreateAttachmentParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+} as const;
+
+export type CreateAttachment201Attachment = {
+  /** Attachment identifier */
+  id: string;
+  /** File name */
+  name: string;
+  mimeType: string;
+  /**
+   * Size in bytes
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  size: number;
+  /** Hex SHA-256 of the file content */
+  sha256: string;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
+};
+
+/**
+ * Created attachment
+ */
+export type CreateAttachment201 = {
+  attachment: CreateAttachment201Attachment;
+};
+
+export type CreateAttachment400Code =
+  (typeof CreateAttachment400Code)[keyof typeof CreateAttachment400Code];
+
+export const CreateAttachment400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateAttachment400 = {
+  code: CreateAttachment400Code;
+  message: string;
+};
+
+export type CreateAttachment401Code =
+  (typeof CreateAttachment401Code)[keyof typeof CreateAttachment401Code];
+
+export const CreateAttachment401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateAttachment401 = {
+  code: CreateAttachment401Code;
+  message: string;
+};
+
+export type CreateAttachment403Code =
+  (typeof CreateAttachment403Code)[keyof typeof CreateAttachment403Code];
+
+export const CreateAttachment403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateAttachment403 = {
+  code: CreateAttachment403Code;
+  message: string;
+};
+
+export type CreateAttachment404Code =
+  (typeof CreateAttachment404Code)[keyof typeof CreateAttachment404Code];
+
+export const CreateAttachment404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateAttachment404 = {
+  code: CreateAttachment404Code;
+  message: string;
+};
+
+export type CreateAttachment413Code =
+  (typeof CreateAttachment413Code)[keyof typeof CreateAttachment413Code];
+
+export const CreateAttachment413Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateAttachment413 = {
+  code: CreateAttachment413Code;
+  message: string;
+};
+
+export type CreateAttachment500Code =
+  (typeof CreateAttachment500Code)[keyof typeof CreateAttachment500Code];
+
+export const CreateAttachment500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateAttachment500 = {
+  code: CreateAttachment500Code;
+  message: string;
+};
+
+/**
+ * Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view
+ */
+export type GetAttachment200AttachmentUsagesItemParentType =
+  (typeof GetAttachment200AttachmentUsagesItemParentType)[keyof typeof GetAttachment200AttachmentUsagesItemParentType];
+
+export const GetAttachment200AttachmentUsagesItemParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+  background: "background",
+} as const;
+
+export type GetAttachment200AttachmentUsagesItem = {
+  /** Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view */
+  parentType: GetAttachment200AttachmentUsagesItemParentType;
+  parentId: string;
+  /** Item title; empty for items in the trash */
+  title: string;
+  /** Whether the item is in the trash */
+  trashed: boolean;
+};
+
+export type GetAttachment200Attachment = {
+  /** Attachment identifier */
+  id: string;
+  /** File name */
+  name: string;
+  mimeType: string;
+  /**
+   * Size in bytes
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  size: number;
+  /** Hex SHA-256 of the file content */
+  sha256: string;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
+  usages: GetAttachment200AttachmentUsagesItem[];
+};
+
+/**
+ * Attachment details and the items that list it
+ */
+export type GetAttachment200 = {
+  attachment: GetAttachment200Attachment;
+};
+
+export type GetAttachment400Code =
+  (typeof GetAttachment400Code)[keyof typeof GetAttachment400Code];
+
+export const GetAttachment400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetAttachment400 = {
+  code: GetAttachment400Code;
+  message: string;
+};
+
+export type GetAttachment401Code =
+  (typeof GetAttachment401Code)[keyof typeof GetAttachment401Code];
+
+export const GetAttachment401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetAttachment401 = {
+  code: GetAttachment401Code;
+  message: string;
+};
+
+export type GetAttachment403Code =
+  (typeof GetAttachment403Code)[keyof typeof GetAttachment403Code];
+
+export const GetAttachment403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetAttachment403 = {
+  code: GetAttachment403Code;
+  message: string;
+};
+
+export type GetAttachment404Code =
+  (typeof GetAttachment404Code)[keyof typeof GetAttachment404Code];
+
+export const GetAttachment404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetAttachment404 = {
+  code: GetAttachment404Code;
+  message: string;
+};
+
+export type GetAttachment500Code =
+  (typeof GetAttachment500Code)[keyof typeof GetAttachment500Code];
+
+export const GetAttachment500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetAttachment500 = {
+  code: GetAttachment500Code;
+  message: string;
+};
+
+export type DeleteAttachment400Code =
+  (typeof DeleteAttachment400Code)[keyof typeof DeleteAttachment400Code];
+
+export const DeleteAttachment400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteAttachment400 = {
+  code: DeleteAttachment400Code;
+  message: string;
+};
+
+export type DeleteAttachment401Code =
+  (typeof DeleteAttachment401Code)[keyof typeof DeleteAttachment401Code];
+
+export const DeleteAttachment401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteAttachment401 = {
+  code: DeleteAttachment401Code;
+  message: string;
+};
+
+export type DeleteAttachment403Code =
+  (typeof DeleteAttachment403Code)[keyof typeof DeleteAttachment403Code];
+
+export const DeleteAttachment403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteAttachment403 = {
+  code: DeleteAttachment403Code;
+  message: string;
+};
+
+export type DeleteAttachment404Code =
+  (typeof DeleteAttachment404Code)[keyof typeof DeleteAttachment404Code];
+
+export const DeleteAttachment404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteAttachment404 = {
+  code: DeleteAttachment404Code;
+  message: string;
+};
+
+export type DeleteAttachment500Code =
+  (typeof DeleteAttachment500Code)[keyof typeof DeleteAttachment500Code];
+
+export const DeleteAttachment500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteAttachment500 = {
+  code: DeleteAttachment500Code;
+  message: string;
+};
+
+export type DownloadAttachmentContent400Code =
+  (typeof DownloadAttachmentContent400Code)[keyof typeof DownloadAttachmentContent400Code];
+
+export const DownloadAttachmentContent400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DownloadAttachmentContent400 = {
+  code: DownloadAttachmentContent400Code;
+  message: string;
+};
+
+export type DownloadAttachmentContent401Code =
+  (typeof DownloadAttachmentContent401Code)[keyof typeof DownloadAttachmentContent401Code];
+
+export const DownloadAttachmentContent401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DownloadAttachmentContent401 = {
+  code: DownloadAttachmentContent401Code;
+  message: string;
+};
+
+export type DownloadAttachmentContent403Code =
+  (typeof DownloadAttachmentContent403Code)[keyof typeof DownloadAttachmentContent403Code];
+
+export const DownloadAttachmentContent403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DownloadAttachmentContent403 = {
+  code: DownloadAttachmentContent403Code;
+  message: string;
+};
+
+export type DownloadAttachmentContent404Code =
+  (typeof DownloadAttachmentContent404Code)[keyof typeof DownloadAttachmentContent404Code];
+
+export const DownloadAttachmentContent404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DownloadAttachmentContent404 = {
+  code: DownloadAttachmentContent404Code;
+  message: string;
+};
+
+export type DownloadAttachmentContent500Code =
+  (typeof DownloadAttachmentContent500Code)[keyof typeof DownloadAttachmentContent500Code];
+
+export const DownloadAttachmentContent500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DownloadAttachmentContent500 = {
+  code: DownloadAttachmentContent500Code;
+  message: string;
+};
+
+export type UploadAttachmentContent400Code =
+  (typeof UploadAttachmentContent400Code)[keyof typeof UploadAttachmentContent400Code];
+
+export const UploadAttachmentContent400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UploadAttachmentContent400 = {
+  code: UploadAttachmentContent400Code;
+  message: string;
+};
+
+export type UploadAttachmentContent401Code =
+  (typeof UploadAttachmentContent401Code)[keyof typeof UploadAttachmentContent401Code];
+
+export const UploadAttachmentContent401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UploadAttachmentContent401 = {
+  code: UploadAttachmentContent401Code;
+  message: string;
+};
+
+export type UploadAttachmentContent403Code =
+  (typeof UploadAttachmentContent403Code)[keyof typeof UploadAttachmentContent403Code];
+
+export const UploadAttachmentContent403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UploadAttachmentContent403 = {
+  code: UploadAttachmentContent403Code;
+  message: string;
+};
+
+export type UploadAttachmentContent404Code =
+  (typeof UploadAttachmentContent404Code)[keyof typeof UploadAttachmentContent404Code];
+
+export const UploadAttachmentContent404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UploadAttachmentContent404 = {
+  code: UploadAttachmentContent404Code;
+  message: string;
+};
+
+export type UploadAttachmentContent413Code =
+  (typeof UploadAttachmentContent413Code)[keyof typeof UploadAttachmentContent413Code];
+
+export const UploadAttachmentContent413Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UploadAttachmentContent413 = {
+  code: UploadAttachmentContent413Code;
+  message: string;
+};
+
+export type UploadAttachmentContent500Code =
+  (typeof UploadAttachmentContent500Code)[keyof typeof UploadAttachmentContent500Code];
+
+export const UploadAttachmentContent500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UploadAttachmentContent500 = {
+  code: UploadAttachmentContent500Code;
+  message: string;
+};
+
+export type ListItemAttachmentsParams = {
+  /**
+   * Kind of item that lists the attachment
+   */
+  parentType: ListItemAttachmentsParentType;
+  /**
+   * @minLength 1
+   */
+  parentId: string;
+};
+
+export type ListItemAttachmentsParentType =
+  (typeof ListItemAttachmentsParentType)[keyof typeof ListItemAttachmentsParentType];
+
+export const ListItemAttachmentsParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+} as const;
+
+/**
+ * Kind of item that lists the attachment
+ */
+export type ListItemAttachments200ItemAttachmentsItemParentType =
+  (typeof ListItemAttachments200ItemAttachmentsItemParentType)[keyof typeof ListItemAttachments200ItemAttachmentsItemParentType];
+
+export const ListItemAttachments200ItemAttachmentsItemParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+} as const;
+
+export type ListItemAttachments200ItemAttachmentsItemAttachment = {
+  /** Attachment identifier */
+  id: string;
+  /** File name */
+  name: string;
+  mimeType: string;
+  /**
+   * Size in bytes
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  size: number;
+  /** Hex SHA-256 of the file content */
+  sha256: string;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
+};
+
+export type ListItemAttachments200ItemAttachmentsItem = {
+  /** Item attachment identifier */
+  id: string;
+  attachmentId: string;
+  /** Kind of item that lists the attachment */
+  parentType: ListItemAttachments200ItemAttachmentsItemParentType;
+  parentId: string;
+  orderToken: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  attachment: ListItemAttachments200ItemAttachmentsItemAttachment;
+};
+
+/**
+ * An item's attachments in display order
+ */
+export type ListItemAttachments200 = {
+  itemAttachments: ListItemAttachments200ItemAttachmentsItem[];
+};
+
+export type ListItemAttachments400Code =
+  (typeof ListItemAttachments400Code)[keyof typeof ListItemAttachments400Code];
+
+export const ListItemAttachments400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListItemAttachments400 = {
+  code: ListItemAttachments400Code;
+  message: string;
+};
+
+export type ListItemAttachments401Code =
+  (typeof ListItemAttachments401Code)[keyof typeof ListItemAttachments401Code];
+
+export const ListItemAttachments401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListItemAttachments401 = {
+  code: ListItemAttachments401Code;
+  message: string;
+};
+
+export type ListItemAttachments403Code =
+  (typeof ListItemAttachments403Code)[keyof typeof ListItemAttachments403Code];
+
+export const ListItemAttachments403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListItemAttachments403 = {
+  code: ListItemAttachments403Code;
+  message: string;
+};
+
+export type ListItemAttachments404Code =
+  (typeof ListItemAttachments404Code)[keyof typeof ListItemAttachments404Code];
+
+export const ListItemAttachments404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListItemAttachments404 = {
+  code: ListItemAttachments404Code;
+  message: string;
+};
+
+export type ListItemAttachments500Code =
+  (typeof ListItemAttachments500Code)[keyof typeof ListItemAttachments500Code];
+
+export const ListItemAttachments500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListItemAttachments500 = {
+  code: ListItemAttachments500Code;
+  message: string;
+};
+
+/**
+ * Kind of item that lists the attachment
+ */
+export type CreateItemAttachmentBodyParentType =
+  (typeof CreateItemAttachmentBodyParentType)[keyof typeof CreateItemAttachmentBodyParentType];
+
+export const CreateItemAttachmentBodyParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+} as const;
+
+export type CreateItemAttachmentBody = {
+  /** @minLength 1 */
+  attachmentId: string;
+  /** Kind of item that lists the attachment */
+  parentType: CreateItemAttachmentBodyParentType;
+  /** @minLength 1 */
+  parentId: string;
+};
+
+/**
+ * Kind of item that lists the attachment
+ */
+export type CreateItemAttachment201ItemAttachmentParentType =
+  (typeof CreateItemAttachment201ItemAttachmentParentType)[keyof typeof CreateItemAttachment201ItemAttachmentParentType];
+
+export const CreateItemAttachment201ItemAttachmentParentType = {
+  task: "task",
+  template: "template",
+  note: "note",
+} as const;
+
+export type CreateItemAttachment201ItemAttachmentAttachment = {
+  /** Attachment identifier */
+  id: string;
+  /** File name */
+  name: string;
+  mimeType: string;
+  /**
+   * Size in bytes
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  size: number;
+  /** Hex SHA-256 of the file content */
+  sha256: string;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Image width in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  width?: number;
+  /**
+   * Image height in pixels, once a client has measured it
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  height?: number;
+};
+
+export type CreateItemAttachment201ItemAttachment = {
+  /** Item attachment identifier */
+  id: string;
+  attachmentId: string;
+  /** Kind of item that lists the attachment */
+  parentType: CreateItemAttachment201ItemAttachmentParentType;
+  parentId: string;
+  orderToken: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  attachment: CreateItemAttachment201ItemAttachmentAttachment;
+};
+
+/**
+ * Item attachment
+ */
+export type CreateItemAttachment201 = {
+  itemAttachment: CreateItemAttachment201ItemAttachment;
+};
+
+export type CreateItemAttachment400Code =
+  (typeof CreateItemAttachment400Code)[keyof typeof CreateItemAttachment400Code];
+
+export const CreateItemAttachment400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateItemAttachment400 = {
+  code: CreateItemAttachment400Code;
+  message: string;
+};
+
+export type CreateItemAttachment401Code =
+  (typeof CreateItemAttachment401Code)[keyof typeof CreateItemAttachment401Code];
+
+export const CreateItemAttachment401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateItemAttachment401 = {
+  code: CreateItemAttachment401Code;
+  message: string;
+};
+
+export type CreateItemAttachment403Code =
+  (typeof CreateItemAttachment403Code)[keyof typeof CreateItemAttachment403Code];
+
+export const CreateItemAttachment403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateItemAttachment403 = {
+  code: CreateItemAttachment403Code;
+  message: string;
+};
+
+export type CreateItemAttachment404Code =
+  (typeof CreateItemAttachment404Code)[keyof typeof CreateItemAttachment404Code];
+
+export const CreateItemAttachment404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateItemAttachment404 = {
+  code: CreateItemAttachment404Code;
+  message: string;
+};
+
+export type CreateItemAttachment500Code =
+  (typeof CreateItemAttachment500Code)[keyof typeof CreateItemAttachment500Code];
+
+export const CreateItemAttachment500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type CreateItemAttachment500 = {
+  code: CreateItemAttachment500Code;
+  message: string;
+};
+
+export type DeleteItemAttachment400Code =
+  (typeof DeleteItemAttachment400Code)[keyof typeof DeleteItemAttachment400Code];
+
+export const DeleteItemAttachment400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteItemAttachment400 = {
+  code: DeleteItemAttachment400Code;
+  message: string;
+};
+
+export type DeleteItemAttachment401Code =
+  (typeof DeleteItemAttachment401Code)[keyof typeof DeleteItemAttachment401Code];
+
+export const DeleteItemAttachment401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteItemAttachment401 = {
+  code: DeleteItemAttachment401Code;
+  message: string;
+};
+
+export type DeleteItemAttachment403Code =
+  (typeof DeleteItemAttachment403Code)[keyof typeof DeleteItemAttachment403Code];
+
+export const DeleteItemAttachment403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteItemAttachment403 = {
+  code: DeleteItemAttachment403Code;
+  message: string;
+};
+
+export type DeleteItemAttachment404Code =
+  (typeof DeleteItemAttachment404Code)[keyof typeof DeleteItemAttachment404Code];
+
+export const DeleteItemAttachment404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteItemAttachment404 = {
+  code: DeleteItemAttachment404Code;
+  message: string;
+};
+
+export type DeleteItemAttachment500Code =
+  (typeof DeleteItemAttachment500Code)[keyof typeof DeleteItemAttachment500Code];
+
+export const DeleteItemAttachment500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteItemAttachment500 = {
+  code: DeleteItemAttachment500Code;
+  message: string;
+};
+
 export type listSpacesResponse200 = {
   data: ListSpaces200;
   status: 200;
@@ -15308,4 +16642,782 @@ export const searchSpace = async (
     status: res.status,
     headers: res.headers,
   } as searchSpaceResponse;
+};
+
+export type listAttachmentsResponse200 = {
+  data: ListAttachments200;
+  status: 200;
+};
+
+export type listAttachmentsResponse400 = {
+  data: ListAttachments400;
+  status: 400;
+};
+
+export type listAttachmentsResponse401 = {
+  data: ListAttachments401;
+  status: 401;
+};
+
+export type listAttachmentsResponse403 = {
+  data: ListAttachments403;
+  status: 403;
+};
+
+export type listAttachmentsResponse404 = {
+  data: ListAttachments404;
+  status: 404;
+};
+
+export type listAttachmentsResponse500 = {
+  data: ListAttachments500;
+  status: 500;
+};
+
+export type listAttachmentsResponseSuccess = listAttachmentsResponse200 & {
+  headers: Headers;
+};
+export type listAttachmentsResponseError = (
+  | listAttachmentsResponse400
+  | listAttachmentsResponse401
+  | listAttachmentsResponse403
+  | listAttachmentsResponse404
+  | listAttachmentsResponse500
+) & {
+  headers: Headers;
+};
+
+export type listAttachmentsResponse =
+  | listAttachmentsResponseSuccess
+  | listAttachmentsResponseError;
+
+export const getListAttachmentsUrl = (
+  spaceId: string,
+  params?: ListAttachmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments?${stringifiedParams}`
+    : `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments`;
+};
+
+/**
+ * @summary List a space's attachments
+ */
+export const listAttachments = async (
+  spaceId: string,
+  params?: ListAttachmentsParams,
+  options?: RequestInit,
+): Promise<listAttachmentsResponse> => {
+  const res = await fetch(getListAttachmentsUrl(spaceId, params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listAttachmentsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listAttachmentsResponse;
+};
+
+export type createAttachmentResponse201 = {
+  data: CreateAttachment201;
+  status: 201;
+};
+
+export type createAttachmentResponse400 = {
+  data: CreateAttachment400;
+  status: 400;
+};
+
+export type createAttachmentResponse401 = {
+  data: CreateAttachment401;
+  status: 401;
+};
+
+export type createAttachmentResponse403 = {
+  data: CreateAttachment403;
+  status: 403;
+};
+
+export type createAttachmentResponse404 = {
+  data: CreateAttachment404;
+  status: 404;
+};
+
+export type createAttachmentResponse413 = {
+  data: CreateAttachment413;
+  status: 413;
+};
+
+export type createAttachmentResponse500 = {
+  data: CreateAttachment500;
+  status: 500;
+};
+
+export type createAttachmentResponseSuccess = createAttachmentResponse201 & {
+  headers: Headers;
+};
+export type createAttachmentResponseError = (
+  | createAttachmentResponse400
+  | createAttachmentResponse401
+  | createAttachmentResponse403
+  | createAttachmentResponse404
+  | createAttachmentResponse413
+  | createAttachmentResponse500
+) & {
+  headers: Headers;
+};
+
+export type createAttachmentResponse =
+  | createAttachmentResponseSuccess
+  | createAttachmentResponseError;
+
+export const getCreateAttachmentUrl = (
+  spaceId: string,
+  params: CreateAttachmentParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments?${stringifiedParams}`
+    : `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments`;
+};
+
+/**
+ * Send the file content as the request body. Pass parentType and parentId to list it under a task, template, or note.
+ * @summary Upload a file as a new attachment
+ */
+export const createAttachment = async (
+  spaceId: string,
+  createAttachmentBody: Blob,
+  params: CreateAttachmentParams,
+  options?: RequestInit,
+): Promise<createAttachmentResponse> => {
+  const res = await fetch(getCreateAttachmentUrl(spaceId, params), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      ...options?.headers,
+    },
+    body: createAttachmentBody,
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createAttachmentResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createAttachmentResponse;
+};
+
+export type getAttachmentResponse200 = {
+  data: GetAttachment200;
+  status: 200;
+};
+
+export type getAttachmentResponse400 = {
+  data: GetAttachment400;
+  status: 400;
+};
+
+export type getAttachmentResponse401 = {
+  data: GetAttachment401;
+  status: 401;
+};
+
+export type getAttachmentResponse403 = {
+  data: GetAttachment403;
+  status: 403;
+};
+
+export type getAttachmentResponse404 = {
+  data: GetAttachment404;
+  status: 404;
+};
+
+export type getAttachmentResponse500 = {
+  data: GetAttachment500;
+  status: 500;
+};
+
+export type getAttachmentResponseSuccess = getAttachmentResponse200 & {
+  headers: Headers;
+};
+export type getAttachmentResponseError = (
+  | getAttachmentResponse400
+  | getAttachmentResponse401
+  | getAttachmentResponse403
+  | getAttachmentResponse404
+  | getAttachmentResponse500
+) & {
+  headers: Headers;
+};
+
+export type getAttachmentResponse =
+  | getAttachmentResponseSuccess
+  | getAttachmentResponseError;
+
+export const getGetAttachmentUrl = (spaceId: string, attachmentId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments/${attachmentId}`;
+};
+
+/**
+ * @summary Get an attachment and the items that list it
+ */
+export const getAttachment = async (
+  spaceId: string,
+  attachmentId: string,
+  options?: RequestInit,
+): Promise<getAttachmentResponse> => {
+  const res = await fetch(getGetAttachmentUrl(spaceId, attachmentId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getAttachmentResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getAttachmentResponse;
+};
+
+export type deleteAttachmentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteAttachmentResponse400 = {
+  data: DeleteAttachment400;
+  status: 400;
+};
+
+export type deleteAttachmentResponse401 = {
+  data: DeleteAttachment401;
+  status: 401;
+};
+
+export type deleteAttachmentResponse403 = {
+  data: DeleteAttachment403;
+  status: 403;
+};
+
+export type deleteAttachmentResponse404 = {
+  data: DeleteAttachment404;
+  status: 404;
+};
+
+export type deleteAttachmentResponse500 = {
+  data: DeleteAttachment500;
+  status: 500;
+};
+
+export type deleteAttachmentResponseSuccess = deleteAttachmentResponse204 & {
+  headers: Headers;
+};
+export type deleteAttachmentResponseError = (
+  | deleteAttachmentResponse400
+  | deleteAttachmentResponse401
+  | deleteAttachmentResponse403
+  | deleteAttachmentResponse404
+  | deleteAttachmentResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteAttachmentResponse =
+  | deleteAttachmentResponseSuccess
+  | deleteAttachmentResponseError;
+
+export const getDeleteAttachmentUrl = (
+  spaceId: string,
+  attachmentId: string,
+) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments/${attachmentId}`;
+};
+
+/**
+ * Removes the file from every item and description that uses it.
+ * @summary Delete an attachment
+ */
+export const deleteAttachment = async (
+  spaceId: string,
+  attachmentId: string,
+  options?: RequestInit,
+): Promise<deleteAttachmentResponse> => {
+  const res = await fetch(getDeleteAttachmentUrl(spaceId, attachmentId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteAttachmentResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteAttachmentResponse;
+};
+
+export type downloadAttachmentContentResponse200 = {
+  data: Blob;
+  status: 200;
+};
+
+export type downloadAttachmentContentResponse400 = {
+  data: DownloadAttachmentContent400;
+  status: 400;
+};
+
+export type downloadAttachmentContentResponse401 = {
+  data: DownloadAttachmentContent401;
+  status: 401;
+};
+
+export type downloadAttachmentContentResponse403 = {
+  data: DownloadAttachmentContent403;
+  status: 403;
+};
+
+export type downloadAttachmentContentResponse404 = {
+  data: DownloadAttachmentContent404;
+  status: 404;
+};
+
+export type downloadAttachmentContentResponse500 = {
+  data: DownloadAttachmentContent500;
+  status: 500;
+};
+
+export type downloadAttachmentContentResponseSuccess =
+  downloadAttachmentContentResponse200 & {
+    headers: Headers;
+  };
+export type downloadAttachmentContentResponseError = (
+  | downloadAttachmentContentResponse400
+  | downloadAttachmentContentResponse401
+  | downloadAttachmentContentResponse403
+  | downloadAttachmentContentResponse404
+  | downloadAttachmentContentResponse500
+) & {
+  headers: Headers;
+};
+
+export type downloadAttachmentContentResponse =
+  | downloadAttachmentContentResponseSuccess
+  | downloadAttachmentContentResponseError;
+
+export const getDownloadAttachmentContentUrl = (
+  spaceId: string,
+  attachmentId: string,
+) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments/${attachmentId}/content`;
+};
+
+/**
+ * Responds 404 while the device that added the file has not uploaded it yet.
+ * @summary Download an attachment's file content
+ */
+export const downloadAttachmentContent = async (
+  spaceId: string,
+  attachmentId: string,
+  options?: RequestInit,
+): Promise<downloadAttachmentContentResponse> => {
+  const res = await fetch(
+    getDownloadAttachmentContentUrl(spaceId, attachmentId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.blob();
+  const data: downloadAttachmentContentResponse["data"] =
+    body as downloadAttachmentContentResponse["data"];
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as downloadAttachmentContentResponse;
+};
+
+export type uploadAttachmentContentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type uploadAttachmentContentResponse400 = {
+  data: UploadAttachmentContent400;
+  status: 400;
+};
+
+export type uploadAttachmentContentResponse401 = {
+  data: UploadAttachmentContent401;
+  status: 401;
+};
+
+export type uploadAttachmentContentResponse403 = {
+  data: UploadAttachmentContent403;
+  status: 403;
+};
+
+export type uploadAttachmentContentResponse404 = {
+  data: UploadAttachmentContent404;
+  status: 404;
+};
+
+export type uploadAttachmentContentResponse413 = {
+  data: UploadAttachmentContent413;
+  status: 413;
+};
+
+export type uploadAttachmentContentResponse500 = {
+  data: UploadAttachmentContent500;
+  status: 500;
+};
+
+export type uploadAttachmentContentResponseSuccess =
+  uploadAttachmentContentResponse204 & {
+    headers: Headers;
+  };
+export type uploadAttachmentContentResponseError = (
+  | uploadAttachmentContentResponse400
+  | uploadAttachmentContentResponse401
+  | uploadAttachmentContentResponse403
+  | uploadAttachmentContentResponse404
+  | uploadAttachmentContentResponse413
+  | uploadAttachmentContentResponse500
+) & {
+  headers: Headers;
+};
+
+export type uploadAttachmentContentResponse =
+  | uploadAttachmentContentResponseSuccess
+  | uploadAttachmentContentResponseError;
+
+export const getUploadAttachmentContentUrl = (
+  spaceId: string,
+  attachmentId: string,
+) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/attachments/${attachmentId}/content`;
+};
+
+/**
+ * For attachments created offline: the content must match the attachment's size and SHA-256. Repeating the upload is safe.
+ * @summary Upload the file content of an existing attachment
+ */
+export const uploadAttachmentContent = async (
+  spaceId: string,
+  attachmentId: string,
+  uploadAttachmentContentBody: Blob,
+  options?: RequestInit,
+): Promise<uploadAttachmentContentResponse> => {
+  const res = await fetch(
+    getUploadAttachmentContentUrl(spaceId, attachmentId),
+    {
+      ...options,
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...options?.headers,
+      },
+      body: uploadAttachmentContentBody,
+    },
+  );
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: uploadAttachmentContentResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as uploadAttachmentContentResponse;
+};
+
+export type listItemAttachmentsResponse200 = {
+  data: ListItemAttachments200;
+  status: 200;
+};
+
+export type listItemAttachmentsResponse400 = {
+  data: ListItemAttachments400;
+  status: 400;
+};
+
+export type listItemAttachmentsResponse401 = {
+  data: ListItemAttachments401;
+  status: 401;
+};
+
+export type listItemAttachmentsResponse403 = {
+  data: ListItemAttachments403;
+  status: 403;
+};
+
+export type listItemAttachmentsResponse404 = {
+  data: ListItemAttachments404;
+  status: 404;
+};
+
+export type listItemAttachmentsResponse500 = {
+  data: ListItemAttachments500;
+  status: 500;
+};
+
+export type listItemAttachmentsResponseSuccess =
+  listItemAttachmentsResponse200 & {
+    headers: Headers;
+  };
+export type listItemAttachmentsResponseError = (
+  | listItemAttachmentsResponse400
+  | listItemAttachmentsResponse401
+  | listItemAttachmentsResponse403
+  | listItemAttachmentsResponse404
+  | listItemAttachmentsResponse500
+) & {
+  headers: Headers;
+};
+
+export type listItemAttachmentsResponse =
+  | listItemAttachmentsResponseSuccess
+  | listItemAttachmentsResponseError;
+
+export const getListItemAttachmentsUrl = (
+  spaceId: string,
+  params: ListItemAttachmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/item-attachments?${stringifiedParams}`
+    : `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/item-attachments`;
+};
+
+/**
+ * @summary List the attachments of a task, template, or note
+ */
+export const listItemAttachments = async (
+  spaceId: string,
+  params: ListItemAttachmentsParams,
+  options?: RequestInit,
+): Promise<listItemAttachmentsResponse> => {
+  const res = await fetch(getListItemAttachmentsUrl(spaceId, params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listItemAttachmentsResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listItemAttachmentsResponse;
+};
+
+export type createItemAttachmentResponse201 = {
+  data: CreateItemAttachment201;
+  status: 201;
+};
+
+export type createItemAttachmentResponse400 = {
+  data: CreateItemAttachment400;
+  status: 400;
+};
+
+export type createItemAttachmentResponse401 = {
+  data: CreateItemAttachment401;
+  status: 401;
+};
+
+export type createItemAttachmentResponse403 = {
+  data: CreateItemAttachment403;
+  status: 403;
+};
+
+export type createItemAttachmentResponse404 = {
+  data: CreateItemAttachment404;
+  status: 404;
+};
+
+export type createItemAttachmentResponse500 = {
+  data: CreateItemAttachment500;
+  status: 500;
+};
+
+export type createItemAttachmentResponseSuccess =
+  createItemAttachmentResponse201 & {
+    headers: Headers;
+  };
+export type createItemAttachmentResponseError = (
+  | createItemAttachmentResponse400
+  | createItemAttachmentResponse401
+  | createItemAttachmentResponse403
+  | createItemAttachmentResponse404
+  | createItemAttachmentResponse500
+) & {
+  headers: Headers;
+};
+
+export type createItemAttachmentResponse =
+  | createItemAttachmentResponseSuccess
+  | createItemAttachmentResponseError;
+
+export const getCreateItemAttachmentUrl = (spaceId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/item-attachments`;
+};
+
+/**
+ * @summary List an existing attachment under an item
+ */
+export const createItemAttachment = async (
+  spaceId: string,
+  createItemAttachmentBody: CreateItemAttachmentBody,
+  options?: RequestInit,
+): Promise<createItemAttachmentResponse> => {
+  const res = await fetch(getCreateItemAttachmentUrl(spaceId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createItemAttachmentBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createItemAttachmentResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createItemAttachmentResponse;
+};
+
+export type deleteItemAttachmentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteItemAttachmentResponse400 = {
+  data: DeleteItemAttachment400;
+  status: 400;
+};
+
+export type deleteItemAttachmentResponse401 = {
+  data: DeleteItemAttachment401;
+  status: 401;
+};
+
+export type deleteItemAttachmentResponse403 = {
+  data: DeleteItemAttachment403;
+  status: 403;
+};
+
+export type deleteItemAttachmentResponse404 = {
+  data: DeleteItemAttachment404;
+  status: 404;
+};
+
+export type deleteItemAttachmentResponse500 = {
+  data: DeleteItemAttachment500;
+  status: 500;
+};
+
+export type deleteItemAttachmentResponseSuccess =
+  deleteItemAttachmentResponse204 & {
+    headers: Headers;
+  };
+export type deleteItemAttachmentResponseError = (
+  | deleteItemAttachmentResponse400
+  | deleteItemAttachmentResponse401
+  | deleteItemAttachmentResponse403
+  | deleteItemAttachmentResponse404
+  | deleteItemAttachmentResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteItemAttachmentResponse =
+  | deleteItemAttachmentResponseSuccess
+  | deleteItemAttachmentResponseError;
+
+export const getDeleteItemAttachmentUrl = (
+  spaceId: string,
+  itemAttachmentId: string,
+) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/item-attachments/${itemAttachmentId}`;
+};
+
+/**
+ * Also removes it from the item's description. The file is deleted when no other item lists it.
+ * @summary Remove an attachment from an item
+ */
+export const deleteItemAttachment = async (
+  spaceId: string,
+  itemAttachmentId: string,
+  options?: RequestInit,
+): Promise<deleteItemAttachmentResponse> => {
+  const res = await fetch(
+    getDeleteItemAttachmentUrl(spaceId, itemAttachmentId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteItemAttachmentResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteItemAttachmentResponse;
 };

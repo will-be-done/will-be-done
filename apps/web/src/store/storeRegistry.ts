@@ -13,6 +13,11 @@ import {
   Semaphore,
 } from "effect";
 import type { BackupDatabase } from "@/services/browser";
+import { makeAttachmentBlobStore } from "./attachments/blobStore";
+import {
+  attachmentTransfersByDB,
+  makeAttachmentTransfers,
+} from "./attachments/transfers";
 import { makeAutoBackup, readSpaceBackup } from "./autoBackup";
 import { makeCrossTabChanges } from "./crossTabChanges";
 import { Database, type DatabaseError } from "./database";
@@ -87,6 +92,16 @@ const startStore = (
         postChanges: crossTabChanges.postChanges,
         onPersisted: () => syncer.forceSync(),
       });
+      if (syncConfig.dbType === "space") {
+        const transfers = yield* makeAttachmentTransfers({
+          dbName,
+          spaceId: syncConfig.dbId,
+          syncEnabled: !syncConfig.disableSync,
+          syncStatus: syncer.status,
+          store: yield* makeAttachmentBlobStore(indexedDB, dbName),
+        });
+        attachmentTransfersByDB.set(syncSubDb, transfers);
+      }
 
       if (!syncConfig.disableSync) {
         syncByDB.set(syncSubDb, syncer);

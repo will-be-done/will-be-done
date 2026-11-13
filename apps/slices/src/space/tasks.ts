@@ -36,6 +36,11 @@ import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
 import {
+  deleteItemAttachmentLinks,
+  ensureInlineAttachmentLinks,
+  moveItemAttachments,
+} from "./attachments";
+import {
   taskType,
   checklistItemsTable,
   dailyEntriesTable,
@@ -272,9 +277,9 @@ export const updateTask = action({
     if (!taskInState) throw new Error("Task not found");
     assertValidTaskDuration(task.durationMinutes);
 
-    yield* upsert(tasksTable, [
-      syncItemRichText(taskInState, { ...taskInState, ...task }),
-    ]);
+    const next = syncItemRichText(taskInState, { ...taskInState, ...task });
+    yield* upsert(tasksTable, [next]);
+    yield* ensureInlineAttachmentLinks(taskType, id, next, taskInState);
   },
 });
 
@@ -303,6 +308,7 @@ export const createTask = action({
     };
 
     yield* insert(tasksTable, [newTask]);
+    yield* ensureInlineAttachmentLinks(taskType, id, newTask);
 
     return newTask;
   },
@@ -487,6 +493,10 @@ export const createTaskFromTemplate = action({
       toParentId: newId,
       toParentType: taskType,
     });
+    yield* moveItemAttachments(
+      { parentType: "template", parentId: taskTemplate.id },
+      { parentType: taskType, parentId: newId },
+    );
     yield* appDeleteModel({
       id: taskTemplate.id,
       modelType: taskTemplate.type,
@@ -521,6 +531,8 @@ export const deleteTasksByIds = action({
   name: "deleteTasksByIds",
   args: { ids: v.array(v.string()) },
   handler: function* deleteTasksByIds({ ids }) {
+    // Nothing goes to the trash here, so their links go too.
+    yield* deleteItemAttachmentLinks(taskType, ids);
     yield* deleteTasks({ ids });
   },
 });

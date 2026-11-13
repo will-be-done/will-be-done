@@ -22,6 +22,10 @@ import {
   relinkMindmapNodes,
 } from "./mindmaps";
 import { syncItemRichText } from "./richTextItems";
+import {
+  ensureInlineAttachmentLinks,
+  moveItemAttachments,
+} from "./attachments";
 import { generateKeyPositionedBetween } from "./utils";
 import {
   isDailyEntry,
@@ -104,6 +108,7 @@ export const updateNote = action({
       ...note,
     });
     yield* upsert(notesTable, [updatedNote]);
+    yield* ensureInlineAttachmentLinks(noteType, id, updatedNote, noteInState);
     return updatedNote;
   },
 });
@@ -202,6 +207,10 @@ export const convertTaskToNote = action({
       from: task.id,
       to: { type: "note", id },
     });
+    yield* moveItemAttachments(
+      { parentType: taskType, parentId: task.id },
+      { parentType: noteType, parentId: id },
+    );
     yield* deleteTasks({ ids: [task.id] });
 
     const note: Note = {
@@ -229,6 +238,10 @@ export const convertNoteToTask = action({
       from: note.id,
       to: { type: "task", id },
     });
+    yield* moveItemAttachments(
+      { parentType: noteType, parentId: note.id },
+      { parentType: taskType, parentId: id },
+    );
     yield* deleteNotes({ ids: [note.id] });
 
     const task: Task = {
