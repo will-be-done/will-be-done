@@ -489,6 +489,13 @@ Current v4 limits are:
 - temporary server sessions expire after 24 hours;
 - one client may have at most 8 active upload sessions per user/database.
 
+At that limit, a new handshake reclaims the oldest active session that has no
+uploaded changes or bytes. A lost handshake response can otherwise leave an
+unresumable session occupying the quota for 24 hours. Sessions containing chunks
+and committed results are preserved. If all eight active sessions contain data,
+the handshake still returns 409. Requests for a reclaimed session return 404,
+so a client with a frozen upload recovers through the existing retry path.
+
 Request-path reads must remain bounded by a session, indexed cursor, table, or
 chunk limit. Large transfers may be scanned and staged incrementally, but the
 final domain apply remains atomic.
