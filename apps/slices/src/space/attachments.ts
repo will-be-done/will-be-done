@@ -47,6 +47,9 @@ export const ATTACHMENT_ID = /^[A-Za-z0-9_-]+$/;
 export const INLINE_ATTACHMENT_TYPE =
   /^(image\/(png|jpeg|gif|webp|avif|bmp)|application\/pdf|text\/plain|audio\/[\w.+-]+|video\/[\w.+-]+)$/;
 
+export const isImageAttachmentType = (mimeType: string) =>
+  /^image\/(png|jpeg|gif|webp|avif|bmp|svg\+xml)$/.test(mimeType);
+
 // Why a client could not have written this row, if it could not.
 export const attachmentRowProblem = ({
   id,
@@ -382,6 +385,42 @@ function* linkAttachments(
 }
 
 type InlineReferences = { title: string; content?: string };
+type CoverableInlineReferences = InlineReferences & {
+  coverAttachmentId?: string | null;
+};
+
+export function* withAutoCoverAttachment<T extends CoverableInlineReferences>(
+  item: T,
+  previous?: CoverableInlineReferences,
+) {
+  if (item.coverAttachmentId !== undefined) return item;
+
+  const currentIds = attachmentIdsInMarkdown(
+    `${item.title}\n${item.content ?? ""}`,
+  );
+  if (currentIds.length === 0) return item;
+
+  const previousIds = previous
+    ? attachmentIdsInMarkdown(`${previous.title}\n${previous.content ?? ""}`)
+    : [];
+  const attachments = new Map(
+    (yield* attachmentsByIds({
+      ids: [...new Set([...previousIds, ...currentIds])],
+    })).map((attachment) => [attachment.id, attachment]),
+  );
+  if (
+    previousIds.some((id) =>
+      isImageAttachmentType(attachments.get(id)?.mimeType ?? ""),
+    )
+  ) {
+    return item;
+  }
+
+  const coverAttachmentId = currentIds.find((id) =>
+    isImageAttachmentType(attachments.get(id)?.mimeType ?? ""),
+  );
+  return coverAttachmentId ? { ...item, coverAttachmentId } : item;
+}
 
 // A file referenced inline is always in the item's list, whichever client or
 // API call wrote the reference. Pass `previous` to skip unchanged text.
@@ -480,12 +519,89 @@ export const attachToItem = action({
   },
 });
 
+function* updateItemCoverAttachment(
+  parentType: AttachmentParentType,
+  parentId: string,
+  coverAttachmentId: string | null,
+) {
+  if (parentType === taskTemplateType) {
+    const item = yield* selectFrom(taskTemplatesTable, "byId")
+      .where((q) => q.eq("id", parentId))
+      .first();
+    if (!item) throw new Error("Attachment parent not found");
+    yield* upsert(taskTemplatesTable, [{ ...item, coverAttachmentId }]);
+    return;
+  }
+  if (parentType === noteType) {
+    const item = yield* selectFrom(notesTable, "byId")
+      .where((q) => q.eq("id", parentId))
+      .first();
+    if (!item) throw new Error("Attachment parent not found");
+    yield* upsert(notesTable, [{ ...item, coverAttachmentId }]);
+    return;
+  }
+  const item = yield* selectFrom(tasksTable, "byId")
+    .where((q) => q.eq("id", parentId))
+    .first();
+  if (!item) throw new Error("Attachment parent not found");
+  yield* upsert(tasksTable, [{ ...item, coverAttachmentId }]);
+}
+
+export const setItemCoverAttachment = action({
+  name: "setItemCoverAttachment",
+  args: {
+    parentType: attachmentParentType,
+    parentId: v.string(),
+    attachmentId: v.union(v.string(), v.null()),
+  },
+  handler: function* setItemCoverAttachment({
+    parentType,
+    parentId,
+    attachmentId,
+  }) {
+    if (attachmentId !== null) {
+      const attachment = yield* attachmentById({ id: attachmentId });
+      if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
+        throw new Error("Cover must be an image attachment");
+      }
+      const links = yield* itemAttachmentLinks({ parentType, parentId });
+      if (!links.some((link) => link.attachmentId === attachmentId)) {
+        throw new Error("Cover attachment is not linked to this item");
+      }
+    }
+    yield* updateItemCoverAttachment(parentType, parentId, attachmentId);
+  },
+});
+
+function* clearItemCoverAttachment(
+  parentType: AttachmentParentType,
+  parentId: string,
+  attachmentIds: readonly string[],
+) {
+  const table =
+    parentType === taskTemplateType
+      ? taskTemplatesTable
+      : parentType === noteType
+        ? notesTable
+        : tasksTable;
+  const item = yield* selectFrom(table, "byId")
+    .where((q) => q.eq("id", parentId))
+    .first();
+  if (
+    item?.coverAttachmentId &&
+    attachmentIds.includes(item.coverAttachmentId)
+  ) {
+    yield* updateItemCoverAttachment(parentType, parentId, null);
+  }
+}
+
 const withoutInlineReferences = <
   T extends {
     title: string;
     titleDoc?: string;
     content?: string;
     contentDoc?: string;
+    coverAttachmentId?: string | null;
   },
 >(
   row: T | undefined,
@@ -498,7 +614,11 @@ const withoutInlineReferences = <
     );
   const titleIds = referenced(row.title);
   const contentIds = referenced(row.content);
-  if (titleIds.length === 0 && contentIds.length === 0) return undefined;
+  const clearCover =
+    !!row.coverAttachmentId && attachmentIds.includes(row.coverAttachmentId);
+  if (titleIds.length === 0 && contentIds.length === 0 && !clearCover) {
+    return undefined;
+  }
   return syncItemRichText(row, {
     ...row,
     ...(titleIds.length > 0 && {
@@ -513,6 +633,7 @@ const withoutInlineReferences = <
         contentIds,
       ),
     }),
+    ...(clearCover && { coverAttachmentId: null }),
   });
 };
 
@@ -584,6 +705,9 @@ export const removeItemAttachment = action({
     yield* withoutUndo(function* () {
       yield* deleteRows(itemAttachmentsTable, [link.id]);
       if (isAttachmentParentType(link.parentType)) {
+        yield* clearItemCoverAttachment(link.parentType, link.parentId, [
+          link.attachmentId,
+        ]);
         yield* removeInlineReferences(link.parentType, link.parentId, [
           link.attachmentId,
         ]);
@@ -616,6 +740,7 @@ export const deleteAttachments = action({
         );
       }
       for (const { parentType, parentId } of parents.values()) {
+        yield* clearItemCoverAttachment(parentType, parentId, ids);
         yield* removeInlineReferences(parentType, parentId, ids);
       }
       yield* deleteRows(attachmentsTable, ids);

@@ -4,6 +4,7 @@ import { noteById, taskById } from "@will-be-done/slices/space";
 import { StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { RichTextView } from "@/components/RichText/RichTextView";
+import { ItemCover } from "@/components/Attachments/ItemCover";
 import type { LaidOutNode } from "./mindmapLayout.ts";
 import type { MindmapItem } from "./mindmapDnd.ts";
 import {
@@ -66,6 +67,11 @@ export function MindmapGhostCard({
         borderColor: branchColor(layout.branch),
       }}
     >
+      <ItemCover
+        attachmentId={item?.coverAttachmentId}
+        muted={item?.type === "task" && item.state === "done"}
+        className="mb-1.5 aspect-[3/1] max-h-20 min-w-44 rounded-md"
+      />
       <div className="flex items-start gap-2">
         {kind === "task" && (
           <span className="mt-0.5 size-4 shrink-0 rounded border border-content-tinted/60" />

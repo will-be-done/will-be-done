@@ -40,6 +40,7 @@ import {
   deleteAttachments,
   itemAttachments,
   removeItemAttachment,
+  setItemCoverAttachment,
   setAttachmentImageSize,
 } from "./attachments";
 import { trashTasks, updateTask } from "./tasks";
@@ -262,6 +263,61 @@ describe("attachments", () => {
     expect(listOf(db, "t2")).toEqual(["f2"]);
   });
 
+  test("the first inline image becomes the cover until the user clears it", () => {
+    const db = createDB();
+    addFile(db, "f1");
+    addFile(db, "f2");
+
+    syncDispatch(
+      db,
+      updateTask({
+        id: "t1",
+        task: { content: "![f1](wbd-attachment:f1)" },
+      }),
+    );
+    expect(
+      read(db).tasks.find((task) => task.id === "t1")?.coverAttachmentId,
+    ).toBe("f1");
+
+    syncDispatch(
+      db,
+      setItemCoverAttachment({
+        parentType: taskType,
+        parentId: "t1",
+        attachmentId: null,
+      }),
+    );
+    syncDispatch(
+      db,
+      updateTask({
+        id: "t1",
+        task: {
+          content: "![f1](wbd-attachment:f1) ![f2](wbd-attachment:f2)",
+        },
+      }),
+    );
+    expect(
+      read(db).tasks.find((task) => task.id === "t1")?.coverAttachmentId,
+    ).toBeNull();
+
+    syncDispatch(
+      db,
+      setItemCoverAttachment({
+        parentType: taskType,
+        parentId: "t1",
+        attachmentId: "f2",
+      }),
+    );
+    const f2Link = selectSync(db, {
+      selector: itemAttachments,
+      args: { parentType: taskType, parentId: "t1" },
+    }).find(({ attachment }) => attachment.id === "f2")!.link;
+    syncDispatch(db, removeItemAttachment({ id: f2Link.id }));
+    expect(
+      read(db).tasks.find((task) => task.id === "t1")?.coverAttachmentId,
+    ).toBeNull();
+  });
+
   // The server deletes files left unlisted once replicas have settled, so a
   // replica never deletes one another replica has just listed.
   test("removing from an item strips inline references and keeps the file", () => {
@@ -328,20 +384,38 @@ describe("attachments", () => {
   test("converting a task to a note keeps its files", () => {
     const db = createDB();
     addFile(db, "f1", "t1");
+    syncDispatch(
+      db,
+      setItemCoverAttachment({
+        parentType: taskType,
+        parentId: "t1",
+        attachmentId: "f1",
+      }),
+    );
 
     const note = syncDispatch(db, convertTaskToNote({ taskId: "t1" }));
 
     expect(listOf(db, note.id, "note")).toEqual(["f1"]);
+    expect(note.coverAttachmentId).toBe("f1");
     expect(read(db).attachments.map((a) => a.id)).toEqual(["f1"]);
   });
 
   test("copied items list the same files", () => {
     const db = createDB();
     addFile(db, "f1", "t1");
+    syncDispatch(
+      db,
+      setItemCoverAttachment({
+        parentType: taskType,
+        parentId: "t1",
+        attachmentId: "f1",
+      }),
+    );
 
     const [copy] = syncDispatch(db, copyTask({ id: "t1" }));
 
     expect(listOf(db, copy!.id)).toEqual(["f1"]);
+    expect(copy!.coverAttachmentId).toBe("f1");
     expect(listOf(db, "t1")).toEqual(["f1"]);
   });
 
@@ -397,6 +471,9 @@ describe("attachments", () => {
     expect(read(db).tasks.find((t) => t.id === "t1")?.content).toBe(
       "Start  end",
     );
+    expect(
+      read(db).tasks.find((t) => t.id === "t1")?.coverAttachmentId,
+    ).toBeNull();
     expect(listOf(db, "t1")).toEqual([]);
   });
 
@@ -412,6 +489,14 @@ describe("attachments", () => {
         parentId: "template",
       }),
     );
+    syncDispatch(
+      db,
+      setItemCoverAttachment({
+        parentType: "template",
+        parentId: "template",
+        attachmentId: "f1",
+      }),
+    );
 
     syncDispatch(
       db,
@@ -423,7 +508,10 @@ describe("attachments", () => {
 
     const generated = read(db).tasks.filter((t) => t.templateId);
     expect(generated.length).toBeGreaterThan(0);
-    for (const { id } of generated) expect(listOf(db, id)).toEqual(["f1"]);
+    for (const task of generated) {
+      expect(listOf(db, task.id)).toEqual(["f1"]);
+      expect(task.coverAttachmentId).toBe("f1");
+    }
     const usages = selectSync(db, {
       selector: attachmentUsages,
       args: { attachmentIds: ["f1"] },

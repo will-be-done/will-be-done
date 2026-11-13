@@ -129,7 +129,13 @@ export function NoteBody({
           attachmentParent={{ parentType: "note", parentId: noteId }}
         />
       }
-      attachments={<ItemAttachments parentType="note" parentId={noteId} />}
+      attachments={
+        <ItemAttachments
+          parentType="note"
+          parentId={noteId}
+          coverAttachmentId={note.coverAttachmentId}
+        />
+      }
       actions={
         <DetailsAction
           icon={<SquareCheckboxIcon className="h-3 w-3" />}

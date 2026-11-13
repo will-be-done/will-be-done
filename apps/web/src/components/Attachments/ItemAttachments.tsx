@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Paperclip, Plus, X } from "lucide-react";
+import { Check, ImageOff, ImagePlus, Paperclip, Plus, X } from "lucide-react";
 import {
   useAsyncDispatch,
   useAsyncSelector,
@@ -10,6 +10,7 @@ import {
   type ItemAttachment,
   itemAttachments,
   removeItemAttachment,
+  setItemCoverAttachment,
 } from "@will-be-done/slices/space";
 import { attachmentUrl } from "@will-be-done/slices/common";
 import { cn } from "@/lib/utils";
@@ -71,14 +72,17 @@ function RemoveButton({
 export function ItemAttachments({
   parentType,
   parentId,
+  coverAttachmentId,
 }: {
   parentType: AttachmentParentType;
   parentId: string;
+  coverAttachmentId?: string | null;
 }) {
   const dispatch = useAsyncDispatch();
   const transfers = useAttachmentTransfers();
   const attachFiles = useAttachFiles(parentType, parentId);
   const inputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
   const { data: rows } = useAsyncSelector({
     selector: itemAttachments,
@@ -93,6 +97,10 @@ export function ItemAttachments({
   );
 
   const pickFiles = () => inputRef.current?.click();
+  const setCover = (attachmentId: string | null) =>
+    void dispatch(
+      setItemCoverAttachment({ parentType, parentId, attachmentId }),
+    );
   const remove = async (link: ItemAttachment, attachment: Attachment) => {
     const confirmed = await confirmDialog({
       title: "Remove file?",
@@ -104,6 +112,64 @@ export function ItemAttachments({
 
   return (
     <div data-testid="item-attachments" className="space-y-1.5">
+      <div className="space-y-1.5 pb-1">
+        <div className="flex items-center justify-between pl-1">
+          <span className="text-xs font-medium text-content-tinted">Cover</span>
+          {coverAttachmentId && (
+            <button
+              type="button"
+              onClick={() => setCover(null)}
+              className="flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-[10px] text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
+            >
+              <ImageOff className="size-3" />
+              Remove
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-5 gap-1.5">
+          {images.map(({ link, attachment }) => {
+            const selected = attachment.id === coverAttachmentId;
+            return (
+              <button
+                key={`cover-${link.id}`}
+                type="button"
+                title={`Use ${attachment.name} as cover`}
+                aria-label={`Use ${attachment.name} as cover`}
+                aria-pressed={selected}
+                onClick={() => setCover(attachment.id)}
+                className={cn(
+                  "group/cover relative aspect-[4/3] cursor-pointer overflow-hidden rounded-md ring-1 transition",
+                  selected
+                    ? "ring-2 ring-accent"
+                    : "ring-white/10 hover:ring-white/35",
+                )}
+              >
+                <AttachmentThumb
+                  attachment={attachment}
+                  rememberSize
+                  className="h-full w-full rounded-none transition-transform group-hover/cover:scale-105 motion-reduce:transform-none"
+                />
+                {selected && (
+                  <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-accent text-white shadow-sm">
+                    <Check className="size-3" strokeWidth={3} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            title="Upload a new cover"
+            aria-label="Upload a new cover"
+            onClick={() => coverInputRef.current?.click()}
+            className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-content-tinted/30 text-[9px] text-content-tinted transition-colors hover:border-content-tinted/60 hover:bg-task-panel-hover hover:text-content"
+          >
+            <ImagePlus className="size-3.5" />
+            Upload
+          </button>
+        </div>
+      </div>
+
       {rows.length === 0 ? (
         <button
           type="button"
@@ -204,6 +270,23 @@ export function ItemAttachments({
         </div>
       )}
 
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        data-testid="cover-upload-input"
+        className="hidden"
+        onChange={(event) => {
+          const picked = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          void attachFiles(picked).then((added) => {
+            const cover = added.find((attachment) =>
+              isImageAttachment(attachment.mimeType),
+            );
+            if (cover) setCover(cover.id);
+          });
+        }}
+      />
       <input
         ref={inputRef}
         type="file"

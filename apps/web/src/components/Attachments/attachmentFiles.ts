@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer } from "react";
 import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
 import {
   INLINE_ATTACHMENT_TYPE,
+  isImageAttachmentType,
   setAttachmentImageSize,
   type Attachment,
   type AttachmentParentType,
@@ -10,8 +11,7 @@ import { Cause, Effect, Option, Predicate } from "effect";
 import { toast } from "sonner";
 import { attachmentTransfersByDB } from "@/store/attachments/transfers";
 
-export const isImageAttachment = (mimeType: string) =>
-  /^image\/(png|jpeg|gif|webp|avif|bmp|svg\+xml)$/.test(mimeType);
+export const isImageAttachment = isImageAttachmentType;
 
 export const formatFileSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -302,30 +302,36 @@ export function useAttachFiles(
 ) {
   const transfers = useAttachmentTransfers();
   return useCallback(
-    async (files: File[]) => {
-      if (!transfers) return [];
-      const added = await Effect.runPromise(
-        Effect.forEach(files, (file) =>
-          transfers.add(file, { parentType, parentId }).pipe(
-            Effect.tapCause((cause) =>
-              Effect.sync(() => {
-                const error = Option.getOrUndefined(
-                  Cause.findErrorOption(cause),
-                );
-                if (error?._tag === "AttachmentTooLargeError") {
-                  toast(error.message);
-                  return;
-                }
-                toast(`Couldn't attach ${file.name}`);
-                console.error(`Couldn't attach ${file.name}`, cause);
-              }),
-            ),
-            Effect.catchCause(() => Effect.succeed(undefined)),
-          ),
-        ),
-      );
-      return added.filter(Predicate.isNotUndefined);
-    },
+    (files: File[]) =>
+      attachFilesToItem(transfers, parentType, parentId, files),
     [parentId, parentType, transfers],
   );
+}
+
+export async function attachFilesToItem(
+  transfers: ReturnType<typeof useAttachmentTransfers>,
+  parentType: AttachmentParentType,
+  parentId: string,
+  files: File[],
+) {
+  if (!transfers) return [];
+  const added = await Effect.runPromise(
+    Effect.forEach(files, (file) =>
+      transfers.add(file, { parentType, parentId }).pipe(
+        Effect.tapCause((cause) =>
+          Effect.sync(() => {
+            const error = Option.getOrUndefined(Cause.findErrorOption(cause));
+            if (error?._tag === "AttachmentTooLargeError") {
+              toast(error.message);
+              return;
+            }
+            toast(`Couldn't attach ${file.name}`);
+            console.error(`Couldn't attach ${file.name}`, cause);
+          }),
+        ),
+        Effect.catchCause(() => Effect.succeed(undefined)),
+      ),
+    ),
+  );
+  return added.filter(Predicate.isNotUndefined);
 }

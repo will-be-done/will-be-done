@@ -10,11 +10,11 @@ import { publicProcedure, router } from "./trpc";
 import { assertSupportedSyncVersion } from "./syncVersion";
 
 describe("sync version enforcement", () => {
-  it("accepts version 8", () => {
-    expect(() => assertSupportedSyncVersion(8)).not.toThrow();
+  it("accepts version 9", () => {
+    expect(() => assertSupportedSyncVersion(9)).not.toThrow();
   });
 
-  it.each([undefined, 0, 1, 2, 3, 4, 5, 6, 7])(
+  it.each([undefined, 0, 1, 2, 3, 4, 5, 6, 7, 8])(
     "rejects unsupported version %s",
     (version) => {
       try {
@@ -62,8 +62,8 @@ describe("sync version enforcement", () => {
     expect(body.error.data.syncVersion).toEqual({
       code: SYNC_VERSION_UNSUPPORTED,
       received: 1,
-      minimum: 8,
-      maximum: 8,
+      minimum: 9,
+      maximum: 9,
     });
   });
 });

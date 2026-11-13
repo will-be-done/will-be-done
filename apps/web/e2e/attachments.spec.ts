@@ -56,6 +56,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   );
   const shotTile = list.getByRole("button", { name: "Open shot.png" });
   await expect(shotTile).toBeVisible();
+  await expect(page.getByTestId("item-cover")).toHaveCount(1);
 
   // The toolbar's button attaches files into the description.
   const chooser = page.waitForEvent("filechooser");
@@ -115,6 +116,23 @@ test("attaches, pastes, syncs, and lists files", async ({
   await expect(
     list.getByRole("button", { name: "Open title.png" }),
   ).toBeVisible();
+  const titleCover = list.getByRole("button", {
+    name: "Use title.png as cover",
+  });
+  await titleCover.click();
+  await expect(titleCover).toHaveAttribute("aria-pressed", "true");
+  await list.getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByTestId("item-cover")).toHaveCount(0);
+
+  await page.getByTestId("cover-upload-input").setInputFiles({
+    name: "cover.png",
+    mimeType: "image/png",
+    buffer: png,
+  });
+  await expect(
+    list.getByRole("button", { name: "Use cover.png as cover" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("item-cover")).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath("title.png") });
 
   // Clicking the image previews it full screen, with a download button.
@@ -125,7 +143,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   // Arrows page through the item's images.
   await page.keyboard.press("ArrowRight");
   await expect(preview.getByRole("img", { name: "title.png" })).toBeVisible();
-  await expect(preview.getByText("2 / 2")).toBeVisible();
+  await expect(preview.getByText("2 / 3")).toBeVisible();
   await page.keyboard.press("ArrowLeft");
   await expect(preview.getByRole("img", { name: "shot.png" })).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
@@ -144,7 +162,7 @@ test("attaches, pastes, syncs, and lists files", async ({
 
   const settings = await openSpaceSettings(page, "Files");
   const rows = settings.getByTestId("attachment-row");
-  await expect(rows).toHaveCount(4);
+  await expect(rows).toHaveCount(5);
   await expect(
     rows.first().getByRole("link", { name: taskTitle }),
   ).toBeVisible();
@@ -170,6 +188,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   await expect(
     other.getByTestId("item-attachments").getByText("notes.txt"),
   ).toBeVisible();
+  await expect(other.getByTestId("item-cover")).toHaveCount(1);
   await other.screenshot({ path: testInfo.outputPath("other-device.png") });
 
   // A file dragged from the list lands inline in the description.
@@ -211,4 +230,28 @@ test("attaches, pastes, syncs, and lists files", async ({
       }
     });
   await expect(list.getByText("dropped.txt")).toBeVisible();
+
+  // Pasting an image with a note focused attaches it without opening an editor.
+  await page.getByRole("button", { name: "Convert to note" }).click();
+  await expect(
+    page.getByRole("button", { name: "Convert to task" }),
+  ).toBeVisible();
+  await page.evaluate(
+    (bytes) => {
+      const data = new DataTransfer();
+      data.items.add(
+        new File([new Uint8Array(bytes)], "note-cover.png", {
+          type: "image/png",
+        }),
+      );
+      document.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: data, bubbles: true }),
+      );
+    },
+    [...png],
+  );
+  await expect(
+    list.getByRole("button", { name: "Use note-cover.png as cover" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Edit note title")).toHaveCount(0);
 });

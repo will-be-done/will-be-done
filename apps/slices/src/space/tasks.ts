@@ -39,6 +39,7 @@ import {
   deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
   moveItemAttachments,
+  withAutoCoverAttachment,
 } from "./attachments";
 import {
   taskType,
@@ -277,7 +278,10 @@ export const updateTask = action({
     if (!taskInState) throw new Error("Task not found");
     assertValidTaskDuration(task.durationMinutes);
 
-    const next = syncItemRichText(taskInState, { ...taskInState, ...task });
+    const next = yield* withAutoCoverAttachment(
+      syncItemRichText(taskInState, { ...taskInState, ...task }),
+      taskInState,
+    );
     yield* upsert(tasksTable, [next]);
     yield* ensureInlineAttachmentLinks(taskType, id, next, taskInState);
   },
@@ -294,7 +298,7 @@ export const createTask = action({
   handler: function* createTask({ task }) {
     const id = task.id || uuidv7();
 
-    const newTask: Task = {
+    const newTask: Task = yield* withAutoCoverAttachment({
       type: taskType,
       id,
       title: "",
@@ -305,7 +309,7 @@ export const createTask = action({
       templateDate: null,
       ...task,
       nature: task.nature ?? "unknown",
-    };
+    });
 
     yield* insert(tasksTable, [newTask]);
     yield* ensureInlineAttachmentLinks(taskType, id, newTask);
@@ -520,6 +524,9 @@ export const createTaskFromTemplate = action({
       ...(taskTemplate.durationMinutes == null
         ? {}
         : { durationMinutes: taskTemplate.durationMinutes }),
+      ...(taskTemplate.coverAttachmentId === undefined
+        ? {}
+        : { coverAttachmentId: taskTemplate.coverAttachmentId }),
     };
     yield* insert(tasksTable, [newTask]);
 

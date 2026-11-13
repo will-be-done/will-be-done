@@ -7,16 +7,19 @@ import {
   dailyListById,
   dailyListsByIds,
   ensureInlineAttachmentLinks,
+  setItemCoverAttachment,
   trashTasks,
   setDailyEntryTime,
   syncItemRichText,
   taskById,
   tasksTable,
   updateTask as updateTaskAction,
+  withAutoCoverAttachment,
   type Task,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import {
+  BadRequestError,
   ConflictError,
   InvalidPlacementError,
   ResourceNotFoundError,
@@ -46,6 +49,7 @@ export interface PublicTask {
   scheduledDate: string | null;
   scheduledTime: string | null;
   durationMinutes: number | null;
+  coverAttachmentId: string | null;
 }
 
 export interface TaskSchedule {
@@ -60,10 +64,20 @@ const replaceTask = action({
   args: {
     task: tasksTable.v(),
     scheduledTime: v.optional(v.union(v.string(), v.null())),
+    coverAttachmentId: v.optional(v.union(v.string(), v.null())),
   },
-  handler: function* ({ task, scheduledTime }) {
-    yield* upsert(tasksTable, [task]);
-    yield* ensureInlineAttachmentLinks("task", task.id, task);
+  handler: function* ({ task, scheduledTime, coverAttachmentId }) {
+    const previous = yield* taskById({ id: task.id });
+    const next = yield* withAutoCoverAttachment(task, previous);
+    yield* upsert(tasksTable, [next]);
+    yield* ensureInlineAttachmentLinks("task", task.id, next, previous);
+    if (coverAttachmentId !== undefined) {
+      yield* setItemCoverAttachment({
+        parentType: "task",
+        parentId: task.id,
+        attachmentId: coverAttachmentId,
+      });
+    }
     if (scheduledTime !== undefined) {
       yield* setDailyEntryTime({ taskId: task.id, time: scheduledTime });
     }
@@ -136,6 +150,7 @@ export function toPublicTask(
     scheduledDate: schedule?.date ?? null,
     scheduledTime: schedule?.time ?? null,
     durationMinutes: task.durationMinutes ?? null,
+    coverAttachmentId: task.coverAttachmentId ?? null,
   };
 }
 
@@ -218,6 +233,7 @@ export async function updateTask({
     nature?: PublicTaskNature | null;
     scheduledTime?: string | null;
     durationMinutes?: number | null;
+    coverAttachmentId?: string | null;
   };
 }): Promise<PublicTask> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -244,6 +260,9 @@ export async function updateTask({
     ...(updates.durationMinutes === undefined
       ? {}
       : { durationMinutes: updates.durationMinutes }),
+    ...(updates.coverAttachmentId === undefined
+      ? {}
+      : { coverAttachmentId: updates.coverAttachmentId }),
     ...(updates.state !== undefined && updates.state !== current.state
       ? { lastToggledAt: Date.now() }
       : {}),
@@ -252,12 +271,28 @@ export async function updateTask({
   if (updates.nature === null) delete proposed.nature;
   const next = syncItemRichText(current, proposed);
 
-  await asyncDispatch(
-    db,
-    replaceTask({ task: next, scheduledTime: updates.scheduledTime }),
-  );
+  try {
+    await asyncDispatch(
+      db,
+      replaceTask({
+        task: next,
+        scheduledTime: updates.scheduledTime,
+        coverAttachmentId: updates.coverAttachmentId,
+      }),
+    );
+  } catch (error) {
+    if (
+      updates.coverAttachmentId !== undefined &&
+      error instanceof Error &&
+      (error.message === "Cover must be an image attachment" ||
+        error.message === "Cover attachment is not linked to this item")
+    ) {
+      throw new BadRequestError(error.message);
+    }
+    throw error;
+  }
 
-  return toPublicTask(next, await getTaskSchedule(db, taskId));
+  return getTask({ spaceId, taskId, userId });
 }
 
 export async function moveTask({

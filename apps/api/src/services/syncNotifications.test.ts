@@ -53,7 +53,7 @@ describe("database sync notifications", () => {
       await caller.onChangesAvailable({
         dbId: "user-2",
         dbType: "user",
-        syncVersion: 8,
+        syncVersion: 9,
       });
     } catch (cause) {
       error = cause;
@@ -71,7 +71,7 @@ describe("database sync notifications", () => {
     const subscription = await caller.onChangesAvailable({
       dbId: "user-1",
       dbType: "user",
-      syncVersion: 8,
+      syncVersion: 9,
     });
     const iterator = subscription[Symbol.asyncIterator]();
 
@@ -106,7 +106,7 @@ describe("database sync notifications", () => {
     const subscription = await caller.onChangesAvailable({
       dbId: "user-1",
       dbType: "user",
-      syncVersion: 8,
+      syncVersion: 9,
     });
     const iterator = subscription[Symbol.asyncIterator]();
 

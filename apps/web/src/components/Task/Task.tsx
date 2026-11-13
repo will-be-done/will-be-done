@@ -118,6 +118,7 @@ import {
 } from "@/components/Selection/useSelectionActions";
 import { useClipboardStore } from "@/components/Selection/clipboard";
 import { useAttachFiles } from "@/components/Attachments/attachmentFiles";
+import { ItemCover } from "@/components/Attachments/ItemCover";
 import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker";
 
 export const DropTaskIndicator = ({
@@ -1569,6 +1570,10 @@ export const PreloadedTaskComp = ({
                     : "bg-panel hover:bg-panel-hover",
             )}
           >
+            <ItemCover
+              attachmentId={item.coverAttachmentId}
+              muted={isTask(item) && item.state === "done"}
+            />
             <div className="absolute right-1.5 top-1.5 z-10 h-5">
               {(isTaskTemplate(item) ||
                 isNote(item) ||

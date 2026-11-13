@@ -26,6 +26,10 @@ the rules that keep the two halves consistent.
   description (see [rich-text.md](rich-text.md)). An inline reference always
   has a link: item writes call `ensureInlineAttachmentLinks`, so "used in"
   never parses Markdown. A new writer of `title` or `content` must do the same.
+- **Card covers** are nullable attachment IDs on Tasks, TaskTemplates, and
+  Notes. The first inline image becomes the cover unless the item already had
+  an inline image or the user explicitly cleared its cover. A cover must name
+  an image linked to that item.
 
 Bytes live in a per-space IndexedDB on each device
 (`apps/web/src/store/attachments/blobStore.ts`) and in the server's
@@ -47,11 +51,12 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
   Links that move or copy with an item (conversion, copying, generated tasks)
   stay in that item's undo step.
 - **Removing from an item** deletes the link and the item's inline references
-  but keeps the file, which Settings then shows as unused. Clients never delete
-  a file implicitly: another replica may list it again meanwhile, and only the
-  server sees the merged state (see cleanup below). **Deleting a file** removes
-  every link and inline reference. Inline references are deleted from the Yjs
-  doc directly, not by rewriting text, so concurrent typing survives.
+  and clears its cover when selected, but keeps the file, which Settings then
+  shows as unused. Clients never delete a file implicitly: another replica may
+  list it again meanwhile, and only the server sees the merged state (see
+  cleanup below). **Deleting a file** removes every link, inline reference, and
+  cover selection. Inline references are deleted from the Yjs doc directly,
+  not by rewriting text, so concurrent typing survives.
 - **Trash.** A trashed item keeps its links, so finding where a file is used
   or whether it is orphaned is an indexed read, never a scan of trash
   snapshots. A link whose item is missing belongs to a trashed item. Purging
