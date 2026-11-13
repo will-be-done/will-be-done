@@ -26,6 +26,7 @@ import {
   cleanupExpiredSyncSessions,
   commitSyncUpload,
   getDownloadChunk,
+  getUploadSession,
   getSyncStagingMetrics,
   initializeServerSyncFeed,
   stageUploadChunk,
@@ -870,34 +871,153 @@ describe("sync v4 actions", () => {
     );
   });
 
-  test("limits active upload sessions for one user and client", () => {
-    const db = new DB(new BptreeInmemDriver());
-    execSync(db.loadTables([...serverSyncTables]));
-    const start = () =>
-      syncDispatch(
-        db,
-        startSyncUpload({
-          userId: "user-1",
-          request: {
-            syncVersion: 8,
-            dbId: "user-1",
+  test.each([false, true])(
+    "reclaims empty upload sessions at capacity only when available: %s",
+    (hasEmptySessions) => {
+      const db = new DB(new BptreeInmemDriver());
+      execSync(db.loadTables([changesTable, spacesTable, ...serverSyncTables]));
+      let now = CLOCK_TIME_MS;
+      const start = (userId = "user-1", clientId = "client-1") =>
+        syncDispatch(
+          db,
+          startSyncUpload({
+            userId,
+            request: {
+              syncVersion: 8,
+              dbId: "user-1",
+              dbType: "user",
+              clientId,
+              expectedAcceptedClientCursor: null,
+              coveredClientCursor: null,
+              expectedAcknowledgedServerRevision: 0,
+              appliedServerRevision: 0,
+            },
+            now: now++,
+            expiresAt: now + 10_000,
+          }),
+        );
+      const commit = (uploadId: string) =>
+        syncDispatch(
+          db,
+          commitSyncUpload({
+            uploadId,
+            userId: "user-1",
+            request: {
+              chunkCount: 0,
+              changeCount: 0,
+              throughCursor: null,
+              checksum: sha256(""),
+            },
+            registeredSyncableTableNameMap: {},
+            orderedTableNames: [],
             dbType: "user",
-            clientId: "client-1",
-            expectedAcceptedClientCursor: null,
-            coveredClientCursor: null,
-            expectedAcknowledgedServerRevision: 0,
-            appliedServerRevision: 0,
-          },
-          now: 1,
-          expiresAt: 10_000,
-        }),
-      );
+            serverClientId: "server",
+            nextClock: clock(1, "server"),
+            now: now++,
+            expiresAt: now + 10_000,
+          }),
+        );
+      const committed = start();
+      const committedResult = commit(committed.uploadId);
+      const otherClient = start("user-1", "client-2");
+      const otherUser = start("user-2");
+      const sessions = Array.from({ length: 8 }, () => start());
+      const stage = (uploadId: string) =>
+        syncDispatch(
+          db,
+          stageUploadChunk({
+            uploadId,
+            userId: "user-1",
+            sequence: 0,
+            byteCount: 100,
+            chunk: {
+              checksum: "chunk",
+              changesets: [
+                {
+                  tableName: "spaces",
+                  data: [
+                    {
+                      change: {
+                        id: "spaces:space-1",
+                        tableName: "spaces",
+                        entityId: "space-1",
+                        clientId: "client-1",
+                        createdAt: clock(0),
+                        updatedAt: clock(0),
+                        deletedAt: clock(0),
+                        changes: {},
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            tableNameMap: { spaces: spacesTable },
+            now: now++,
+          }),
+        );
+      for (const session of hasEmptySessions
+        ? sessions.slice(0, 1)
+        : sessions) {
+        stage(session.uploadId);
+      }
 
-    for (let index = 0; index < 8; index += 1) start();
-    expect(start).toThrow(
-      "Too many active sync upload sessions for this client",
-    );
-  });
+      if (hasEmptySessions) {
+        for (let index = 0; index < 16; index += 1) {
+          const replacement = start();
+          expect(
+            syncDispatch(
+              db,
+              getUploadSession({ uploadId: replacement.uploadId }),
+            ),
+          ).toBeDefined();
+        }
+        expect(
+          syncDispatch(
+            db,
+            getUploadSession({ uploadId: sessions[1]!.uploadId }),
+          ),
+        ).toBeUndefined();
+        expect(() => commit(sessions[1]!.uploadId)).toThrow(
+          "Sync upload session is not active",
+        );
+        expect(() => stage(sessions[1]!.uploadId)).toThrow(
+          "Sync upload session is not active",
+        );
+      } else {
+        expect(() => start()).toThrow(
+          "Too many active sync upload sessions for this client",
+        );
+      }
+      expect(stage(sessions[0]!.uploadId).replay).toBe(true);
+      expect(commit(committed.uploadId)).toEqual(committedResult);
+      for (const session of [otherClient, otherUser]) {
+        expect(
+          syncDispatch(db, getUploadSession({ uploadId: session.uploadId })),
+        ).toBeDefined();
+      }
+      const active = syncDispatch(
+        db,
+        testAction({
+          name: "getActiveUploadsForCapacityTest",
+          args: {},
+          handler: function* () {
+            return yield* selectFrom(
+              syncUploadSessionsTable,
+              "byUserClientStatusExpiresAtId",
+            ).where((q) =>
+              q
+                .eq("userId", "user-1")
+                .eq("clientId", "client-1")
+                .eq("status", "uploading")
+                .gte("expiresAt", now + 1),
+            );
+          },
+        })({}),
+      );
+      expect(active).toHaveLength(8);
+    },
+  );
 
   test("accumulates staging metrics through bounded index pages", () => {
     const db = new SubscribableDB(new DB(new BptreeInmemDriver()));

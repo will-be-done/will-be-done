@@ -216,11 +216,20 @@ export const startSyncUpload = action({
           .eq("status", "uploading")
           .gte("expiresAt", now + 1),
       )
+      .order("asc")
       .limit(SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS);
     if (activeUploads.length >= SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS) {
-      throw new SyncConflictError(
-        "Too many active sync upload sessions for this client",
+      const emptyUpload = activeUploads.find(
+        (upload) =>
+          upload.uploadedChangeCount === 0 && upload.uploadedByteCount === 0,
       );
+      if (!emptyUpload) {
+        throw new SyncConflictError(
+          "Too many active sync upload sessions for this client",
+        );
+      }
+      // A lost handshake response can leave an empty session the client cannot resume.
+      yield* deleteRows(syncUploadSessionsTable, [emptyUpload.id]);
     }
 
     let uploadFromCursor = storedCursor;
