@@ -35,6 +35,10 @@ test("opens a task page from its menu and edits the task there", async ({
   await expect(page.getByTestId("task-title")).toHaveText(
     "Write the final report",
   );
+  const section = page.locator("select").first();
+  await section.focus();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/tasks\/[^/?]+$/);
   const done = page.getByRole("checkbox").first();
   await done.click();
   await expect(done).toBeChecked();
@@ -63,7 +67,7 @@ test("follows a task converted to a note and redirects old links", async ({
   await createProjectTask(page, "Trip ideas");
 
   await openTaskDetails(page, "Trip ideas");
-  await page.getByRole("button", { name: "Open as page" }).click();
+  await page.getByRole("link", { name: "Open as page" }).click();
   await expect(page).toHaveURL(/\/tasks\/[^/?]+$/);
 
   await page.getByRole("button", { name: "Convert to note" }).click();

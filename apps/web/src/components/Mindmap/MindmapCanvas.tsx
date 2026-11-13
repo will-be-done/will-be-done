@@ -172,6 +172,7 @@ export function MindmapCanvas({
   return (
     <div
       ref={viewportRef}
+      data-testid="mindmap-canvas"
       tabIndex={-1}
       className="relative min-h-0 flex-1 touch-none overflow-hidden outline-none"
       {...gestures}

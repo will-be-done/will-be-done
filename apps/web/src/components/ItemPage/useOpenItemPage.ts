@@ -1,9 +1,32 @@
 import { useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { noteType, taskTemplateType } from "@will-be-done/slices/space";
+import {
+  noteType,
+  taskTemplateType,
+  type Item,
+} from "@will-be-done/slices/space";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 
-type ItemRef = { id: string; type: string };
+type ItemRef = Pick<Item, "id" | "type">;
+
+export function itemPageLocation(spaceId: string, item: ItemRef) {
+  if (item.type === noteType) {
+    return {
+      to: "/spaces/$spaceId/notes/$noteId",
+      params: { spaceId, noteId: item.id },
+    } as const;
+  }
+  if (item.type === taskTemplateType) {
+    return {
+      to: "/spaces/$spaceId/templates/$templateId",
+      params: { spaceId, templateId: item.id },
+    } as const;
+  }
+  return {
+    to: "/spaces/$spaceId/tasks/$taskId",
+    params: { spaceId, taskId: item.id },
+  } as const;
+}
 
 export function useOpenItemPage() {
   const navigate = useNavigate();
@@ -11,25 +34,7 @@ export function useOpenItemPage() {
 
   return useCallback(
     (item: ItemRef, options: { replace?: boolean } = {}) => {
-      if (item.type === noteType) {
-        void navigate({
-          to: "/spaces/$spaceId/notes/$noteId",
-          params: { spaceId, noteId: item.id },
-          ...options,
-        });
-      } else if (item.type === taskTemplateType) {
-        void navigate({
-          to: "/spaces/$spaceId/templates/$templateId",
-          params: { spaceId, templateId: item.id },
-          ...options,
-        });
-      } else {
-        void navigate({
-          to: "/spaces/$spaceId/tasks/$taskId",
-          params: { spaceId, taskId: item.id },
-          ...options,
-        });
-      }
+      void navigate({ ...itemPageLocation(spaceId, item), ...options });
     },
     [navigate, spaceId],
   );

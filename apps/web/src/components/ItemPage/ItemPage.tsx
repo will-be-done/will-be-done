@@ -59,6 +59,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
       e.defaultPrevented ||
       editing.isEditingAnyField ||
       isEditingText(e.target) ||
+      e.target instanceof HTMLSelectElement ||
       document.querySelector('[role="dialog"], [role="menu"]')
     ) {
       return;

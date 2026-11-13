@@ -33,7 +33,7 @@ import {
 } from "./tables";
 
 // Bump to rebuild every replica's index after changing how text is tokenized.
-const searchIndexMigrationId = "search-index-v2";
+const searchIndexMigrationId = "search-index-v3";
 const searchStatsId = "all";
 const maxTokenLength = 64;
 const candidateLimit = 500;
@@ -407,6 +407,17 @@ export function* applySearchIndexOps(
       ids.map((id) => q.eq("id", id)),
     )).map((doc) => [doc.id, doc]),
   );
+  const storedTokens = new Map<string, SearchToken[]>();
+  for (const batch of chunks(ids, orChunkSize)) {
+    const rows = yield* selectFrom(searchTokensTable, "byDocId").where((q) =>
+      batch.map((id) => q.eq("docId", id)),
+    );
+    for (const row of rows) {
+      const tokens = storedTokens.get(row.docId) ?? [];
+      tokens.push(row);
+      storedTokens.set(row.docId, tokens);
+    }
+  }
 
   const tokenUpserts = new Map<string, SearchToken>();
   const tokenDeletes = new Set<string>();
@@ -415,10 +426,11 @@ export function* applySearchIndexOps(
   const delta = { docs: 0, titleLength: 0, contentLength: 0 };
 
   for (const { oldText, newText } of changes) {
-    const oldIndex = oldText && indexOf(oldText);
+    const id = (newText ?? oldText)!.id;
     const newIndex = newText && indexOf(newText);
+    // Another tab may have indexed a newer row than this tab's cached old value.
     const oldTokens = new Map(
-      (oldIndex?.tokens ?? []).map((row) => [row.id, row]),
+      (storedTokens.get(id) ?? []).map((row) => [row.id, row]),
     );
     for (const row of newIndex?.tokens ?? []) {
       const old = oldTokens.get(row.id);
@@ -436,7 +448,7 @@ export function* applySearchIndexOps(
       tokenDeletes.add(id);
     }
 
-    const id = (newText ?? oldText)!.id;
+    storedTokens.set(id, newIndex?.tokens ?? []);
     const stored = storedDocs.get(id);
     const doc = newIndex?.doc;
     for (const [counted, sign] of [
@@ -616,7 +628,7 @@ const markSearchIndexMigrated = action({
   },
 });
 
-/** Builds the index for existing items once per tokenizer version. */
+/** Builds the index once per version; callers sharing storage must serialize this. */
 export async function migrateSearchIndex(db: HyperDB) {
   if (await selectAsync(db, { selector: searchIndexMigration, args: {} })) {
     return;

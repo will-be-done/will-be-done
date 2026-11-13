@@ -10,7 +10,6 @@ import {
   loadSpaceBackup,
   migrateProjectSectionTaskStats,
   migrateScheduledTodoTasks,
-  migrateSearchIndex,
   projectSectionsTable,
   projectSectionTaskStatsTable,
   projectsTable,
@@ -37,7 +36,7 @@ import type { SyncConfig } from "./syncTypes";
 import { generateDemoBackup } from "@/lib/demoData";
 import { Clock, Effect } from "effect";
 import { clientSyncV4Tables } from "./syncV4Tables";
-import { Database, DatabaseError } from "./database";
+import { Database } from "./database";
 import { scheduleMaintenance } from "./maintenance";
 import { installUndo } from "./undo";
 
@@ -55,15 +54,6 @@ const installSpaceHooks = Effect.gen(function* () {
   const { hyperDB } = yield* Database;
   installProjectTaskStatsHooks(hyperDB);
   installSearchIndexHooks(hyperDB);
-});
-
-// Runs as batches of its own transactions rather than one dispatched action.
-const migrateSpaceSearchIndex = Effect.gen(function* () {
-  const { hyperDB } = yield* Database;
-  yield* Effect.tryPromise({
-    try: () => migrateSearchIndex(hyperDB),
-    catch: (cause) => new DatabaseError({ cause }),
-  });
 });
 
 const demoDbId = "e89b6c8f-1d6c-4bf4-9d27-478339773fc9";
@@ -110,7 +100,6 @@ export const spaceDBConfig = (dbId: string) => {
       yield* database.preload(spacePreloadedTables);
       yield* database.dispatch(migrateProjectSectionTaskStats({}));
       yield* database.dispatch(migrateScheduledTodoTasks({}));
-      yield* migrateSpaceSearchIndex;
       installUndo(database.hyperDB);
       // Delayed so the first maintenance run does not slow down loading.
       yield* scheduleMaintenance(runSpaceMaintenance, "2 seconds");
@@ -139,7 +128,6 @@ export const demoSpaceDBConfig = () => {
       yield* database.preload(spacePreloadedTables);
       yield* database.dispatch(migrateProjectSectionTaskStats({}));
       yield* database.dispatch(migrateScheduledTodoTasks({}));
-      yield* migrateSpaceSearchIndex;
       installUndo(database.hyperDB);
       yield* scheduleMaintenance(runSpaceMaintenance, 0);
     }),

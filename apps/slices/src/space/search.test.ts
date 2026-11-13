@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   DB,
+  HybridDB,
   SubscribableDB,
+  asyncDispatch,
   createSelector,
+  execAsync,
   execSync,
+  selectAsync,
   selectFrom,
   selectSync,
   syncDispatch,
+  upsert,
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
@@ -165,6 +170,68 @@ describe("search tokens", () => {
 });
 
 describe("search index", () => {
+  it.each(["Eggs", "Milk Eggs"])(
+    "replaces persisted tokens when a stale tab renames a task to %s",
+    async (title) => {
+      const primary = createDB({ hooks: false });
+      const tabs = await Promise.all(
+        [0, 1].map(async () => {
+          const db = new SubscribableDB(
+            new HybridDB(primary, new DB(new BptreeInmemDriver()), {
+              uncachedTables: searchIndexTables,
+            }),
+          );
+          await execAsync(
+            db.loadTables([
+              ...registeredSpaceSyncableTables,
+              ...searchIndexTables,
+              spaceMigrationsTable,
+            ]),
+          );
+          installSearchIndexHooks(db);
+          return db;
+        }),
+      );
+      const [first, stale] = tabs;
+      addTask(primary, "task", "Milk");
+      for (const db of tabs) {
+        await execAsync(
+          db.preloadTables([{ table: tasksTable, scanIndex: "byIds" }]),
+        );
+      }
+      await rebuildSearchIndex(first!);
+      await execAsync(first!.waitForPersistence());
+      await asyncDispatch(
+        first!,
+        updateTask({ id: "task", task: { title: "Bread" } }),
+      );
+      await execAsync(first!.waitForPersistence());
+      await asyncDispatch(stale!, updateTask({ id: "task", task: { title } }));
+      await execAsync(stale!.waitForPersistence());
+
+      const hits = async (query: string) =>
+        (
+          await selectAsync(stale!, {
+            selector: searchSpace,
+            args: { query, limit: 50 },
+          })
+        ).map(idOf);
+      expect(await hits("bread")).toEqual([]);
+      expect(await hits("milk")).toEqual(
+        title.includes("Milk") ? ["task"] : [],
+      );
+      expect(await hits("eggs")).toEqual(["task"]);
+      const maintained = await selectAsync(stale!, {
+        selector: wholeIndex,
+        args: {},
+      });
+      await rebuildSearchIndex(stale!);
+      expect(
+        await selectAsync(stale!, { selector: wholeIndex, args: {} }),
+      ).toEqual(maintained);
+    },
+  );
+
   it("follows task edits, conversions, trash and restore", () => {
     const db = createDB();
     addTask(db, "task", "Buy milk", "From the *corner* [shop](https://x.dev)");
@@ -251,18 +318,35 @@ describe("search index", () => {
     );
   });
 
-  it("builds the index for existing items once", async () => {
-    const db = createDB({ hooks: false });
-    addTask(db, "task", "Existing task");
-    expect(search(db, "existing")).toEqual([]);
+  it.each([null, "search-index-v2"])(
+    "builds the index once after migration %s",
+    async (previousVersion) => {
+      const db = createDB({ hooks: false });
+      addTask(db, "task", "Existing task");
+      if (previousVersion) {
+        syncDispatch(
+          db,
+          action({
+            name: "seedPreviousSearchMigration",
+            args: {},
+            handler: function* () {
+              yield* upsert(spaceMigrationsTable, [
+                { id: previousVersion, appliedAt: 1 },
+              ]);
+            },
+          })({}),
+        );
+      }
+      expect(search(db, "existing")).toEqual([]);
 
-    await migrateSearchIndex(db);
-    expect(search(db, "existing")).toEqual(["task"]);
+      await migrateSearchIndex(db);
+      expect(search(db, "existing")).toEqual(["task"]);
 
-    syncDispatch(db, updateTask({ id: "task", task: { title: "Changed" } }));
-    await migrateSearchIndex(db);
-    expect(search(db, "changed")).toEqual([]);
-  });
+      syncDispatch(db, updateTask({ id: "task", task: { title: "Changed" } }));
+      await migrateSearchIndex(db);
+      expect(search(db, "changed")).toEqual([]);
+    },
+  );
 
   it("leaves another tab's merged changes to the tab that made them", () => {
     const db = createDB();

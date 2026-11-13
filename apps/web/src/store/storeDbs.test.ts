@@ -3,6 +3,8 @@ import {
   asyncDispatch,
   createAction,
   createSelector,
+  DB,
+  execAsync,
   defineTable,
   selectAsync,
   selectFrom,
@@ -14,6 +16,13 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SyncConfig } from "./syncTypes";
 import { createStoreDbs, withStoreStartupLock } from "./storeDbs";
+import {
+  registeredSpaceSyncableTables,
+  searchIndexTables,
+  searchSpace,
+  spaceMigrationsTable,
+  tasksTable,
+} from "@will-be-done/slices/space";
 
 const { openPersistentDriver } = vi.hoisted(() => ({
   openPersistentDriver: vi.fn(),
@@ -73,6 +82,119 @@ afterEach(() => {
 });
 
 describe("store database startup", () => {
+  it.each([false, true])(
+    "builds the search index once inside the shared startup lock (interrupted: %s)",
+    async (interrupted) => {
+      const driver = new PersistentInMemoryDriver();
+      const tables = [
+        ...registeredSpaceSyncableTables,
+        ...searchIndexTables,
+        spaceMigrationsTable,
+      ];
+      const persistent = new DB(driver);
+      await execAsync(persistent.loadTables(tables));
+      await asyncDispatch(
+        persistent,
+        action({
+          name: "seedSearchStartup",
+          args: {},
+          handler: function* () {
+            yield* upsert(tasksTable, [
+              {
+                id: "task",
+                type: "task",
+                title: "Milk",
+                state: "todo",
+                projectSectionId: "section",
+                orderToken: "a0",
+                createdAt: 1,
+                lastToggledAt: 1,
+                templateId: null,
+                templateDate: null,
+              },
+            ]);
+          },
+        })({}),
+      );
+      openPersistentDriver.mockResolvedValue(driver);
+      let lockQueue = Promise.resolve();
+      let insideLock = false;
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: {
+          locks: {
+            request: <T>(_name: string, callback: () => Promise<T>) => {
+              const result = lockQueue.then(async () => {
+                insideLock = true;
+                try {
+                  return await callback();
+                } finally {
+                  insideLock = false;
+                }
+              });
+              lockQueue = result.then(
+                () => undefined,
+                () => undefined,
+              );
+              return result;
+            },
+          },
+        },
+      });
+      const begin = driver.beginTx.bind(driver);
+      let tokenWrites = 0;
+      let failNextWrite = interrupted;
+      vi.spyOn(driver, "beginTx").mockImplementation(function* () {
+        const tx = yield* begin();
+        const upsert = tx.upsert.bind(tx);
+        tx.upsert = function* (table, rows) {
+          if (table === "search_tokens") {
+            expect(insideLock).toBe(true);
+            tokenWrites++;
+            if (failNextWrite) {
+              failNextWrite = false;
+              throw new Error("Interrupted index rebuild");
+            }
+          }
+          yield* upsert(table, rows);
+        };
+        return tx;
+      });
+      const config = {
+        dbId: "search-startup",
+        dbType: "space",
+        persistDBTables: tables,
+        uncachedTables: searchIndexTables,
+        syncableDBTables: registeredSpaceSyncableTables,
+        tableNameMap: {},
+        afterInit: Effect.void,
+      } satisfies SyncConfig;
+
+      if (interrupted) {
+        await expect(createStoreDbs("search-startup", config)).rejects.toThrow(
+          "Interrupted index rebuild",
+        );
+        tokenWrites = 0;
+      }
+
+      const stores = await Promise.all([
+        createStoreDbs("search-startup", config),
+        createStoreDbs("search-startup", config),
+      ]);
+      for (const { syncSubDb } of stores) {
+        expect(
+          (
+            await selectAsync(syncSubDb, {
+              selector: searchSpace,
+              args: { query: "milk", limit: 5 },
+            })
+          ).map((hit) => hit.type),
+        ).toEqual(["task"]);
+      }
+      expect(tokenWrites).toBe(1);
+    },
+  );
+
   it("preloads rows written while preparing the persistent database", async () => {
     openPersistentDriver.mockResolvedValue(new PersistentInMemoryDriver());
     const syncConfig = {

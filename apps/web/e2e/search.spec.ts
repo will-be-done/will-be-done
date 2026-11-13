@@ -26,7 +26,7 @@ async function search(page: Page, query: string) {
     .fill(query);
 }
 
-const results = (page: Page) => searchDialog(page).locator("[cmdk-item]");
+const results = (page: Page) => searchDialog(page).getByRole("option");
 
 async function goToToday(page: Page) {
   await page.getByRole("link", { name: /today/i }).first().click();
@@ -80,12 +80,15 @@ test("finds tasks in any script and opens their page", async ({ page }) => {
   // The pairs of 東京都 both occur in 東京と京都, but not as one run.
   await search(page, "東京都");
   await expect(results(page)).toHaveCount(1);
-  // A selection that drops out of the results falls back to the first one.
-  await search(page, "東京");
+  await search(page, "東");
   await expect(results(page)).toHaveCount(2);
   await page.keyboard.press("ArrowDown");
   await expect(results(page).nth(1)).toHaveAttribute("data-selected", "true");
   await expect(results(page).nth(1)).toContainText(titles.japanese);
+  await search(page, "東京");
+  await expect(results(page)).toHaveCount(2);
+  await expect(results(page).nth(1)).toHaveAttribute("data-selected", "true");
+  // A selection that drops out of the results falls back to the first one.
   await search(page, "東京と");
   await expect(results(page)).toHaveCount(1);
   await expect(results(page).first()).toContainText(titles.apart);
@@ -95,6 +98,41 @@ test("finds tasks in any script and opens their page", async ({ page }) => {
 
   await search(page, "北京");
   await expect(results(page)).toHaveCount(1);
+  await page.evaluate(async () => {
+    const loadPath = "/src/store/load.ts";
+    const testingPath = "/src/store/hyperdbTesting.ts";
+    const { getDBBySpaceId } = await import(loadPath);
+    const { waitForPromise } = await import(testingPath);
+    const db = getDBBySpaceId(location.pathname.split("/")[2]!);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const unsubscribe = db.afterScan(function* (
+      _db: unknown,
+      table: { tableName: string },
+    ) {
+      if (table.tableName === "search_tokens") yield* waitForPromise(pending);
+    });
+    window.addEventListener(
+      "resume-search",
+      () => {
+        unsubscribe();
+        release();
+      },
+      { once: true },
+    );
+  });
+  await search(page, "北京 missing");
+  await expect(results(page).first()).toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Enter");
+  await expect(searchDialog(page)).toBeVisible();
+  await results(page).first().dispatchEvent("click");
+  await expect(searchDialog(page)).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("resume-search")));
+  await expect(searchDialog(page).getByText("Nothing found")).toBeVisible();
+  await search(page, "北京");
+  await expect(results(page).first()).toHaveAttribute("aria-disabled", "false");
   await page.keyboard.press("Enter");
   await expect(searchDialog(page)).toBeHidden();
   await expect(page).toHaveURL(/\/tasks\/[^/?]+$/);
@@ -198,6 +236,15 @@ test("jumps to a topic on its mindmap", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/mindmaps\//);
   await expect(node("京都の旅行計画")).toBeFocused();
+  const canvas = page.getByTestId("mindmap-canvas");
+  await canvas.dispatchEvent("wheel", { deltaX: 4000, deltaY: 4000 });
+  await expect(node("Travel")).not.toBeInViewport();
+  await page.getByRole("link", { name: "projects", exact: true }).click();
+  await openSearchWithSlash(page);
+  await search(page, "travel");
+  await results(page).filter({ hasText: "Travel" }).click();
+  await expect(node("Travel")).toBeFocused();
+  await expect(node("Travel")).toBeInViewport();
 });
 
 test("finds a task created in another tab", async ({ context, page }) => {

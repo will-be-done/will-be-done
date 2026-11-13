@@ -1,6 +1,8 @@
 import { useRef, useState, useCallback } from "react";
 import { Maximize2 } from "lucide-react";
-import { useOpenItemPage } from "@/components/ItemPage/useOpenItemPage.ts";
+import { itemPageLocation } from "@/components/ItemPage/useOpenItemPage.ts";
+import { Link } from "@tanstack/react-router";
+import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 import { useItemDetailsEditing } from "./useItemDetailsEditing.ts";
 import { cn } from "@/lib/utils";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
@@ -60,7 +62,7 @@ export function ItemDetails() {
   const itemId = focusedItem?.id ?? null;
   const isVisible = focusedItem !== undefined;
 
-  const openItemPage = useOpenItemPage();
+  const { spaceId } = SpaceRoute.useParams();
   const width = useItemDetailsSize((s) => s.width);
   const setWidth = useItemDetailsSize((s) => s.setWidth);
   const { isOpen: isPanelOpen, toggle } = useItemDetailsOpen();
@@ -202,15 +204,14 @@ export function ItemDetails() {
                 Item Details
               </span>
               {focusedItem && (
-                <button
-                  type="button"
+                <Link
+                  {...itemPageLocation(spaceId, focusedItem)}
                   title="Open as page"
                   aria-label="Open as page"
-                  onClick={() => openItemPage(focusedItem)}
                   className="-my-1 cursor-pointer rounded p-1 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
                 >
                   <Maximize2 className="h-3.5 w-3.5" />
-                </button>
+                </Link>
               )}
             </div>
 

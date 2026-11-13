@@ -15,6 +15,7 @@ import type { SyncConfig } from "./syncTypes";
 import {
   areSpaceStorageMigrationsApplied,
   migrateLegacySpaceStorage,
+  migrateSearchIndex,
   spaceMigrationsTable,
   spaceStorageMigrationTables,
 } from "@will-be-done/slices/space";
@@ -84,6 +85,7 @@ export const createStoreDbs = async (
     const db = createPersistentDB("persistent");
     await execAsync(db.loadTables(syncConfig.persistDBTables));
     await preparePersistentDB?.(db);
+    if (syncConfig.dbType === "space") await migrateSearchIndex(db);
     return db;
   });
 

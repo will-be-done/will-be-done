@@ -775,9 +775,9 @@ export const SearchQuerySchema = z
   .object({
     q: z
       .string()
-      .trim()
       .min(1)
       .max(500)
+      .refine((query) => query.trim().length > 0, "Enter a search query")
       .describe(
         "Words to find. Each must start a word of the result; Chinese, Japanese, Korean and Thai text matches anywhere",
       ),

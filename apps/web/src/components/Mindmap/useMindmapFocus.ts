@@ -66,17 +66,16 @@ export function useMindmapFocus({
     if (focusedItemRef.current === focusItemId) return;
     const entry = [...index.nodes.values()].find(
       (e) =>
-        e.kind === "node" &&
-        (e.id === focusItemId ||
-          e.tree.task?.id === focusItemId ||
-          e.tree.note?.id === focusItemId),
+        e.id === focusItemId ||
+        (e.kind === "node" &&
+          (e.tree.task?.id === focusItemId || e.tree.note?.id === focusItemId)),
     );
-    if (entry?.kind !== "node") return;
+    if (!entry) return;
     let collapsed = false;
     const parentOf = (id: string | null) =>
       id === null ? undefined : index.nodes.get(id);
     for (
-      let parent = parentOf(entry.parentId);
+      let parent = entry.kind === "node" ? parentOf(entry.parentId) : undefined;
       parent?.kind === "node";
       parent = parentOf(parent.parentId)
     ) {

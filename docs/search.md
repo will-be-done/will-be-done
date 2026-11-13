@@ -1,19 +1,9 @@
 # Search Design and Invariants
 
-Global search finds Tasks, Notes, and mindmap topics by title and description,
-offline, on every replica. This document records why it is built the way it
-is and what must stay true when changing it. Update it in the same change when
+Global search finds Tasks and Notes by title and description, and mindmap topics
+by title, offline, on every replica. This document records why it is built this
+way and what must stay true when changing it. Update it in the same change when
 the index, tokenizer, ranking, or result-opening behavior changes.
-
-Code lives in:
-
-- `apps/slices/src/space/search.ts`: tokenizer, index maintenance, the
-  `searchSpace` selector, and `searchHighlights`;
-- `apps/slices/src/space/tables.ts`: `searchTokensTable`, `searchDocsTable`,
-  `searchStatsTable` (`searchIndexTables`);
-- `apps/web/src/components/Search/`: the `/` dialog;
-- `apps/api/src/http/v1/search.ts`, `apps/api/src/services/search.ts`:
-  `GET /spaces/:spaceId/search`.
 
 ## Why a hand-built index
 
@@ -48,9 +38,11 @@ current: actions, incoming sync, backup restore, undo. The hook diffs old and
 new indexed text and skips writes that do not change it (most writes: order,
 state, dates).
 
-The stats row moves by the difference between the new doc row and the
-**stored** one, not the old text. Applying a change twice, or to an item the
-index never saw, therefore leaves the totals exact.
+Token changes and totals compare the new document with the **stored index**.
+Another tab can have changed that index before its broadcast reaches this
+tab's cached source row. Diffing tokens from the cached old text would retain
+obsolete words and skip restoring words another tab removed. Reapplying a
+change must also leave totals exact.
 
 ### Never in memory
 
@@ -77,9 +69,13 @@ for such a change until its query changes.
 ### Rebuilds
 
 `migrateSearchIndex` rebuilds the index once per `searchIndexMigrationId`, at
-DB startup (web `configs.ts`, API `db.ts`). `rebuildSearchIndex` clears and
-refills it in batches of 200 rows, each its own transaction, so neither index
-is ever held whole. A rebuild cut short starts over on the next start, because
+DB startup. The browser holds its shared store startup lock across the marker
+check, rebuild, and completion write, using the persistent DB before preloading
+source rows or starting sync. Otherwise one tab could record success while a
+second clears that completed index, then closes before refilling it.
+`rebuildSearchIndex` clears and refills it in batches of 200 rows, each its
+own transaction, so neither index is ever held whole. A rebuild cut short
+starts over on the next start, because
 the migration is recorded only after it finishes. An edit made while a rebuild
 runs can skew the totals slightly; they only affect ranking.
 
@@ -88,9 +84,9 @@ Invariants:
 1. A DB that writes Tasks, Notes, or mindmap nodes without the hooks
    installed must call `applySearchIndexOps` itself. The browser popup
    (`apps/web/src/store/popupStore.ts`) is such a DB.
-2. Changing what text is indexed or how it is tokenized requires bumping
-   `searchIndexMigrationId`. Replicas only rebuild when they see a new id; an
-   old index silently misses or mis-scores items otherwise.
+2. Changing what text is indexed, how it is tokenized, or repairing a corrupt
+   index requires bumping `searchIndexMigrationId`. Replicas only rebuild when
+   they see a new id; an old index silently misses or mis-scores items otherwise.
 3. `rebuildSearchIndex` must produce exactly what the hooks maintain. The
    "keeps counts, lengths and totals equal to a rebuild" test enforces it.
 
@@ -149,6 +145,7 @@ characters outside the BMP (`𠮷`) work.
   "서울 맛집" while typing. A term holds inclusive token ranges for this. NFKC
   turns a typed `ㅁ` (U+3141) into the conjoining initial U+1106, which is
   what the range code sees. A trailing space closes the syllable.
+  API validation must preserve that space, even when rejecting blank queries.
 
 Consequence: a query whose longest term is very common (one Latin letter, a
 common Han character) returns an incomplete candidate set, and its document
@@ -197,9 +194,14 @@ Only titles are highlighted; there is no content snippet yet.
   its place in a project. A done Task can be buried behind "Show More" in a
   long section, so a page always shows it; see
   `apps/web/src/components/ItemPage/`.
-- Topic: it navigates to its mindmap with `itemId` set to the node ID
-  (omitted for the central topic). The map clears `itemId` from the URL once
+- Topic: it navigates to its mindmap with `itemId` set to the node ID,
+  including the central topic. Saved pan and zoom can leave any topic offscreen.
+  The map clears `itemId` from the URL once
   it has focused the node, so do not assert on the URL after arrival.
+
+While a new query is pending, old results stay visible to keep the dialog
+steady, but cannot open. Selection stays on the same result while it still
+matches and falls back to the first result when it disappears.
 
 ## Known limitations
 
@@ -212,16 +214,3 @@ Only titles are highlighted; there is no content snippet yet.
   for that one keystroke.
 - Short CJK or Thai queries match broadly: `京` finds `北京` and `東京`
   alike.
-
-## Tests
-
-- `apps/slices/src/space/search.test.ts`: tokenizer table, index follows
-  edits/conversions/trash, rebuild equals maintained index, migration,
-  ranking cases, multilingual search and highlight tables. Add rows there
-  first.
-- `apps/api/src/e2e/search.test.ts`: the v1 endpoint end to end.
-- `apps/web/e2e/search.spec.ts`: dialog, highlighting, opening a Task or
-  Note on its page, jumping to a topic, finding a task created in another
-  tab. Running the web E2E server also needs
-  `radicale` on `PATH`.
-- HyperDB's `hybrid-db.test.ts` covers `uncachedTables` itself.

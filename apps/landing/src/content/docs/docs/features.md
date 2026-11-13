@@ -167,8 +167,8 @@ mindmaps, and restoring it from the trash puts it back.
 
 Press `/`, or select Search in the sidebar or the search icon next to the page
 links, to search a space.
-Search finds tasks, notes, and mindmap topics by their titles and
-descriptions, including done tasks, and it works offline. Each word you type
+Search finds tasks and notes by their titles and descriptions, and mindmap
+topics by title. It includes done tasks and works offline. Each word you type
 matches the start of a word, so `gro list` finds "Grocery list". Chinese,
 Japanese, Korean, and Thai text matches anywhere inside a word, and hiragana
 and katakana match each other. Select a task or

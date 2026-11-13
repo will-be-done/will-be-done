@@ -72,4 +72,18 @@ test("searches tasks, notes and mindmap topics", async () => {
   expect(afterEdit).toEqual([]);
 
   expectResponseStatus(await searchSpace(space.id, { q: " " }, options), 400);
+
+  const korean = await createTask("서울 맛집");
+  expect(
+    expectResponseStatus(
+      await searchSpace(space.id, { q: "마" }, options),
+      200,
+    ).data.results.map((result) => result.id),
+  ).toEqual([korean.id]);
+  expect(
+    expectResponseStatus(
+      await searchSpace(space.id, { q: "마 " }, options),
+      200,
+    ).data.results,
+  ).toEqual([]);
 });

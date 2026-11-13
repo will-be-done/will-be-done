@@ -1,6 +1,12 @@
-import { useDeferredValue, useEffect, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Command } from "cmdk";
 import {
   Circle,
   CircleCheck,
@@ -90,6 +96,8 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
   const navigate = useNavigate();
   const openItemPage = useOpenItemPage();
   const [query, setQuery] = useState("");
+  const listId = useId();
+  const listRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
   const { data: hits = [], isPlaceholderData } = useAsyncSelector({
     selector: searchSpace,
@@ -132,6 +140,14 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
   const selected = hits.some((hit) => hitId(hit) === selectedId)
     ? selectedId
     : hits[0] && hitId(hits[0]);
+  const canSelect =
+    query === deferredQuery && !isPlaceholderData && isSearching;
+
+  useLayoutEffect(() => {
+    listRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
 
   useEffect(() => {
     useFocusStore.getState().disableFocus();
@@ -139,16 +155,16 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
   }, []);
 
   const open = (hit: SearchHit) => {
+    if (!canSelect) return;
     closeSearch();
     if (hit.type === "mindmapNode") {
       const { node } = hit;
       void navigate({
         to: "/spaces/$spaceId/mindmaps/$mindmapId",
         params: { spaceId, mindmapId: node.mindmapId },
-        // The central topic is the map's own root, shown on open anyway.
         search: {
           projectId: "inbox",
-          ...(node.id === node.mindmapId ? {} : { itemId: node.id }),
+          itemId: node.id,
         },
       });
       return;
@@ -168,36 +184,81 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
       <DialogDescription className="sr-only">
         Search tasks, notes, and mindmap topics.
       </DialogDescription>
-      {/* A grid item; without min-w-0 long titles widen it past the dialog. */}
-      <Command
-        shouldFilter={false}
-        loop
-        value={selected ?? ""}
-        onValueChange={setSelectedId}
+      <div
         className="min-w-0"
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const hit = hits.find((hit) => hitId(hit) === selected);
+            if (hit) open(hit);
+            return;
+          }
+          if (!canSelect || hits.length === 0) return;
+          const down =
+            event.key === "ArrowDown" ||
+            (event.ctrlKey && ["j", "n"].includes(event.key));
+          const up =
+            event.key === "ArrowUp" ||
+            (event.ctrlKey && ["k", "p"].includes(event.key));
+          if (!down && !up && event.key !== "Home" && event.key !== "End")
+            return;
+          event.preventDefault();
+          const at = hits.findIndex((hit) => hitId(hit) === selected);
+          const next =
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? hits.length - 1
+                : (at + (down ? 1 : -1) + hits.length) % hits.length;
+          setSelectedId(hitId(hits[next]!));
+        }}
       >
         <div className="flex items-center gap-3 px-4">
           <Search className="h-4 w-4 shrink-0 text-content-tinted" />
-          <Command.Input
+          <input
             autoFocus
             value={query}
-            onValueChange={setQuery}
+            onChange={(event) => setQuery(event.target.value)}
+            role="combobox"
+            aria-label="Search tasks, notes, and topics"
+            aria-autocomplete="list"
+            aria-expanded={isSearching}
+            aria-controls={listId}
+            aria-activedescendant={
+              isSearching && selected ? `${listId}-${selected}` : undefined
+            }
+            autoComplete="off"
             placeholder="Search tasks, notes, and topics..."
             className="h-13 w-full bg-transparent text-[15px] text-content outline-none placeholder:text-content-tinted/60"
           />
         </div>
         {isSearching && (
-          <Command.List className="max-h-[min(60vh,480px)] scroll-py-1.5 overflow-y-auto overscroll-contain border-t border-white/10 p-1.5">
-            {!isPlaceholderData && (
-              <Command.Empty className="px-3 py-8 text-center text-sm text-content-tinted">
+          <div
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            aria-label="Search results"
+            aria-busy={!canSelect}
+            className="max-h-[min(60vh,480px)] scroll-py-1.5 overflow-y-auto overscroll-contain border-t border-white/10 p-1.5"
+          >
+            {canSelect && hits.length === 0 && (
+              <div className="px-3 py-8 text-center text-sm text-content-tinted">
                 Nothing found
-              </Command.Empty>
+              </div>
             )}
             {hits.map((hit) => (
-              <Command.Item
+              <div
                 key={hitId(hit)}
-                value={hitId(hit)}
-                onSelect={() => open(hit)}
+                id={`${listId}-${hitId(hit)}`}
+                role="option"
+                aria-selected={hitId(hit) === selected}
+                aria-disabled={!canSelect}
+                data-selected={hitId(hit) === selected}
+                onPointerMove={() => {
+                  if (canSelect) setSelectedId(hitId(hit));
+                }}
+                onClick={() => open(hit)}
                 className="group flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-sm text-calendar-day data-[selected=true]:bg-panel-tinted data-[selected=true]:text-content"
               >
                 <HitRow
@@ -210,9 +271,9 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
                       : undefined
                   }
                 />
-              </Command.Item>
+              </div>
             ))}
-          </Command.List>
+          </div>
         )}
         <div className="hidden items-center gap-4 border-t border-white/10 px-4 py-2 text-[11px] text-content-tinted sm:flex">
           <span className="flex items-center gap-1.5">
@@ -231,7 +292,7 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
             close
           </span>
         </div>
-      </Command>
+      </div>
     </DialogContent>
   );
 }
