@@ -427,18 +427,24 @@ export function* withAutoCoverAttachment<T extends CoverableInlineReferences>(
 export function* ensureInlineAttachmentLinks(
   parentType: AttachmentParentType,
   parentId: string,
-  item: InlineReferences,
-  previous?: InlineReferences,
+  item: CoverableInlineReferences,
+  previous?: CoverableInlineReferences,
 ) {
   if (
-    previous &&
-    item.title === previous.title &&
-    item.content === previous.content
+    !previous ||
+    item.title !== previous.title ||
+    item.content !== previous.content
   ) {
-    return;
+    const ids = attachmentIdsInMarkdown(`${item.title}\n${item.content ?? ""}`);
+    if (ids.length > 0) yield* linkAttachments(parentType, parentId, ids);
   }
-  const ids = attachmentIdsInMarkdown(`${item.title}\n${item.content ?? ""}`);
-  if (ids.length > 0) yield* linkAttachments(parentType, parentId, ids);
+  if (item.coverAttachmentId !== previous?.coverAttachmentId) {
+    yield* validateCoverAttachment(
+      parentType,
+      parentId,
+      item.coverAttachmentId ?? null,
+    );
+  }
 }
 
 export const createAttachment = action({
@@ -547,6 +553,22 @@ function* updateItemCoverAttachment(
   yield* upsert(tasksTable, [{ ...item, coverAttachmentId }]);
 }
 
+function* validateCoverAttachment(
+  parentType: AttachmentParentType,
+  parentId: string,
+  attachmentId: string | null,
+) {
+  if (attachmentId === null) return;
+  const attachment = yield* attachmentById({ id: attachmentId });
+  if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
+    throw new Error("Cover must be an image attachment");
+  }
+  const links = yield* itemAttachmentLinks({ parentType, parentId });
+  if (!links.some((link) => link.attachmentId === attachmentId)) {
+    throw new Error("Cover attachment is not linked to this item");
+  }
+}
+
 export const setItemCoverAttachment = action({
   name: "setItemCoverAttachment",
   args: {
@@ -559,16 +581,7 @@ export const setItemCoverAttachment = action({
     parentId,
     attachmentId,
   }) {
-    if (attachmentId !== null) {
-      const attachment = yield* attachmentById({ id: attachmentId });
-      if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
-        throw new Error("Cover must be an image attachment");
-      }
-      const links = yield* itemAttachmentLinks({ parentType, parentId });
-      if (!links.some((link) => link.attachmentId === attachmentId)) {
-        throw new Error("Cover attachment is not linked to this item");
-      }
-    }
+    yield* validateCoverAttachment(parentType, parentId, attachmentId);
     yield* updateItemCoverAttachment(parentType, parentId, attachmentId);
   },
 });

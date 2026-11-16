@@ -749,6 +749,10 @@ function* generateTasksForTemplateIds({
         throw new Error("TemplateId is null");
       }
 
+      yield* copyItemAttachments(
+        { parentType: taskTemplateType, parentId: task.templateId },
+        { parentType: taskType, parentId: task.id },
+      );
       yield* createTaskAfterSectionItem({
         itemId: task.templateId,
         taskParams: { ...task },
@@ -759,11 +763,6 @@ function* generateTasksForTemplateIds({
         toParentId: task.id,
         toParentType: taskType,
       });
-      yield* copyItemAttachments(
-        { parentType: taskTemplateType, parentId: task.templateId },
-        { parentType: taskType, parentId: task.id },
-      );
-
       yield* createEntryInDailyList({
         taskId: task.id,
         date: occurrenceDMY(template, task.createdAt),

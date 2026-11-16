@@ -43,10 +43,14 @@ import {
   setItemCoverAttachment,
   setAttachmentImageSize,
 } from "./attachments";
-import { trashTasks, updateTask } from "./tasks";
-import { convertTaskToNote } from "./notes";
+import { createTask, trashTasks, updateTask } from "./tasks";
+import { convertTaskToNote, updateNote } from "./notes";
 import { emptyTrash, restoreTrashedTasks } from "./trash";
-import { generateTasksForTemplate } from "./taskTemplates";
+import {
+  createTaskTemplate,
+  generateTasksForTemplate,
+  updateTemplate,
+} from "./taskTemplates";
 import { getSpaceBackup, loadSpaceBackup } from "./backup";
 import { insertItemCopies } from "./selection";
 import { deleteItemsByIds } from "./items";
@@ -164,6 +168,7 @@ const rows = selector({
       links: yield* selectFrom(itemAttachmentsTable, "byIds"),
       tasks: yield* selectFrom(tasksTable, "byIds"),
       notes: yield* selectFrom(notesTable, "byIds"),
+      templates: yield* selectFrom(taskTemplatesTable, "byIds"),
     };
   },
 });
@@ -206,6 +211,127 @@ function addFile(db: HyperDB, id: string, parentId?: string) {
 }
 
 describe("attachments", () => {
+  test.each([
+    "createTask",
+    "updateTask",
+    "createTaskTemplate",
+    "updateTemplate",
+    "updateNote",
+  ] as const)(
+    "%s validates explicit covers after linking inline images",
+    (method) => {
+      const db = createDB();
+      syncDispatch(db, insertTemplate({}));
+      syncDispatch(db, insertNote({ id: "note" }));
+      addFile(db, "image");
+      syncDispatch(
+        db,
+        createAttachment({
+          attachment: {
+            id: "text",
+            name: "text.txt",
+            mimeType: "text/plain",
+            size: 1,
+            sha256,
+          },
+        }),
+      );
+      const write = (coverAttachmentId: string | null, content?: string) => {
+        const fields = {
+          coverAttachmentId,
+          ...(content === undefined ? {} : { content }),
+        };
+        switch (method) {
+          case "createTask":
+            return syncDispatch(
+              db,
+              createTask({
+                task: {
+                  ...fields,
+                  id: "created-task",
+                  projectSectionId: "section",
+                  orderToken: "c",
+                },
+              }),
+            );
+          case "createTaskTemplate":
+            return syncDispatch(
+              db,
+              createTaskTemplate({
+                now: 0,
+                template: {
+                  ...fields,
+                  id: "created-template",
+                  projectSectionId: "section",
+                  orderToken: "c",
+                },
+              }),
+            );
+          case "updateTask":
+            return syncDispatch(db, updateTask({ id: "t1", task: fields }));
+          case "updateTemplate":
+            return syncDispatch(
+              db,
+              updateTemplate({ id: "template", template: fields }),
+            );
+          case "updateNote":
+            return syncDispatch(db, updateNote({ id: "note", note: fields }));
+        }
+      };
+      expect(() => write("missing")).toThrow(
+        "Cover must be an image attachment",
+      );
+      expect(() => write("text", "[text](wbd-attachment:text)")).toThrow(
+        "Cover must be an image attachment",
+      );
+      expect(() => write("image")).toThrow(
+        "Cover attachment is not linked to this item",
+      );
+      expect(() =>
+        write("image", "![image](wbd-attachment:image)"),
+      ).not.toThrow();
+    },
+  );
+
+  test.each(["task", "template", "note"] as const)(
+    "backups preserve selected, cleared, and unset %s covers",
+    (parentType) => {
+      for (const attachmentId of ["image", null, undefined]) {
+        const db = createDB();
+        const parentId = parentType === "task" ? "t1" : parentType;
+        if (parentType === "template") syncDispatch(db, insertTemplate({}));
+        if (parentType === "note")
+          syncDispatch(db, insertNote({ id: parentId }));
+        addFile(db, "image");
+        syncDispatch(
+          db,
+          attachToItem({ attachmentId: "image", parentType, parentId }),
+        );
+        if (attachmentId !== undefined) {
+          syncDispatch(
+            db,
+            setItemCoverAttachment({ parentType, parentId, attachmentId }),
+          );
+        }
+
+        const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+        const restored = createDB();
+        syncDispatch(restored, loadSpaceBackup({ backup }));
+        const state = read(restored);
+        const items =
+          parentType === "task"
+            ? state.tasks
+            : parentType === "note"
+              ? state.notes
+              : state.templates;
+        const item = items.find(({ id }) => id === parentId)!;
+        expect(item.coverAttachmentId).toBe(attachmentId);
+        if (attachmentId === undefined)
+          expect(item).not.toHaveProperty("coverAttachmentId");
+      }
+    },
+  );
+
   test("rejects files over 50 MB", () => {
     const db = createDB();
     expect(() =>

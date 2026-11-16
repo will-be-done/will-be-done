@@ -83,6 +83,7 @@ export function ItemAttachments({
   const attachFiles = useAttachFiles(parentType, parentId);
   const inputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const coverAction = useRef(0);
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
   const { data: rows } = useAsyncSelector({
     selector: itemAttachments,
@@ -97,10 +98,12 @@ export function ItemAttachments({
   );
 
   const pickFiles = () => inputRef.current?.click();
-  const setCover = (attachmentId: string | null) =>
+  const setCover = (attachmentId: string | null) => {
+    coverAction.current++;
     void dispatch(
       setItemCoverAttachment({ parentType, parentId, attachmentId }),
     );
+  };
   const remove = async (link: ItemAttachment, attachment: Attachment) => {
     const confirmed = await confirmDialog({
       title: "Remove file?",
@@ -279,7 +282,10 @@ export function ItemAttachments({
         onChange={(event) => {
           const picked = Array.from(event.target.files ?? []);
           event.target.value = "";
+          if (picked.length === 0) return;
+          const action = ++coverAction.current;
           void attachFiles(picked).then((added) => {
+            if (action !== coverAction.current) return;
             const cover = added.find((attachment) =>
               isImageAttachment(attachment.mimeType),
             );

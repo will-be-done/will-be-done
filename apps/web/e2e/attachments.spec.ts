@@ -121,7 +121,7 @@ test("attaches, pastes, syncs, and lists files", async ({
   });
   await titleCover.click();
   await expect(titleCover).toHaveAttribute("aria-pressed", "true");
-  await list.getByRole("button", { name: "Remove" }).click();
+  await list.getByRole("button", { name: "Remove", exact: true }).click();
   await expect(page.getByTestId("item-cover")).toHaveCount(0);
 
   await page.getByTestId("cover-upload-input").setInputFiles({
@@ -254,4 +254,54 @@ test("attaches, pastes, syncs, and lists files", async ({
     list.getByRole("button", { name: "Use note-cover.png as cover" }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("Edit note title")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const read = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function () {
+      if (this.name.endsWith("-pending.png")) {
+        const released = new Promise<void>((resolve) =>
+          document.addEventListener("release-cover-read", () => resolve(), {
+            once: true,
+          }),
+        );
+        document.dispatchEvent(new Event("cover-read-started"));
+        await released;
+      }
+      return read.call(this);
+    };
+  });
+  for (const action of ["select", "clear"] as const) {
+    const reading = page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          document.addEventListener("cover-read-started", () => resolve(), {
+            once: true,
+          }),
+        ),
+    );
+    await page.getByTestId("cover-upload-input").setInputFiles({
+      name: `${action}-pending.png`,
+      mimeType: "image/png",
+      buffer: png,
+    });
+    await reading;
+    if (action === "select") {
+      await titleCover.click();
+    } else {
+      await list.getByRole("button", { name: "Remove", exact: true }).click();
+    }
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("release-cover-read")),
+    );
+    const uploaded = list.getByRole("button", {
+      name: `Use ${action}-pending.png as cover`,
+    });
+    await expect(uploaded).toBeVisible();
+    await expect(uploaded).toHaveAttribute("aria-pressed", "false");
+    if (action === "select") {
+      await expect(titleCover).toHaveAttribute("aria-pressed", "true");
+    } else {
+      await expect(list.locator('[aria-pressed="true"]')).toHaveCount(0);
+    }
+  }
 });
