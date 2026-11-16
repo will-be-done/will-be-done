@@ -24,7 +24,7 @@ const normalizeText = (text: string) => text.replace(/\r\n/g, "\n");
 
 // Clipboard events reach items only when no text field or text selection
 // would take them.
-const isItemClipboardEvent = (event: ClipboardEvent) => {
+export const isItemClipboardEvent = (event: ClipboardEvent) => {
   const focus = useFocusStore.getState();
   if (focus.isFocusDisabled || focus.editItemKey || event.defaultPrevented) {
     return false;

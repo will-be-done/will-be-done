@@ -37,6 +37,9 @@ export const tasksTable = defineTable("tasks", {
   templateDate: v.union(v.number(), v.null()),
   // Estimated length in whole minutes; null or absent when unknown.
   durationMinutes: v.optional(v.union(v.number(), v.null())),
+  coverAttachmentId: v
+    .optional(v.union(v.string(), v.null()))
+    .with(undoIgnore()),
 })
   .index("byIds", ["id"])
   .index("byProjectSectionIdOrderStates", [
@@ -78,6 +81,9 @@ export const taskTemplatesTable = defineTable("task_templates", {
   // Floating "HH:mm" given to each generated task's DailyEntry.
   time: v.optional(v.union(v.string(), v.null())),
   durationMinutes: v.optional(v.union(v.number(), v.null())),
+  coverAttachmentId: v
+    .optional(v.union(v.string(), v.null()))
+    .with(undoIgnore()),
 })
   .index("byIds", ["id"])
   .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"]);
@@ -97,6 +103,9 @@ export const notesTable = defineTable("notes", {
   projectSectionId: v.string(),
   orderToken: v.string(),
   createdAt: v.number(),
+  coverAttachmentId: v
+    .optional(v.union(v.string(), v.null()))
+    .with(undoIgnore()),
 })
   .index("byIds", ["id"])
   .index("byProjectSectionIdOrder", ["projectSectionId", "orderToken"]);

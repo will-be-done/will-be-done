@@ -15,7 +15,7 @@ export function AttachmentThumb({
   rememberSize: remember = false,
   className,
 }: {
-  attachment: Pick<Attachment, "id" | "name" | "mimeType" | "width">;
+  attachment: Pick<Attachment, "id" | "name" | "mimeType" | "width" | "height">;
   rememberSize?: boolean;
   className?: string;
 }) {
@@ -27,6 +27,10 @@ export function AttachmentThumb({
       src={url}
       alt=""
       draggable={false}
+      // The stored pixel size lets the browser know the frame before the
+      // bytes arrive; CSS still decides the drawn size.
+      width={attachment.width}
+      height={attachment.height}
       onLoad={(event) => {
         if (remember) rememberSize(attachment, event.currentTarget);
       }}

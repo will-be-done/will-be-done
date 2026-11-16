@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils.ts";
 import { formatDuration, formatTaskTime } from "@/lib/taskTime.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { ItemCover } from "@/components/Attachments/ItemCover";
 
 // A grayed, read-only preview of a Task that a template will generate later.
 // Focusing it shows the template in item details.
@@ -45,26 +46,29 @@ export const ProjectedTaskCard = ({
         }
       }}
       className={cn(
-        "cursor-default select-none rounded-lg border border-dashed px-2 py-2 text-sm text-content-tinted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent whitespace-break-spaces [overflow-wrap:anywhere]",
+        "cursor-default select-none overflow-hidden rounded-lg border border-dashed text-sm text-content-tinted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent whitespace-break-spaces [overflow-wrap:anywhere]",
         isFocused
           ? "border-accent"
           : "border-content-tinted/25 hover:border-content-tinted/40",
       )}
     >
-      <div className="font-medium">
-        <RichTextView text={template.title} />
-      </div>
-      <div className="mt-1 flex items-center gap-1.5 text-xs tabular-nums">
-        <Repeat className="size-3" />
-        {occurrence.time && (
-          <span className="flex items-center gap-0.5">
-            <Clock className="size-2.5" />
-            {formatTaskTime(occurrence.time)}
-          </span>
-        )}
-        {template.durationMinutes && (
-          <span>{formatDuration(template.durationMinutes)}</span>
-        )}
+      <ItemCover attachmentId={template.coverAttachmentId} muted />
+      <div className="px-2 py-2">
+        <div className="font-medium">
+          <RichTextView text={template.title} />
+        </div>
+        <div className="mt-1 flex items-center gap-1.5 text-xs tabular-nums">
+          <Repeat className="size-3" />
+          {occurrence.time && (
+            <span className="flex items-center gap-0.5">
+              <Clock className="size-2.5" />
+              {formatTaskTime(occurrence.time)}
+            </span>
+          )}
+          {template.durationMinutes && (
+            <span>{formatDuration(template.durationMinutes)}</span>
+          )}
+        </div>
       </div>
     </div>
   );

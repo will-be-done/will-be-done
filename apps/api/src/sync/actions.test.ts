@@ -264,7 +264,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -302,7 +302,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -339,7 +339,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -357,7 +357,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -500,7 +500,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -605,7 +605,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -681,7 +681,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -823,7 +823,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 8,
+          syncVersion: 9,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -883,7 +883,7 @@ describe("sync v4 actions", () => {
           startSyncUpload({
             userId,
             request: {
-              syncVersion: 8,
+              syncVersion: 9,
               dbId: "user-1",
               dbType: "user",
               clientId,

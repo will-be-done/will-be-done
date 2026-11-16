@@ -74,6 +74,7 @@ interface ProjectSectionBackup {
 }
 
 interface TaskBackup {
+  coverAttachmentId?: string | null;
   id: string;
   title: string;
   content?: string;
@@ -115,6 +116,7 @@ interface DailyEntryBackup {
 }
 
 interface TaskTemplateBackup {
+  coverAttachmentId?: string | null;
   id: string;
   title: string;
   content?: string;
@@ -129,6 +131,7 @@ interface TaskTemplateBackup {
 }
 
 interface NoteBackup {
+  coverAttachmentId?: string | null;
   id: string;
   title: string;
   content?: string;
@@ -255,6 +258,7 @@ const backupSchema = v.object({
       ),
       templateId: v.union(v.string(), v.null()),
       templateDate: v.union(v.number(), v.null()),
+      coverAttachmentId: v.optional(v.union(v.string(), v.null())),
       durationMinutes: v.optional(v.number()),
       dailyListId: v.optional(v.union(v.string(), v.null())),
       dailyListOrderToken: v.optional(v.union(v.string(), v.null())),
@@ -284,6 +288,7 @@ const backupSchema = v.object({
       orderToken: v.string(),
       repeatRule: v.string(),
       repeatRuleDtStart: v.optional(v.number()),
+      coverAttachmentId: v.optional(v.union(v.string(), v.null())),
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectSectionId: v.string(),
@@ -383,6 +388,7 @@ const backupSchema = v.object({
         orderToken: v.string(),
         createdAt: v.number(),
         projectSectionId: v.string(),
+        coverAttachmentId: v.optional(v.union(v.string(), v.null())),
       }),
     ),
   ),
@@ -691,6 +697,9 @@ const getNewModels = action({
         nature: taskBackup.nature || "unknown",
         templateId: taskBackup.templateId ?? null,
         templateDate: taskBackup.templateDate ?? null,
+        ...(taskBackup.coverAttachmentId === undefined
+          ? {}
+          : { coverAttachmentId: taskBackup.coverAttachmentId }),
         ...(durationMinutes === undefined ? {} : { durationMinutes }),
       };
 
@@ -749,6 +758,9 @@ const getNewModels = action({
           templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
         createdAt: templateBackup.createdAt,
         lastGeneratedAt: templateBackup.lastGeneratedAt,
+        ...(templateBackup.coverAttachmentId === undefined
+          ? {}
+          : { coverAttachmentId: templateBackup.coverAttachmentId }),
         projectSectionId: section.id,
         ...(time === undefined ? {} : { time }),
         ...(durationMinutes === undefined ? {} : { durationMinutes }),
@@ -777,6 +789,9 @@ const getNewModels = action({
           : { content: noteBackup.content }),
         orderToken: noteBackup.orderToken,
         createdAt: noteBackup.createdAt,
+        ...(noteBackup.coverAttachmentId === undefined
+          ? {}
+          : { coverAttachmentId: noteBackup.coverAttachmentId }),
         projectSectionId: section.id,
       };
 
@@ -1086,6 +1101,9 @@ export const getSpaceBackup = selector({
         createdAt: task.createdAt,
         templateId: task.templateId,
         templateDate: task.templateDate,
+        ...(task.coverAttachmentId === undefined
+          ? {}
+          : { coverAttachmentId: task.coverAttachmentId }),
         projectSectionId: task.projectSectionId,
         content: task.content || "",
         ...(task.durationMinutes == null
@@ -1121,6 +1139,9 @@ export const getSpaceBackup = selector({
         repeatRuleDtStart: template.repeatRuleDtStart,
         createdAt: template.createdAt,
         lastGeneratedAt: template.lastGeneratedAt,
+        ...(template.coverAttachmentId === undefined
+          ? {}
+          : { coverAttachmentId: template.coverAttachmentId }),
         projectSectionId: template.projectSectionId,
         ...(template.time == null ? {} : { time: template.time }),
         ...(template.durationMinutes == null
@@ -1157,6 +1178,9 @@ export const getSpaceBackup = selector({
         content: note.content || "",
         orderToken: note.orderToken,
         createdAt: note.createdAt,
+        ...(note.coverAttachmentId === undefined
+          ? {}
+          : { coverAttachmentId: note.coverAttachmentId }),
         projectSectionId: note.projectSectionId,
       })),
       attachments: attachments.map(({ type: _type, ...attachment }) => ({

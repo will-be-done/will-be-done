@@ -25,6 +25,7 @@ import { syncItemRichText } from "./richTextItems";
 import {
   ensureInlineAttachmentLinks,
   moveItemAttachments,
+  withAutoCoverAttachment,
 } from "./attachments";
 import { generateKeyPositionedBetween } from "./utils";
 import {
@@ -59,11 +60,16 @@ const richTextOf = ({
   content,
   titleDoc,
   contentDoc,
-}: Pick<Note, "title" | "content" | "titleDoc" | "contentDoc">) => ({
+  coverAttachmentId,
+}: Pick<
+  Note,
+  "title" | "content" | "titleDoc" | "contentDoc" | "coverAttachmentId"
+>) => ({
   title,
   ...(content === undefined ? {} : { content }),
   ...(titleDoc === undefined ? {} : { titleDoc }),
   ...(contentDoc === undefined ? {} : { contentDoc }),
+  ...(coverAttachmentId === undefined ? {} : { coverAttachmentId }),
 });
 
 export const noteById = selector({
@@ -103,10 +109,13 @@ export const updateNote = action({
     const noteInState = yield* noteById({ id });
     if (!noteInState) throw new Error("Note not found");
 
-    const updatedNote = syncItemRichText(noteInState, {
-      ...noteInState,
-      ...note,
-    });
+    const updatedNote = yield* withAutoCoverAttachment(
+      syncItemRichText(noteInState, {
+        ...noteInState,
+        ...note,
+      }),
+      noteInState,
+    );
     yield* upsert(notesTable, [updatedNote]);
     yield* ensureInlineAttachmentLinks(noteType, id, updatedNote, noteInState);
     return updatedNote;

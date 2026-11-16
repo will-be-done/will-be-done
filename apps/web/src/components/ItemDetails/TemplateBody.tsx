@@ -215,7 +215,11 @@ export function TemplateBody({
         />
       }
       attachments={
-        <ItemAttachments parentType="template" parentId={templateId} />
+        <ItemAttachments
+          parentType="template"
+          parentId={templateId}
+          coverAttachmentId={template.coverAttachmentId}
+        />
       }
       actions={
         <DetailsAction

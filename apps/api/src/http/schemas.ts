@@ -254,6 +254,10 @@ export const TaskSchema = z.object({
     "Time on the schedule date in HH:mm, or null when the task has no time",
   ),
   durationMinutes: DurationMinutesSchema.nullable(),
+  coverAttachmentId: z
+    .string()
+    .nullable()
+    .describe("Image attachment shown on the task card, or null for no cover"),
 });
 
 export const TaskTemplateSchema = z.object({
@@ -529,6 +533,7 @@ export const UpdateTaskBodySchema = z
         "Time on the current schedule date; the task must be scheduled",
       ),
     durationMinutes: DurationMinutesSchema.nullable().optional(),
+    coverAttachmentId: z.string().nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {

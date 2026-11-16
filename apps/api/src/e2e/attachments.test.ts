@@ -136,6 +136,48 @@ test("covers every attachment operation", async () => {
   );
   expect(page.data.attachments.map(({ id }) => id)).toEqual([attachment.id]);
   expect(page.data.nextCursor).toBeNull();
+  expect(
+    (
+      await updateTask(
+        space.id,
+        task.id,
+        { coverAttachmentId: attachment.id },
+        options,
+      )
+    ).status,
+  ).toBe(400);
+
+  const cover = expectResponseStatus(
+    await createAttachment(
+      space.id,
+      bytes("png"),
+      {
+        name: "cover.png",
+        mimeType: "image/png",
+        parentType: "task",
+        parentId: task.id,
+      },
+      options,
+    ),
+    201,
+  ).data.attachment;
+  expect(
+    expectResponseStatus(
+      await updateTask(
+        space.id,
+        task.id,
+        { coverAttachmentId: cover.id },
+        options,
+      ),
+      200,
+    ).data.task.coverAttachmentId,
+  ).toBe(cover.id);
+  expect(
+    expectResponseStatus(
+      await updateTask(space.id, task.id, { coverAttachmentId: null }, options),
+      200,
+    ).data.task.coverAttachmentId,
+  ).toBeNull();
 
   // Removing it from the last item deletes the file with the inline reference.
   expectResponseStatus(
@@ -178,11 +220,16 @@ test("inline references list the file under the item", async () => {
     await createAuthorization(),
   );
   const attachment = expectResponseStatus(
-    await createAttachment(space.id, bytes("png"), { name: "a.png" }, options),
+    await createAttachment(
+      space.id,
+      bytes("png"),
+      { name: "a.png", mimeType: "image/png" },
+      options,
+    ),
     201,
   ).data.attachment;
 
-  expectResponseStatus(
+  const updated = expectResponseStatus(
     await updateTask(
       space.id,
       task.id,
@@ -191,6 +238,7 @@ test("inline references list the file under the item", async () => {
     ),
     200,
   );
+  expect(updated.data.task.coverAttachmentId).toBe(attachment.id);
 
   const listed = expectResponseStatus(
     await listItemAttachments(

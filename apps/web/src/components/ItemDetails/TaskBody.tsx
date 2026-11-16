@@ -331,7 +331,13 @@ export function TaskBody({
           attachmentParent={{ parentType: "task", parentId: taskId }}
         />
       }
-      attachments={<ItemAttachments parentType="task" parentId={taskId} />}
+      attachments={
+        <ItemAttachments
+          parentType="task"
+          parentId={taskId}
+          coverAttachmentId={task.coverAttachmentId}
+        />
+      }
       actions={
         <>
           {!taskTemplateId && (

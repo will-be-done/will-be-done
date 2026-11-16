@@ -35,6 +35,7 @@ import {
   moveItemAttachments,
   deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
+  withAutoCoverAttachment,
 } from "./attachments";
 import { genUUIDV5 } from "../traits/";
 import {
@@ -107,6 +108,9 @@ const templateToTask = selector({
       ...(tmpl.durationMinutes == null
         ? {}
         : { durationMinutes: tmpl.durationMinutes }),
+      ...(tmpl.coverAttachmentId === undefined
+        ? {}
+        : { coverAttachmentId: tmpl.coverAttachmentId }),
     } satisfies Task;
   },
 });
@@ -504,7 +508,7 @@ export const createTaskTemplate = action({
     assertValidTaskTime(template.time);
     assertValidTaskDuration(template.durationMinutes);
 
-    const newTemplate: TaskTemplate = {
+    const newTemplate: TaskTemplate = yield* withAutoCoverAttachment({
       type: taskTemplateType,
       id,
       title: "New template",
@@ -513,7 +517,7 @@ export const createTaskTemplate = action({
       createdAt: now,
       lastGeneratedAt: now,
       ...template,
-    };
+    });
 
     yield* insert(taskTemplatesTable, [newTemplate]);
     yield* ensureInlineAttachmentLinks(taskTemplateType, id, newTemplate);
@@ -533,10 +537,13 @@ export const updateTemplate = action({
     assertValidTaskTime(template.time);
     assertValidTaskDuration(template.durationMinutes);
 
-    const updatedTemplate = syncItemRichText(templateInState, {
-      ...templateInState,
-      ...template,
-    });
+    const updatedTemplate = yield* withAutoCoverAttachment(
+      syncItemRichText(templateInState, {
+        ...templateInState,
+        ...template,
+      }),
+      templateInState,
+    );
     yield* upsert(taskTemplatesTable, [updatedTemplate]);
     yield* ensureInlineAttachmentLinks(
       taskTemplateType,
@@ -609,6 +616,9 @@ export const createTaskTemplateFromTask = action({
       ...(task.durationMinutes == null
         ? {}
         : { durationMinutes: task.durationMinutes }),
+      ...(task.coverAttachmentId === undefined
+        ? {}
+        : { coverAttachmentId: task.coverAttachmentId }),
       ...data,
     };
     assertValidTaskTime(template.time);
@@ -739,6 +749,10 @@ function* generateTasksForTemplateIds({
         throw new Error("TemplateId is null");
       }
 
+      yield* copyItemAttachments(
+        { parentType: taskTemplateType, parentId: task.templateId },
+        { parentType: taskType, parentId: task.id },
+      );
       yield* createTaskAfterSectionItem({
         itemId: task.templateId,
         taskParams: { ...task },
@@ -749,11 +763,6 @@ function* generateTasksForTemplateIds({
         toParentId: task.id,
         toParentType: taskType,
       });
-      yield* copyItemAttachments(
-        { parentType: taskTemplateType, parentId: task.templateId },
-        { parentType: taskType, parentId: task.id },
-      );
-
       yield* createEntryInDailyList({
         taskId: task.id,
         date: occurrenceDMY(template, task.createdAt),
