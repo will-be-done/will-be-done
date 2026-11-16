@@ -250,7 +250,10 @@ from producing a second local change record or upload echo.
 
 Derived tables kept only in storage, such as the search index, are not
 re-derived by a cross-tab merge: the sending tab persisted them in the same
-batch as the change ([search.md](search.md#other-tabs)).
+batch as the change. Concurrent edits to different fields can leave the index
+stale after the source row merges. Search can miss terms until a later text
+change or an index rebuild reindexes the item
+([Other tabs](search.md#other-tabs)).
 
 After a cross-tab merge completes, the receiving tab wakes the ordinary sync
 loop so the leader uploads the changes from its updated view. The changes and

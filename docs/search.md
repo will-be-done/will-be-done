@@ -61,10 +61,14 @@ web runtime to a cache that keeps them.
 
 Tabs share one storage. A tab's change lands in storage together with its
 index rows, and only then reaches the other tabs. The other tabs merge it with
-the `cross-tab` trait, and the hook skips those merges: the index is already
-right, and re-deriving it from the receiving tab's in-memory rows would be
-redundant writes at best. A search open in the receiving tab does not re-run
-for such a change until its query changes.
+the `cross-tab` trait, and the hook skips those merges because the sender
+already persisted the index rows.
+
+Concurrent edits to different fields of one item can leave that index stale.
+The source row combines both edits, but the index reflects the last tab's
+write. Terms from the other edit can remain missing until a later text change
+or an index rebuild reindexes the item. A search open in the receiving tab
+does not re-run for a cross-tab merge until its query changes.
 
 ### Rebuilds
 
