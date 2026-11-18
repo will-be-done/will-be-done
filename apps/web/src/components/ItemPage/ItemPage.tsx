@@ -18,6 +18,7 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { LayoutWithSidebar } from "@/components/Layout/LayoutWithSidebar";
 import { ProjectIcon } from "@/components/ui/emoji";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 import { isEditingText } from "@/utils/isEditingText";
@@ -25,6 +26,45 @@ import { useOpenItemPage } from "./useOpenItemPage.ts";
 
 const kindLabel = (item: Item) =>
   isNote(item) ? "Note" : isTaskTemplate(item) ? "Repeating task" : "Task";
+
+function copyWithSelection(text: string) {
+  const previousFocus = document.activeElement;
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.readOnly = true;
+  field.tabIndex = -1;
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  try {
+    field.focus({ preventScroll: true });
+    field.select();
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    field.remove();
+    if (previousFocus instanceof HTMLElement) {
+      previousFocus.focus({ preventScroll: true });
+    }
+  }
+}
+
+async function copyItemLink() {
+  const link = window.location.href;
+  const clipboard = navigator.clipboard;
+  const copied = clipboard?.writeText
+    ? await clipboard.writeText(link).then(
+        () => true,
+        () => false,
+      )
+    : false;
+  if (copied || copyWithSelection(link)) {
+    toast("Link copied");
+  } else {
+    void promptDialog("Copy this link", link);
+  }
+}
 
 export function ItemPage({ itemId }: { itemId: string }) {
   const { spaceId } = SpaceRoute.useParams();
@@ -79,18 +119,12 @@ export function ItemPage({ itemId }: { itemId: string }) {
     })();
   };
 
-  const copyLink = () => {
-    void navigator.clipboard.writeText(window.location.href).then(() => {
-      toast("Link copied");
-    });
-  };
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-task-panel-divider pl-12 pr-3">
         {item && <Breadcrumb item={item} />}
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          <HeaderButton label="Copy link" onClick={copyLink}>
+          <HeaderButton label="Copy link" onClick={() => void copyItemLink()}>
             <Link2 className="h-4 w-4" />
           </HeaderButton>
           <HeaderButton label="Close" onClick={close}>
