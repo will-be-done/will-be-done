@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   asyncDispatch,
@@ -13,7 +14,7 @@ import {
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { type Context, Effect, Exit, Layer, Scope } from "effect";
-import { Digest } from "effect/crypto";
+import { BrowserDigestLive } from "@/services/browserDigest";
 import {
   makeTestLogger,
   makeTestPage,
@@ -32,6 +33,7 @@ import {
   type ClientCursor,
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
+import { createSpace, spacesTable } from "@will-be-done/slices/user";
 import { Database } from "./database";
 import { Syncer, type SyncerServices } from "./syncer";
 import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
@@ -76,7 +78,7 @@ const testServices = () =>
     env.logger.layer,
     testAuthSession(),
     testHttpClient(() => env.fetch),
-    Digest.layerWebCrypto,
+    BrowserDigestLive,
   );
 
 // Builds a component on `db` with the test services, kept alive until the
@@ -760,9 +762,62 @@ afterEach(async () => {
   }
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("sync v4 request recovery", () => {
+  it("uploads a new space with valid checksums when Web Crypto is unavailable", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues: crypto.getRandomValues.bind(crypto),
+    });
+    const userConfig = {
+      ...config,
+      syncableDBTables: [spacesTable],
+      tableNameMap: { [spacesTable.tableName]: spacesTable },
+    };
+    const { db, syncer } = createSyncer(userConfig);
+    registerSyncChangeHooks({
+      syncSubDb: db,
+      syncableDBTables: userConfig.syncableDBTables,
+      clientId: "client-1",
+      nextClock: createHlcClock("client-1"),
+    });
+    const space = await asyncDispatch(db, createSpace({ name: "Café" }));
+    const upload =
+      vi.fn<(body: { payload: string; checksum: string }) => void>();
+    const commit = vi.fn();
+    stubFetch(async (url, init) => {
+      if (url.endsWith("/sessions")) {
+        return jsonResponse(sessionResponse("upload-1"));
+      }
+      const body = JSON.parse(await requestText(init));
+      if (url.endsWith("/chunks/0")) {
+        upload(body);
+        return jsonResponse({ changeCount: 1 });
+      }
+      if (url.endsWith("/commit")) {
+        commit(body);
+        return jsonResponse({
+          acceptedClientCursor: body.throughCursor,
+          serverRevision: 1,
+          download: { type: "inline", changesets: [] },
+        });
+      }
+      throw new Error(`Unexpected sync request: ${url}`);
+    });
+
+    await expect(runSyncV4(syncer)).resolves.toBe(true);
+    expect(upload).toHaveBeenCalledTimes(1);
+    const { payload, checksum } = upload.mock.calls[0][0];
+    expect(JSON.parse(payload)[0].data[0].row).toEqual(space);
+    expect(checksum).toBe(createHash("sha256").update(payload).digest("hex"));
+    expect(commit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checksum: createHash("sha256").update(checksum).digest("hex"),
+      }),
+    );
+  });
+
   it("keeps the HTTP status when the error body cannot be read", async () => {
     const { syncer } = createSyncer();
     stubFetch(

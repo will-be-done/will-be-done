@@ -9,7 +9,6 @@ import {
   References,
   Stream,
 } from "effect";
-import { Digest } from "effect/crypto";
 import { FetchHttpClient } from "effect/http";
 import { authUtils } from "@/lib/auth";
 import { getDevtoolsEnabled } from "@/lib/devtools";
@@ -23,6 +22,7 @@ import {
   TabChannels,
   type TabChannel,
 } from "./browser";
+import { BrowserDigestLive } from "./browserDigest";
 
 export const AuthSessionLive = Layer.succeed(AuthSession, {
   token: Effect.sync(() => authUtils.getToken()),
@@ -163,7 +163,7 @@ export const BrowserLive = Layer.mergeAll(
   TabChannelsLive,
   PageEventsLive,
   FetchHttpClient.layer,
-  Digest.layerWebCrypto,
+  BrowserDigestLive,
   LoggingLive,
   ConsoleLoggerLive,
 );

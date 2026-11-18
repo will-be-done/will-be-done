@@ -150,7 +150,8 @@ session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the
 session and the next wait. A space session rejected with 404 also wakes when the
 same tab's user database next syncs, because a newly created space reaches the
-server only through that user sync.
+server only through that user sync. Opening a space directly starts user sync
+so a space created offline can upload after an app restart.
 
 The sidebar sync indicator reports the current stage, completed transport
 batches, and the last successful sync time. A session succeeds only after
@@ -348,6 +349,9 @@ session's inherited upload base cursor. When that base cursor is absent the
 request cursor is `null`. The server compares these values as complete nullable
 client cursors, so an empty upload confirms inherited state without inventing a
 new cursor.
+
+Clients must be able to compute the same SHA-256 checksums over plain HTTP on
+a self-hosted server, where the browser does not expose `crypto.subtle`.
 
 For example, a `Task` and a `DailyEntry`/projection that references it may be
 transported in different chunks, but neither becomes visible until the whole
