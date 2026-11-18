@@ -15,9 +15,9 @@ import {
   type Attachment,
 } from "@will-be-done/slices/space";
 import { Effect, Exit, Layer, Scope } from "effect";
-import { Digest } from "effect/crypto";
 import { changeId, changesTable } from "@will-be-done/slices/common";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { BrowserDigestLive } from "@/services/browserDigest";
 import {
   makeTestLogger,
   makeTestPage,
@@ -141,6 +141,7 @@ afterEach(async () => {
   for (const scope of scopes.splice(0)) {
     await Effect.runPromise(Scope.close(scope, Exit.void));
   }
+  vi.unstubAllGlobals();
 });
 
 type Respond = (url: string, init: RequestInit) => Promise<Response>;
@@ -170,7 +171,7 @@ function start(store: FakeStore, respond: Respond) {
           makeTestPage().layer,
           testAuthSession(":", "token"),
           testHttpClient(() => respond),
-          Digest.layerWebCrypto,
+          BrowserDigestLive,
           logger.layer,
         ),
       ),
@@ -183,6 +184,23 @@ const contentUrl = (id: string) =>
   `http://localhost/api/v1/spaces/space/attachments/${id}/content`;
 
 describe("attachment transfers", () => {
+  it("stores a new attachment when only getRandomValues is available", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues: crypto.getRandomValues.bind(crypto),
+    });
+    const store = new FakeStore();
+    const { transfers } = start(store, async () => new Response("remote"));
+    const attachmentTransfers = await transfers;
+    const input = new File(["hello"], "hello.txt", { type: "text/plain" });
+    const attachment = await Effect.runPromise(attachmentTransfers.add(input));
+
+    expect(store.blobs.get(attachment.id)).toBe(input);
+    expect(store.pending.has(attachment.id)).toBe(true);
+    expect(attachment.sha256).toBe(
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+    );
+  });
+
   it("downloads missing files, uploads pending ones, and drops deleted ones", async () => {
     const store = new FakeStore();
     Effect.runSync(

@@ -22,6 +22,7 @@ import {
 } from "effect";
 import { Digest } from "effect/crypto";
 import { HttpBody, HttpClient, HttpClientRequest } from "effect/http";
+import { uuidv7 } from "uuidv7";
 import {
   AuthSession,
   PageEvents,
@@ -600,7 +601,7 @@ export const makeAttachmentTransfers = ({
                 message: `${file.name} is larger than 50 MB`,
               });
             }
-            const id = crypto.randomUUID();
+            const id = uuidv7();
             const bytes = yield* Effect.tryPromise({
               try: () => file.arrayBuffer(),
               catch: (cause) => new AttachmentFileReadError({ cause }),

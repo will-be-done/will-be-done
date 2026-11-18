@@ -29,6 +29,20 @@ test("opens a task page from its menu and edits the task there", async ({
     page.getByRole("navigation", { name: "Breadcrumb" }),
   ).toContainText(projectTitle);
 
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined });
+  });
+  const copyLink = page.getByRole("button", { name: "Copy link" });
+  await copyLink.click();
+  await expect(page.getByText("Link copied", { exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    document.execCommand = () => false;
+  });
+  await copyLink.click();
+  const copyDialog = page.getByRole("dialog", { name: "Copy this link" });
+  await expect(copyDialog.getByRole("textbox")).toHaveValue(page.url());
+  await page.keyboard.press("Escape");
+
   await page.getByTestId("task-title").click();
   await page.getByLabel("Edit task title").fill("Write the final report");
   await page.keyboard.press("Enter");
