@@ -12,7 +12,11 @@ import { DBProvider } from "@will-be-done/hyperdb/react";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils } from "@/lib/auth";
 import { isDemoMode } from "@/lib/demoMode";
-import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
+import {
+  demoSpaceDBConfig,
+  spaceDBConfig,
+  userDBConfig,
+} from "@/store/configs";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
 import { captureWebAnalytics } from "@/lib/analytics";
@@ -30,19 +34,16 @@ export const Route = createFileRoute("/spaces/$spaceId")({
 });
 
 async function loadSpaceDb(spaceId: string) {
-  const isDemo = isDemoMode();
+  if (isDemoMode()) return initDbStore(demoSpaceDBConfig());
 
-  if (!isDemo && !authUtils.isAuthenticated()) {
+  const userId = authUtils.getUserId();
+  if (!userId || !authUtils.getToken()) {
     throw redirect({ to: "/login" });
   }
 
-  if (!isDemo) {
-    authUtils.setLastUsedSpaceId(spaceId);
-  }
-
-  const config = isDemo ? demoSpaceDBConfig() : spaceDBConfig(spaceId);
-
-  return initDbStore(config);
+  authUtils.setLastUsedSpaceId(spaceId);
+  await initDbStore(userDBConfig(userId));
+  return initDbStore(spaceDBConfig(spaceId));
 }
 
 function RouteComponent() {

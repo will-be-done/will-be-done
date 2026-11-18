@@ -7,6 +7,33 @@ import {
   uniqueE2EName,
 } from "./helpers";
 
+test("syncs a new space reopened directly after user sync was interrupted", async ({
+  page,
+  context,
+}) => {
+  const userSyncUrl = "**/api/sync/v4/user/**";
+  await context.route(userSyncUrl, (route) => route.abort());
+  const spaceName = uniqueE2EName("Offline space");
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  const missingSpace = page.waitForResponse(
+    (response) =>
+      /\/api\/sync\/v4\/space\/[^/]+\/sessions$/.test(response.url()) &&
+      response.status() === 404,
+  );
+  await openSpace(page, spaceName);
+  await missingSpace;
+  const spaceUrl = page.url();
+  await page.close();
+  await context.unroute(userSyncUrl);
+
+  const reopened = await context.newPage();
+  await reopened.goto(spaceUrl);
+  await expect(
+    reopened.getByRole("button", { name: /^Sync status:/ }),
+  ).toHaveAttribute("data-sync-state", "synced", { timeout: 15_000 });
+});
+
 test("shows sync stages, last success, offline recovery, and shared tab status", async ({
   page,
   context,

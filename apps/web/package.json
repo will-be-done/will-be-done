@@ -26,6 +26,7 @@
     "@kikko-land/boono-sql": "^0.4.0",
     "@kikko-land/kikko": "^0.19.1",
     "@marsidev/react-turnstile": "^1.4.2",
+    "@noble/hashes": "^2.4.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-separator": "^1.1.8",
