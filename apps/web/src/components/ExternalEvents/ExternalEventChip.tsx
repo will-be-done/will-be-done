@@ -53,7 +53,13 @@ export const DayEventsStrip = ({
 }) => {
   if (events.length === 0) return null;
   return (
-    <div className={cn("flex w-full flex-col gap-1", className)}>
+    // Long titles truncate instead of widening content-sized day columns.
+    <div
+      className={cn(
+        "flex w-full flex-col gap-1 contain-inline-size",
+        className,
+      )}
+    >
       {events.map((event) => (
         <ExternalEventPopover key={event.key} occurrence={event.occurrence}>
           <button
