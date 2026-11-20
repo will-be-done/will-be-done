@@ -197,10 +197,11 @@ export const ToolbarButton = ({
   destructive?: boolean;
 }) => (
   <button
-    onPointerDown={(e) => {
-      e.preventDefault();
-      onPress();
-    }}
+    type="button"
+    onPointerDown={(e) => e.preventDefault()}
+    // On click, not pointerdown: the iOS home-bar swipe starts on this bar,
+    // and the system cancels that touch before any click fires.
+    onClick={onPress}
     className={cn(
       "group flex flex-1 flex-col items-center justify-center gap-1 py-2 cursor-pointer",
       "transition-colors duration-100 active:bg-white/5",
