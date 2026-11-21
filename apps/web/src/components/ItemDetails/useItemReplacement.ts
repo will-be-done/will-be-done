@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   type Item,
@@ -60,7 +61,13 @@ export function useItemReplacement(
       const next = await readAhead()
         .then(run)
         .then(readNext)
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          setReplacement(undefined);
+          toast.error("Couldn't convert the item", {
+            description: error instanceof Error ? error.message : undefined,
+          });
+          throw error;
+        });
       if (next) onReplaced?.(next);
       else setReplacement(undefined);
     })();

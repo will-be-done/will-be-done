@@ -198,8 +198,20 @@ function TimePickerPanel({
   time: string | null;
   onPick: (time: string | null) => void;
 }) {
-  const [hour, setHour] = useState(time ? Number(time.slice(0, 2)) : null);
-  const [minute, setMinute] = useState(time ? Number(time.slice(3)) : null);
+  // Picks belong to the time they started from, so a typed time committing
+  // while the picker is open replaces them.
+  const [picked, setPicked] = useState<{
+    from: string | null;
+    hour: number;
+    minute: number;
+  }>();
+  const { hour, minute } =
+    picked?.from === time
+      ? picked
+      : {
+          hour: time ? Number(time.slice(0, 2)) : null,
+          minute: time ? Number(time.slice(3)) : null,
+        };
   const minutes =
     minute === null || minuteSteps.includes(minute)
       ? minuteSteps
@@ -212,19 +224,21 @@ function TimePickerPanel({
           label="Hour"
           values={hours}
           selected={hour}
-          onSelect={(value) => {
-            setHour(value);
-            if (minute === null) setMinute(0);
-          }}
+          onSelect={(value) =>
+            setPicked({ from: time, hour: value, minute: minute ?? 0 })
+          }
         />
         <PickerColumn
           label="Minute"
           values={minutes}
           selected={minute}
-          onSelect={(value) => {
-            setMinute(value);
-            if (hour === null) setHour(new Date().getHours());
-          }}
+          onSelect={(value) =>
+            setPicked({
+              from: time,
+              hour: hour ?? new Date().getHours(),
+              minute: value,
+            })
+          }
         />
       </div>
       <div className="flex items-center justify-between gap-1 border-t border-white/10 p-1.5">

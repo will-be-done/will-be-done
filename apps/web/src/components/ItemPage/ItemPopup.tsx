@@ -17,11 +17,22 @@ export function ItemPopup({
   onItemIdChange: (itemId: string) => void;
 }) {
   const pressedBackdrop = useRef(false);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   // The list behind keeps its focused item but stops taking shortcuts.
   useEffect(() => {
     useFocusStore.getState().disableFocus();
     return () => useFocusStore.getState().enableFocus();
+  }, []);
+
+  useEffect(() => {
+    const opener = document.activeElement;
+    popupRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus({ preventScroll: true });
+      }
+    };
   }, []);
 
   return createPortal(
@@ -35,8 +46,10 @@ export function ItemPopup({
       }}
     >
       <div
+        ref={popupRef}
+        tabIndex={-1}
         data-testid="item-popup"
-        className="h-full max-h-[56rem] w-full max-w-5xl overflow-hidden rounded-xl border border-dialog-border bg-dialog-bg shadow-[0_32px_90px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-150"
+        className="h-full max-h-[56rem] w-full max-w-5xl overflow-hidden rounded-xl border border-dialog-border bg-dialog-bg shadow-[0_32px_90px_rgba(0,0,0,0.8)] outline-none animate-in zoom-in-95 duration-150"
       >
         <ItemView
           itemId={itemId}

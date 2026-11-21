@@ -156,14 +156,23 @@ describe("notes", () => {
     ).toEqual(task);
   });
 
-  it("converts to the ID the caller chose", () => {
+  it("converts to the new ID the caller chose", () => {
     const { db, sectionId } = createDB();
     const original = addTask(db, sectionId, "task-1");
 
+    expect(() =>
+      syncDispatch(
+        db,
+        convertTaskToNote({ taskId: original.id, id: original.id }),
+      ),
+    ).toThrow("Conversion needs a new ID");
     const note = syncDispatch(
       db,
       convertTaskToNote({ taskId: original.id, id: "note-1" }),
     );
+    expect(() =>
+      syncDispatch(db, convertNoteToTask({ noteId: note.id, id: note.id })),
+    ).toThrow("Conversion needs a new ID");
     const task = syncDispatch(
       db,
       convertNoteToTask({ noteId: note.id, id: "task-2" }),

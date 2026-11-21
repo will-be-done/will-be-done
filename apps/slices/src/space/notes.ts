@@ -210,6 +210,7 @@ export const convertTaskToNote = action({
   handler: function* convertTaskToNote({ taskId, id = uuidv7() }) {
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
+    if (id === task.id) throw new Error("Conversion needs a new ID");
 
     yield* relinkMindmapNodes({
       from: task.id,
@@ -240,6 +241,7 @@ export const convertNoteToTask = action({
   handler: function* convertNoteToTask({ noteId, id = uuidv7() }) {
     const note = yield* noteById({ id: noteId });
     if (!note) throw new Error("Note not found");
+    if (id === note.id) throw new Error("Conversion needs a new ID");
 
     yield* relinkMindmapNodes({
       from: note.id,

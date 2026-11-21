@@ -9,6 +9,7 @@ import {
   projectTaskItem,
   signupUser,
   uniqueE2EName,
+  waitForSyncedText,
 } from "./helpers";
 
 test("opens a task page from its menu and edits the task there", async ({
@@ -92,10 +93,13 @@ test("follows a task converted to a note and redirects old links", async ({
   await page.getByRole("link", { name: "Open as page" }).click();
   await expect(page).toHaveURL(/\/tasks\/[^/?]+$/);
 
+  // The reload below must find the note, so wait until it is stored.
+  const noteSynced = waitForSyncedText(page, '\\"tableName\\":\\"notes\\"');
   await page.getByRole("button", { name: "Convert to note" }).click();
   await expect(page).toHaveURL(/\/notes\/[^/?]+$/);
   await expect(page.getByTestId("task-title")).toHaveText("Trip ideas");
   const noteUrl = page.url();
+  await noteSynced;
 
   await page.goto(noteUrl.replace("/notes/", "/item-details/"));
   await expect(page).toHaveURL(noteUrl);

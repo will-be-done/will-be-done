@@ -3,6 +3,7 @@ import { expect, test } from "playwright/test";
 import {
   createProjectTask,
   createSpace,
+  createTodayTask,
   dailyTaskItem,
   openSpace,
   openTaskActions,
@@ -88,4 +89,32 @@ test("keeps the date picker open while rapidly changing months", async ({
   await previousMonth.dblclick();
   await expect(datePicker).toHaveAttribute("data-state", "open");
   await expect.poll(() => calendar.innerText()).toBe(originalCalendarText);
+});
+
+test("keeps a typed time when OK is pressed in the open time picker", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("E2E Time Space");
+  const taskTitle = uniqueE2EName("E2E timed task");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  const task = await createTodayTask(page, taskTitle);
+  await task.click();
+  await page.keyboard.press("KeyV");
+
+  const time = page
+    .getByTestId("item-details-panel")
+    .getByLabel("Time", { exact: true });
+  const ok = page.getByRole("button", { name: "OK", exact: true });
+  await time.click();
+  await page.getByRole("button", { name: "09", exact: true }).first().click();
+  await ok.click();
+  await expect(time).toHaveValue("9:00 AM");
+
+  await time.click();
+  await time.fill("11:30");
+  await ok.click();
+  await expect(time).toHaveValue("11:30 AM");
 });
