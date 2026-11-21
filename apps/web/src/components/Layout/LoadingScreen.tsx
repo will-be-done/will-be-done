@@ -22,7 +22,7 @@ export function LoadingScreen({
         {/* A transform animation keeps spinning while a long transaction blocks the main thread. */}
         <LoaderCircle
           aria-hidden="true"
-          className="size-6 animate-spin text-content-tinted"
+          className="size-6 text-content-tinted motion-safe:animate-spin"
         />
         <p className="mt-4 text-[13px] font-medium">{label}</p>
         {children}
