@@ -65,7 +65,9 @@ export function PromptDialogHost() {
       }}
     >
       <DialogContent
-        className="bg-popover backdrop-blur-xl ring-1 ring-ring border-none sm:max-w-sm gap-5 [&>button]:text-content-tinted"
+        // Above every panel, popup, and modal that can ask for it.
+        className="z-[10002] bg-popover backdrop-blur-xl ring-1 ring-ring border-none sm:max-w-sm gap-5 [&>button]:text-content-tinted"
+        overlayClassName="z-[10002]"
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           if (request?.kind === "confirm") {

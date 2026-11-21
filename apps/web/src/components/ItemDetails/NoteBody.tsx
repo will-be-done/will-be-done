@@ -11,7 +11,10 @@ import {
   updateNote,
 } from "@will-be-done/slices/space";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
-import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
+import {
+  type ReplaceItem,
+  useNoteConversion,
+} from "@/components/Task/useNoteConversion.ts";
 import {
   EditableTitle,
   DetailRow,
@@ -31,19 +34,19 @@ export function NoteBody({
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
-  onItemIdChange,
+  replaceItem,
 }: {
   note: Note;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
-  onItemIdChange?: (itemId: string) => void;
+  replaceItem?: ReplaceItem;
 }) {
   const dispatch = useAsyncDispatch();
   const noteId = note.id;
   const openProject = useOpenProject();
-  const noteConversion = useNoteConversion(onItemIdChange);
+  const noteConversion = useNoteConversion(replaceItem);
 
   const { data: project } = useAsyncSelector({
     selector: projectOfProjectSectionOrDefault,
@@ -94,8 +97,8 @@ export function NoteBody({
         <>
           <ProjectDetailRow
             project={project}
-            onOpenClick={() => openProject(project.id)}
-            onEditClick={() => setIsMoveProjectModalOpen(true)}
+            onChangeClick={() => setIsMoveProjectModalOpen(true)}
+            onShowClick={() => openProject(project.id)}
           />
 
           <SectionDetailRow
@@ -137,12 +140,14 @@ export function NoteBody({
         />
       }
       actions={
-        <DetailsAction
-          icon={<SquareCheckboxIcon className="h-3 w-3" />}
-          onClick={() => void noteConversion.toTask(noteId)}
-        >
-          Convert to task
-        </DetailsAction>
+        <>
+          <DetailsAction
+            icon={<SquareCheckboxIcon className="h-3 w-3" />}
+            onClick={() => noteConversion.toTask(noteId)}
+          >
+            Convert to task
+          </DetailsAction>
+        </>
       }
     >
       {isMoveProjectModalOpen && (

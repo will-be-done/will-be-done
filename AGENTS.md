@@ -166,6 +166,8 @@ and database.
   fix you just made; the commit carries that.
 - React effects are for synchronizing with something outside React. Derive in render and act in
   handlers instead of syncing state.
+- Scrollable areas in `apps/web` use `ScrollArea` from `@/components/ui/scroll-area`, never a
+  bare `overflow-auto` container with the native scrollbar.
 - The app should feel instant. No loading spinners where local data can answer, no dropped frames
   in lists or drag-and-drop, no continuously repainting animations.
 

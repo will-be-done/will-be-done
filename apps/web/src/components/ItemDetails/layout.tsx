@@ -36,29 +36,28 @@ export function ItemDetailsLayout({
   }
 
   return (
-    <div className="grid min-h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[auto_1fr]">
-      <div className="px-5 pt-8 sm:px-10 lg:col-start-1 lg:row-start-1 lg:pt-12">
+    <div className="grid min-h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_19rem] lg:grid-rows-[auto_1fr]">
+      <div className="px-5 pt-8 sm:px-10 lg:col-start-1 lg:row-start-1 lg:pt-10">
         <div className="mx-auto w-full max-w-3xl">{title}</div>
       </div>
-      <aside className="border-y border-task-panel-divider px-5 py-5 sm:px-10 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-y-0 lg:border-l lg:px-5 lg:py-6 mt-6 lg:mt-0">
-        <h2 className="mb-2 text-xs font-medium text-content-tinted">
-          Properties
-        </h2>
+      <aside className="mt-6 border-y border-task-panel-divider px-5 py-5 sm:px-10 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:border-y-0 lg:border-l lg:px-5 lg:py-6">
         <div className="space-y-0.5 text-[13px]">{properties}</div>
-        <div className="mt-6 space-y-1.5">{actions}</div>
+        <div className="mt-4 space-y-0.5 border-t border-task-panel-divider pt-4">
+          {actions}
+        </div>
       </aside>
-      <div className="px-5 pb-16 pt-6 sm:px-10 lg:col-start-1 lg:row-start-2">
+      <div className="px-5 pb-16 pt-5 sm:px-10 lg:col-start-1 lg:row-start-2">
         <div className="mx-auto w-full max-w-3xl space-y-8">
           {description}
-          {attachments}
           {checklist && (
             <section>
-              <h2 className="mb-2 text-xs font-medium text-content-tinted">
+              <h2 className="mb-1.5 text-xs font-medium text-content-tinted">
                 Checklist
               </h2>
               <div className="text-sm">{checklist}</div>
             </section>
           )}
+          {attachments && <div className="text-[13px]">{attachments}</div>}
         </div>
       </div>
       {children}

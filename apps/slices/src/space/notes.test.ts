@@ -156,6 +156,23 @@ describe("notes", () => {
     ).toEqual(task);
   });
 
+  it("converts to the ID the caller chose", () => {
+    const { db, sectionId } = createDB();
+    const original = addTask(db, sectionId, "task-1");
+
+    const note = syncDispatch(
+      db,
+      convertTaskToNote({ taskId: original.id, id: "note-1" }),
+    );
+    const task = syncDispatch(
+      db,
+      convertNoteToTask({ noteId: note.id, id: "task-2" }),
+    );
+
+    expect(note.id).toBe("note-1");
+    expect(task.id).toBe("task-2");
+  });
+
   it("orders notes among section tasks", () => {
     const { db, sectionId } = createDB();
     const first = addTask(db, sectionId, "task-1");

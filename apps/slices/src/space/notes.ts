@@ -206,12 +206,11 @@ export const moveNoteToProject = action({
 
 export const convertTaskToNote = action({
   name: "convertTaskToNote",
-  args: { taskId: v.string() },
-  handler: function* convertTaskToNote({ taskId }) {
+  args: { taskId: v.string(), id: v.optional(v.string()) },
+  handler: function* convertTaskToNote({ taskId, id = uuidv7() }) {
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
-    const id = uuidv7();
     yield* relinkMindmapNodes({
       from: task.id,
       to: { type: "note", id },
@@ -237,12 +236,11 @@ export const convertTaskToNote = action({
 
 export const convertNoteToTask = action({
   name: "convertNoteToTask",
-  args: { noteId: v.string() },
-  handler: function* convertNoteToTask({ noteId }) {
+  args: { noteId: v.string(), id: v.optional(v.string()) },
+  handler: function* convertNoteToTask({ noteId, id = uuidv7() }) {
     const note = yield* noteById({ id: noteId });
     if (!note) throw new Error("Note not found");
 
-    const id = uuidv7();
     yield* relinkMindmapNodes({
       from: note.id,
       to: { type: "task", id },
