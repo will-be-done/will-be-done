@@ -584,9 +584,14 @@ export const createTaskTemplateFromTask = action({
     task: tasksTable.v(),
     data: v.partial(taskTemplatesTable.v()),
     now: v.number(),
+    id: v.optional(v.string()),
   },
-  handler: function* createTaskTemplateFromTask({ task, data, now }) {
-    const newId = uuidv7();
+  handler: function* createTaskTemplateFromTask({
+    task,
+    data,
+    now,
+    id: newId = uuidv7(),
+  }) {
     // Read before deleteTasks removes the task's DailyEntry.
     const entryTime = (yield* dailyEntryByTaskId({ taskId: task.id }))?.time;
     yield* copyItems({

@@ -685,9 +685,9 @@ export const PreloadedTaskComp = ({
   const handleOpenProject = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
-      openProject(project.id);
+      openProject(project.id, isTask(item) ? item : undefined);
     },
-    [openProject, project.id],
+    [item, openProject, project.id],
   );
 
   const handleOpenDatePicker = useCallback(() => {

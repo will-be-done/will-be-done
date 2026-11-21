@@ -7,6 +7,8 @@ import {
   createFileRoute,
   useRouterState,
 } from "@tanstack/react-router";
+import { zodValidator } from "@tanstack/zod-adapter";
+import { z } from "zod";
 import { type SubscribableDB } from "@will-be-done/hyperdb";
 import { DBProvider } from "@will-be-done/hyperdb/react";
 import { initDbStore } from "@/store/load.ts";
@@ -21,8 +23,14 @@ import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
 import { captureWebAnalytics } from "@/lib/analytics";
 
+// Every view under a space can show an item in a popup over itself.
+const searchParams = z.object({
+  peek: z.string().optional(),
+});
+
 export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
+  validateSearch: zodValidator(searchParams),
   beforeLoad: ({ params }) => {
     return {
       spaceDbPromise: loadSpaceDb(params.spaceId),

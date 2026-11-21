@@ -1,4 +1,9 @@
+import { uuidv7 } from "uuidv7";
 import { useState, useCallback } from "react";
+import {
+  type ReplaceItem,
+  runDirectly,
+} from "@/components/Task/useNoteConversion.ts";
 import { CalendarDays, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
@@ -13,12 +18,14 @@ import {
   type TaskTemplate,
   taskTemplateRuleText,
   updateTemplate,
+  taskType,
 } from "@will-be-done/slices/space";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import {
   EditableTitle,
   DetailRow,
+  detailValueClass,
   ProjectDetailRow,
   SectionDetailRow,
   EditableDescription,
@@ -37,14 +44,14 @@ export function TemplateBody({
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
-  onItemIdChange,
+  replaceItem = runDirectly,
 }: {
   template: TaskTemplate;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
-  onItemIdChange?: (itemId: string) => void;
+  replaceItem?: ReplaceItem;
 }) {
   const dispatch = useAsyncDispatch();
   const templateId = template.id;
@@ -82,14 +89,14 @@ export function TemplateBody({
   );
 
   const handleConvertToTask = useCallback(() => {
-    void (async () => {
+    const id = uuidv7();
+    replaceItem({ id, type: taskType }, async () => {
       const task = await dispatch(
-        createTaskFromTemplate({ taskTemplate: template }),
+        createTaskFromTemplate({ taskTemplate: template, id }),
       );
       useFocusStore.getState().focusByKey(buildFocusKey(task.id, task.type));
-      onItemIdChange?.(task.id);
-    })();
-  }, [template, dispatch, onItemIdChange]);
+    });
+  }, [template, dispatch, replaceItem]);
 
   const handleRepeatConfirm = useCallback(
     (ruleString: string) => {
@@ -131,8 +138,8 @@ export function TemplateBody({
         <>
           <ProjectDetailRow
             project={project}
-            onOpenClick={() => openProject(project.id)}
-            onEditClick={() => setIsMoveProjectModalOpen(true)}
+            onChangeClick={() => setIsMoveProjectModalOpen(true)}
+            onShowClick={() => openProject(project.id)}
           />
 
           <SectionDetailRow
@@ -155,10 +162,11 @@ export function TemplateBody({
             label="Repeat"
           >
             <button
-              className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left italic"
+              type="button"
+              className={detailValueClass}
               onClick={() => setIsRepeatModalOpen(true)}
             >
-              {ruleText || "custom"}
+              <span className="truncate">{ruleText || "Custom"}</span>
             </button>
           </DetailRow>
 
@@ -222,12 +230,14 @@ export function TemplateBody({
         />
       }
       actions={
-        <DetailsAction
-          icon={<SquareCheckboxIcon className="h-3 w-3" />}
-          onClick={handleConvertToTask}
-        >
-          Convert to task
-        </DetailsAction>
+        <>
+          <DetailsAction
+            icon={<SquareCheckboxIcon className="h-3 w-3" />}
+            onClick={handleConvertToTask}
+          >
+            Convert to task
+          </DetailsAction>
+        </>
       }
     >
       {isMoveProjectModalOpen && (

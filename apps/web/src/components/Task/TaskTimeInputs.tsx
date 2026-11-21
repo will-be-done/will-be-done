@@ -3,6 +3,7 @@ import { Clock, Hourglass } from "lucide-react";
 import { format } from "date-fns";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -26,7 +27,8 @@ const optionClassName =
 const footerButtonClassName =
   "rounded-md px-3 py-1.5 text-xs cursor-pointer transition-colors text-content-tinted hover:bg-panel-tinted hover:text-content disabled:pointer-events-none disabled:opacity-40";
 
-// A text field that accepts typed values, with a button that opens a picker.
+// A text field that accepts typed values, with a button that opens a picker,
+// or, with `pickOnClick`, a click on the field itself.
 // Typed text commits on Enter or blur; Escape or unparseable text reverts.
 function PickerField({
   display,
@@ -36,6 +38,7 @@ function PickerField({
   onCommitText,
   open,
   onOpenChange,
+  pickOnClick = false,
   className,
   children,
 }: {
@@ -46,50 +49,58 @@ function PickerField({
   onCommitText: (text: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  pickOnClick?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const cancelRef = useRef(false);
+  const fieldRef = useRef<HTMLSpanElement>(null);
 
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <span
+  const field = (
+    <span
+      ref={fieldRef}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded px-1 -mx-1 text-xs transition-colors hover:bg-task-panel-hover focus-within:bg-task-panel-hover",
+        className,
+      )}
+    >
+      <input
+        type="text"
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        value={draft ?? display}
+        onChange={(e) => setDraft(e.target.value)}
+        onClick={pickOnClick ? () => onOpenChange(true) : undefined}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onOpenChange(false);
+            e.currentTarget.blur();
+          } else if (e.key === "Escape" && draft !== null) {
+            e.stopPropagation();
+            cancelRef.current = true;
+            e.currentTarget.blur();
+          } else if (e.key === "ArrowDown" && e.altKey) {
+            e.preventDefault();
+            onOpenChange(true);
+          }
+        }}
+        onBlur={(e) => {
+          const text = e.target.value;
+          setDraft(null);
+          if (cancelRef.current) {
+            cancelRef.current = false;
+          } else if (draft !== null) {
+            onCommitText(text);
+          }
+        }}
         className={cn(
-          "inline-flex items-center gap-0.5 rounded px-1 -mx-1 transition-colors hover:bg-task-panel-hover focus-within:bg-task-panel-hover",
-          className,
+          "bg-transparent [font-size:inherit] text-content placeholder:text-content-tinted focus:outline-none",
+          pickOnClick ? "w-full min-w-0 cursor-pointer" : "w-[4.5rem]",
         )}
-      >
-        <input
-          type="text"
-          aria-label={ariaLabel}
-          placeholder={placeholder}
-          value={draft ?? display}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.blur();
-            } else if (e.key === "Escape" && draft !== null) {
-              e.stopPropagation();
-              cancelRef.current = true;
-              e.currentTarget.blur();
-            } else if (e.key === "ArrowDown" && e.altKey) {
-              e.preventDefault();
-              onOpenChange(true);
-            }
-          }}
-          onBlur={(e) => {
-            const text = e.target.value;
-            setDraft(null);
-            if (cancelRef.current) {
-              cancelRef.current = false;
-            } else if (draft !== null) {
-              onCommitText(text);
-            }
-          }}
-          className="w-[4.5rem] bg-transparent text-xs text-content placeholder:text-content-tinted focus:outline-none"
-        />
+      />
+      {!pickOnClick && (
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -99,9 +110,28 @@ function PickerField({
             {icon}
           </button>
         </PopoverTrigger>
-      </span>
+      )}
+    </span>
+  );
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {pickOnClick ? <PopoverAnchor asChild>{field}</PopoverAnchor> : field}
       <PopoverContent
-        align="end"
+        align={pickOnClick ? "start" : "end"}
+        // The field keeps focus so typing still works while the picker shows.
+        onOpenAutoFocus={
+          pickOnClick ? (event) => event.preventDefault() : undefined
+        }
+        onInteractOutside={(event) => {
+          if (
+            pickOnClick &&
+            event.target instanceof Node &&
+            fieldRef.current?.contains(event.target)
+          ) {
+            event.preventDefault();
+          }
+        }}
         data-disable-task-shortcuts
         onDoubleClick={(event) => event.stopPropagation()}
         className="z-[10001] w-auto bg-task-dropdown p-0 backdrop-blur-none"
@@ -234,10 +264,12 @@ function TimePickerPanel({
 export function TimeInput({
   time,
   onChange,
+  pickOnClick,
   className,
 }: {
   time: string | null;
   onChange: (time: string | null) => void;
+  pickOnClick?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -259,6 +291,7 @@ export function TimeInput({
       }}
       open={open}
       onOpenChange={setOpen}
+      pickOnClick={pickOnClick}
       className={className}
     >
       <TimePickerPanel
@@ -275,10 +308,12 @@ export function TimeInput({
 export function DurationInput({
   durationMinutes,
   onChange,
+  pickOnClick,
   className,
 }: {
   durationMinutes: number | null;
   onChange: (durationMinutes: number | null) => void;
+  pickOnClick?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -304,6 +339,7 @@ export function DurationInput({
       }}
       open={open}
       onOpenChange={setOpen}
+      pickOnClick={pickOnClick}
       className={className}
     >
       <div className="flex w-52 flex-col">

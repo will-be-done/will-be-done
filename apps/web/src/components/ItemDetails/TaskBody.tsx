@@ -4,11 +4,11 @@ import {
   CalendarDays,
   Clock,
   RefreshCw,
-  Pencil,
+  Repeat2,
   StickyNote,
-  X as XIcon,
 } from "lucide-react";
 import { format } from "date-fns";
+import { uuidv7 } from "uuidv7";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
@@ -28,6 +28,7 @@ import {
   toggleTaskState,
   updateTask,
   updateTemplate,
+  taskTemplateType,
 } from "@will-be-done/slices/space";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
@@ -36,6 +37,7 @@ import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
 import {
   EditableTitle,
   DetailRow,
+  detailValueClass,
   ProjectDetailRow,
   SectionDetailRow,
   EditableDescription,
@@ -45,7 +47,11 @@ import {
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
-import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
+import {
+  type ReplaceItem,
+  runDirectly,
+  useNoteConversion,
+} from "@/components/Task/useNoteConversion.ts";
 import { DetailsAction, ItemDetailsLayout } from "./layout.tsx";
 import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 
@@ -55,20 +61,20 @@ export function TaskBody({
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
-  onItemIdChange,
+  replaceItem = runDirectly,
 }: {
   task: Task;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
-  onItemIdChange?: (itemId: string) => void;
+  replaceItem?: ReplaceItem;
 }) {
   const dispatch = useAsyncDispatch();
   const withUndo = useUndoToast();
   const taskId = task.id;
   const openProject = useOpenProject();
-  const noteConversion = useNoteConversion(onItemIdChange);
+  const noteConversion = useNoteConversion(replaceItem);
 
   const { data: project } = useAsyncSelector({
     selector: projectOfProjectSectionOrDefault,
@@ -153,9 +159,11 @@ export function TaskBody({
           }),
         );
       } else {
-        void (async () => {
+        const id = uuidv7();
+        replaceItem({ id, type: taskTemplateType }, async () => {
           const template = await dispatch(
             createTaskTemplateFromTask({
+              id,
               task: task,
               now: Date.now(),
               data: {
@@ -174,11 +182,10 @@ export function TaskBody({
           useFocusStore
             .getState()
             .focusByKey(buildFocusKey(template.id, template.type));
-          onItemIdChange?.(template.id);
-        })();
+        });
       }
     },
-    [task, dispatch, onItemIdChange],
+    [task, dispatch, replaceItem],
   );
 
   if (!project) return null;
@@ -211,8 +218,8 @@ export function TaskBody({
         <>
           <ProjectDetailRow
             project={project}
-            onOpenClick={() => openProject(project.id)}
-            onEditClick={() => setIsMoveProjectModalOpen(true)}
+            onChangeClick={() => setIsMoveProjectModalOpen(true)}
+            onShowClick={() => openProject(project.id, task)}
           />
 
           <SectionDetailRow
@@ -238,11 +245,11 @@ export function TaskBody({
               taskId={taskId}
               currentDate={scheduleDate}
               trigger={
-                <button className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left">
+                <button type="button" className={detailValueClass}>
                   {scheduleDate ? (
                     format(scheduleDate, "MMM d, yyyy")
                   ) : (
-                    <span className="italic">No date</span>
+                    <span className="text-content-tinted">No date</span>
                   )}
                 </button>
               }
@@ -272,23 +279,14 @@ export function TaskBody({
               icon={<RefreshCw className="h-3 w-3 shrink-0" />}
               label="Repeat"
             >
-              <span className="flex items-center gap-1">
-                <span className="italic">{ruleText || "custom"}</span>
-                <button
-                  onClick={() => setIsRepeatModalOpen(true)}
-                  title="Edit repeat"
-                  className="cursor-pointer text-content-tinted hover:text-content transition-colors"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={handleRemoveRepeat}
-                  title="Remove repeat"
-                  className="cursor-pointer text-content-tinted hover:text-content transition-colors"
-                >
-                  <XIcon className="h-3 w-3" />
-                </button>
-              </span>
+              <button
+                type="button"
+                title="Edit repeat"
+                className={detailValueClass}
+                onClick={() => setIsRepeatModalOpen(true)}
+              >
+                <span className="truncate">{ruleText || "Custom"}</span>
+              </button>
             </DetailRow>
           )}
 
@@ -340,7 +338,14 @@ export function TaskBody({
       }
       actions={
         <>
-          {!taskTemplateId && (
+          {taskTemplateId ? (
+            <DetailsAction
+              icon={<Repeat2 className="h-3 w-3" />}
+              onClick={handleRemoveRepeat}
+            >
+              Stop repeating
+            </DetailsAction>
+          ) : (
             <DetailsAction
               icon={<RefreshCw className="h-3 w-3" />}
               onClick={() => setIsRepeatModalOpen(true)}
@@ -350,7 +355,7 @@ export function TaskBody({
           )}
           <DetailsAction
             icon={<StickyNote className="h-3 w-3" />}
-            onClick={() => void noteConversion.toNote(taskId)}
+            onClick={() => noteConversion.toNote(taskId)}
           >
             Convert to note
           </DetailsAction>
