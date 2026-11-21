@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Check, ImageOff, ImagePlus, Paperclip, Plus, X } from "lucide-react";
 import {
   useAsyncDispatch,
-  useAsyncSelector,
+  useSuspenseSelector,
 } from "@will-be-done/hyperdb/react";
 import {
   type Attachment,
@@ -85,10 +85,9 @@ export function ItemAttachments({
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverAction = useRef(0);
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
-  const { data: rows } = useAsyncSelector({
+  const rows = useSuspenseSelector({
     selector: itemAttachments,
     args: { parentType, parentId },
-    defaultValue: [],
   });
   const images = rows.filter(({ attachment }) =>
     isImageAttachment(attachment.mimeType),

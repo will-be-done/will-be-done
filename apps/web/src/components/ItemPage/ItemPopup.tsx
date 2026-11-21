@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { ItemView } from "./ItemPage.tsx";
@@ -50,14 +50,19 @@ export function ItemPopup({
   );
 }
 
+// Mounted before the popup opens, so opening and replacing the item wait for
+// its details to load instead of showing an empty popup.
 export function ItemPeek() {
   const peek = useItemPeek();
-  if (!peek.itemId) return null;
   return (
-    <ItemPopup
-      itemId={peek.itemId}
-      onClose={peek.close}
-      onItemIdChange={peek.replace}
-    />
+    <Suspense fallback={null}>
+      {peek.itemId && (
+        <ItemPopup
+          itemId={peek.itemId}
+          onClose={peek.close}
+          onItemIdChange={peek.replace}
+        />
+      )}
+    </Suspense>
   );
 }

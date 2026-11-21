@@ -2,15 +2,12 @@ import { useState } from "react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   type Item,
+  itemByListItemId,
   taskTemplateType,
   taskType,
 } from "@will-be-done/slices/space";
 import type { ReplaceItem } from "@/components/Task/useNoteConversion.ts";
-import {
-  itemDetailsByListItemId,
-  itemDetailsData,
-  itemDetailsFields,
-} from "./selectors.ts";
+import { itemDetailsData, itemDetailsFields } from "./selectors.ts";
 
 // A conversion swaps the shown row for a new one. Reading the new row too
 // moves the view to it in the same render the old one disappears, instead of
@@ -24,7 +21,7 @@ export function useItemReplacement(
     Parameters<ReplaceItem>[0] & { from?: Item }
   >();
   const { data: next } = useAsyncSelector({
-    selector: itemDetailsByListItemId,
+    selector: itemByListItemId,
     args: {
       id: replacement?.id ?? "",
       modelType: replacement?.type ?? taskType,
@@ -40,7 +37,7 @@ export function useItemReplacement(
     setReplacement({ ...to, from: loaded });
     const readNext = () =>
       select({
-        selector: itemDetailsByListItemId,
+        selector: itemByListItemId,
         args: { id: to.id, modelType: to.type },
       });
     // Reading the new item and its details before they exist caches the

@@ -5,8 +5,6 @@ import {
   dailyEntryDateOfTask,
   type Item,
   itemAttachments,
-  itemByListItemId,
-  listItemType,
   mindmapsOfItem,
   noteType,
   projectOfProjectSectionOrDefault,
@@ -75,15 +73,3 @@ export const itemDetailsFields = (item: Item) => {
     ...(templateId && { templateId }),
   };
 };
-
-// A panel waiting on this switches items in one render instead of filling in
-// as each part loads.
-export const itemDetailsByListItemId = selector({
-  name: "itemDetailsByListItemId",
-  args: { id: v.string(), modelType: listItemType },
-  handler: function* itemDetailsByListItemId({ id, modelType }) {
-    const item = yield* itemByListItemId({ id, modelType });
-    if (item) yield* itemDetailsData(itemDetailsFields(item));
-    return item;
-  },
-});

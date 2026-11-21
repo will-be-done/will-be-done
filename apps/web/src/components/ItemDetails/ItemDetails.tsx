@@ -1,4 +1,10 @@
-import { useRef, useState, useCallback } from "react";
+import {
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useRef,
+  useState,
+} from "react";
 import type { ReplaceItem } from "@/components/Task/useNoteConversion.ts";
 import { Maximize2, PanelTop } from "lucide-react";
 import { itemPageLocation } from "@/components/ItemPage/useOpenItemPage.ts";
@@ -7,7 +13,6 @@ import { ItemPeek } from "@/components/ItemPage/ItemPopup.tsx";
 import { useItemPeek } from "@/components/ItemPage/useItemPeek.ts";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 import { useItemDetailsEditing } from "./useItemDetailsEditing.ts";
-import { itemDetailsByListItemId } from "./selectors.ts";
 import { useItemReplacement } from "./useItemReplacement.ts";
 import { cn } from "@/lib/utils";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
@@ -18,6 +23,7 @@ import {
   isTaskTemplate,
   isNote,
   type Item,
+  itemByListItemId,
   type ListItemType,
   stashEntryType,
   taskTemplateType,
@@ -49,14 +55,15 @@ const isListItemType = (type: string): type is ListItemType =>
 export function ItemDetails() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
-  const focusKey = useFocusStore((s) => s.focusItemKey);
+  // The panel keeps showing the previous item until the next one's details
+  // stop suspending, instead of filling in as each part loads.
+  const focusKey = useDeferredValue(useFocusStore((s) => s.focusItemKey));
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
   const focusedListItemType =
     parsed && isListItemType(parsed.type) ? parsed.type : null;
   const focusedListItemId = focusedListItemType && parsed ? parsed.id : null;
-  // Keep the previous item while the next loads so focus moves don't flash empty.
   const { data: selectedItem } = useAsyncSelector({
-    selector: itemDetailsByListItemId,
+    selector: itemByListItemId,
     args: {
       id: focusedListItemId ?? "",
       modelType: focusedListItemType ?? taskType,
@@ -243,20 +250,22 @@ export function ItemDetails() {
                 )}
               </div>
 
-              {focusedItem ? (
-                <ItemDetailsBody
-                  item={focusedItem}
-                  isEditingTitle={isEditingTitle}
-                  setIsEditingTitle={setIsEditingTitle}
-                  isEditingDescription={isEditingDescription}
-                  setIsEditingDescription={setIsEditingDescription}
-                  replaceItem={replaceItem}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
-                  Select a task
-                </div>
-              )}
+              <Suspense fallback={null}>
+                {focusedItem ? (
+                  <ItemDetailsBody
+                    item={focusedItem}
+                    isEditingTitle={isEditingTitle}
+                    setIsEditingTitle={setIsEditingTitle}
+                    isEditingDescription={isEditingDescription}
+                    setIsEditingDescription={setIsEditingDescription}
+                    replaceItem={replaceItem}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
+                    Select a task
+                  </div>
+                )}
+              </Suspense>
             </ScrollArea>
           </AttachmentDropZone>
         </div>
