@@ -142,6 +142,11 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
     : hits[0] && hitId(hits[0]);
   const canSelect =
     query === deferredQuery && !isPlaceholderData && isSearching;
+  // While the next query is pending, keep the last verdict instead of blinking.
+  const [wasNothingFound, setWasNothingFound] = useState(false);
+  const nothingFound =
+    isSearching && hits.length === 0 && (canSelect || wasNothingFound);
+  if (nothingFound !== wasNothingFound) setWasNothingFound(nothingFound);
 
   useLayoutEffect(() => {
     listRef.current
@@ -242,7 +247,7 @@ function SearchPalette({ spaceId }: { spaceId: string }) {
             aria-busy={!canSelect}
             className="max-h-[min(60vh,480px)] scroll-py-1.5 overflow-y-auto overscroll-contain border-t border-white/10 p-1.5"
           >
-            {canSelect && hits.length === 0 && (
+            {nothingFound && (
               <div className="px-3 py-8 text-center text-sm text-content-tinted">
                 Nothing found
               </div>
