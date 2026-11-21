@@ -97,6 +97,9 @@ export class Syncer {
   readonly status = new State<SyncStatus>({ ...initialSyncStatus });
   // Whether this tab runs sync for every open tab of this database.
   readonly leader = new State(false);
+  // True until the first session of a database that never synced finishes or
+  // fails; the app waits for it instead of rendering an empty space.
+  readonly initialSync: State<boolean>;
   private loop: Fiber.Fiber<unknown, unknown> | undefined;
   private terminal = false;
   private applySyncV4Download: ReturnType<typeof createApplySyncV4Download>;
@@ -112,8 +115,21 @@ export class Syncer {
     private services: Context.Context<SyncerServices>,
     private leadership: TabLeadership,
     private statusChannel: TabChannel<SyncStatusMessage>,
+    initialSync: boolean,
   ) {
     this.applySyncV4Download = createApplySyncV4Download(nextClock);
+    this.initialSync = new State(initialSync);
+    if (!initialSync) return;
+    const unsubscribe = this.status.subscribe(({ phase, lastSyncedAt }) => {
+      if (
+        lastSyncedAt !== null ||
+        phase === "error" ||
+        phase === "update-required"
+      ) {
+        unsubscribe();
+        this.initialSync.set(false);
+      }
+    });
   }
 
   // Closing the scope stops the loop and releases the tab channels and page
@@ -122,6 +138,7 @@ export class Syncer {
     clientId: string,
     syncConfig: SyncConfig,
     nextClock: HlcClock,
+    { initialSync = false }: { readonly initialSync?: boolean } = {},
   ): Effect.Effect<Syncer, never, SyncerServices | Scope.Scope> {
     return Effect.gen(function* () {
       const services = yield* Effect.context<SyncerServices>();
@@ -140,6 +157,7 @@ export class Syncer {
         services,
         leadership,
         statusChannel,
+        initialSync,
       );
 
       yield* statusChannel.listen((message) => syncer.receiveStatus(message));
@@ -359,8 +377,9 @@ export class Syncer {
         );
       let watcher = yield* watchServerChanges;
 
-      // let's delay so faster startup
-      yield* Effect.sleep(SYNC_START_DELAY_MS);
+      // Delayed so the first session does not slow down loading, unless the
+      // app is waiting for it.
+      if (!this.initialSync.get()) yield* Effect.sleep(SYNC_START_DELAY_MS);
 
       while (true) {
         const userSyncVersion = completedUserSyncs.get();

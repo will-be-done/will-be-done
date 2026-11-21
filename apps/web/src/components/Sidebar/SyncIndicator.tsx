@@ -8,11 +8,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useOnline } from "@/hooks/useOnline";
-import {
-  initialSyncStatus,
-  syncByDB,
-  type SyncPhase,
-} from "@/store/syncStatus";
+import { initialSyncStatus, phaseLabels, syncByDB } from "@/store/syncStatus";
 import {
   getSyncUpdateRequired,
   subscribeSyncUpdateRequired,
@@ -24,20 +20,7 @@ import {
 } from "@/store/attachments/transfers";
 import { formatFileSize } from "@/components/Attachments/attachmentFiles";
 
-const phaseLabels: Record<SyncPhase, string> = {
-  waiting: "Waiting to sync",
-  connecting: "Connecting to server",
-  preparing: "Preparing changes",
-  uploading: "Sending changes",
-  committing: "Saving changes on server",
-  downloading: "Receiving changes",
-  applying: "Applying changes",
-  synced: "All changes synced",
-  error: "Sync interrupted",
-  "update-required": "Update required",
-};
-
-function ProgressBar({
+export function ProgressBar({
   label,
   detail,
   value,
