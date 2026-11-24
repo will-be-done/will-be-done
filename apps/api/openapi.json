@@ -14106,6 +14106,14 @@
                             "type": "string",
                             "description": "Topic text, or the task's or note's title"
                           },
+                          "content": {
+                            "type": "string",
+                            "description": "Markdown description: the topic's own, or the task's or note's; empty when none"
+                          },
+                          "coverAttachmentId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }],
+                            "description": "Image attachment shown on the card: the topic's own, or the task's or note's"
+                          },
                           "side": {
                             "type": "string",
                             "enum": ["left", "right"],
@@ -14143,6 +14151,8 @@
                           "taskId",
                           "noteId",
                           "title",
+                          "content",
+                          "coverAttachmentId",
                           "side",
                           "position",
                           "collapsed",
@@ -14904,6 +14914,14 @@
                           "type": "string",
                           "description": "Topic text, or the task's or note's title"
                         },
+                        "content": {
+                          "type": "string",
+                          "description": "Markdown description: the topic's own, or the task's or note's; empty when none"
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the card: the topic's own, or the task's or note's"
+                        },
                         "side": {
                           "type": "string",
                           "enum": ["left", "right"],
@@ -14941,6 +14959,8 @@
                         "taskId",
                         "noteId",
                         "title",
+                        "content",
+                        "coverAttachmentId",
                         "side",
                         "position",
                         "collapsed",
@@ -15137,11 +15157,19 @@
                     "type": "string",
                     "minLength": 1
                   },
+                  "content": {
+                    "description": "Topics only; Markdown description, empty to clear it",
+                    "type": "string"
+                  },
                   "collapsed": { "type": "boolean" },
                   "side": {
                     "type": "string",
                     "enum": ["left", "right"],
                     "description": "Side of its root a main branch sits on"
+                  },
+                  "coverAttachmentId": {
+                    "description": "Topics only; an image attached to the topic, or null",
+                    "anyOf": [{ "type": "string" }, { "type": "null" }]
                   }
                 },
                 "additionalProperties": false
@@ -15202,6 +15230,14 @@
                           "type": "string",
                           "description": "Topic text, or the task's or note's title"
                         },
+                        "content": {
+                          "type": "string",
+                          "description": "Markdown description: the topic's own, or the task's or note's; empty when none"
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the card: the topic's own, or the task's or note's"
+                        },
                         "side": {
                           "type": "string",
                           "enum": ["left", "right"],
@@ -15239,6 +15275,8 @@
                         "taskId",
                         "noteId",
                         "title",
+                        "content",
+                        "coverAttachmentId",
                         "side",
                         "position",
                         "collapsed",
@@ -15744,6 +15782,14 @@
                           "type": "string",
                           "description": "Topic text, or the task's or note's title"
                         },
+                        "content": {
+                          "type": "string",
+                          "description": "Markdown description: the topic's own, or the task's or note's; empty when none"
+                        },
+                        "coverAttachmentId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }],
+                          "description": "Image attachment shown on the card: the topic's own, or the task's or note's"
+                        },
                         "side": {
                           "type": "string",
                           "enum": ["left", "right"],
@@ -15781,6 +15827,8 @@
                         "taskId",
                         "noteId",
                         "title",
+                        "content",
+                        "coverAttachmentId",
                         "side",
                         "position",
                         "collapsed",
@@ -16166,6 +16214,17 @@
                                 "type": "string",
                                 "description": "Topic text, or the task's or note's title"
                               },
+                              "content": {
+                                "type": "string",
+                                "description": "Markdown description: the topic's own, or the task's or note's; empty when none"
+                              },
+                              "coverAttachmentId": {
+                                "anyOf": [
+                                  { "type": "string" },
+                                  { "type": "null" }
+                                ],
+                                "description": "Image attachment shown on the card: the topic's own, or the task's or note's"
+                              },
                               "side": {
                                 "type": "string",
                                 "enum": ["left", "right"],
@@ -16203,6 +16262,8 @@
                               "taskId",
                               "noteId",
                               "title",
+                              "content",
+                              "coverAttachmentId",
                               "side",
                               "position",
                               "collapsed",
@@ -16451,6 +16512,7 @@
                                     "task",
                                     "template",
                                     "note",
+                                    "mindmapNode",
                                     "background"
                                   ],
                                   "description": "Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view"
@@ -16463,6 +16525,10 @@
                                 "trashed": {
                                   "type": "boolean",
                                   "description": "Whether the item is in the trash"
+                                },
+                                "mindmapId": {
+                                  "description": "The map of a mindmapNode",
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -16666,12 +16732,12 @@
           {
             "schema": {
               "type": "string",
-              "enum": ["task", "template", "note"]
+              "enum": ["task", "template", "note", "mindmapNode"]
             },
             "in": "query",
             "name": "parentType",
             "required": false,
-            "description": "Kind of item that lists the attachment"
+            "description": "Kind of item that lists the attachment; a mindmapNode must be a topic"
           },
           {
             "schema": { "type": "string", "minLength": 1 },
@@ -17000,6 +17066,7 @@
                                   "task",
                                   "template",
                                   "note",
+                                  "mindmapNode",
                                   "background"
                                 ],
                                 "description": "Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view"
@@ -17012,6 +17079,10 @@
                               "trashed": {
                                 "type": "boolean",
                                 "description": "Whether the item is in the trash"
+                              },
+                              "mindmapId": {
+                                "description": "The map of a mindmapNode",
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -17717,12 +17788,12 @@
           {
             "schema": {
               "type": "string",
-              "enum": ["task", "template", "note"]
+              "enum": ["task", "template", "note", "mindmapNode"]
             },
             "in": "query",
             "name": "parentType",
             "required": true,
-            "description": "Kind of item that lists the attachment"
+            "description": "Kind of item that lists the attachment; a mindmapNode must be a topic"
           },
           {
             "schema": { "type": "string", "minLength": 1 },
@@ -17758,8 +17829,8 @@
                           "attachmentId": { "type": "string" },
                           "parentType": {
                             "type": "string",
-                            "enum": ["task", "template", "note"],
-                            "description": "Kind of item that lists the attachment"
+                            "enum": ["task", "template", "note", "mindmapNode"],
+                            "description": "Kind of item that lists the attachment; a mindmapNode must be a topic"
                           },
                           "parentId": { "type": "string" },
                           "orderToken": { "type": "string" },
@@ -17991,8 +18062,8 @@
                   "attachmentId": { "type": "string", "minLength": 1 },
                   "parentType": {
                     "type": "string",
-                    "enum": ["task", "template", "note"],
-                    "description": "Kind of item that lists the attachment"
+                    "enum": ["task", "template", "note", "mindmapNode"],
+                    "description": "Kind of item that lists the attachment; a mindmapNode must be a topic"
                   },
                   "parentId": { "type": "string", "minLength": 1 }
                 },
@@ -18029,8 +18100,8 @@
                         "attachmentId": { "type": "string" },
                         "parentType": {
                           "type": "string",
-                          "enum": ["task", "template", "note"],
-                          "description": "Kind of item that lists the attachment"
+                          "enum": ["task", "template", "note", "mindmapNode"],
+                          "description": "Kind of item that lists the attachment; a mindmapNode must be a topic"
                         },
                         "parentId": { "type": "string" },
                         "orderToken": { "type": "string" },

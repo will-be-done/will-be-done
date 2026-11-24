@@ -11,6 +11,7 @@ import {
   type CanvasNode,
   branchColor,
   nodeKind,
+  nodeCoverClass,
   nodeShapeClass,
 } from "./mindmapModel.ts";
 
@@ -68,9 +69,14 @@ export function MindmapGhostCard({
       }}
     >
       <ItemCover
-        attachmentId={item?.coverAttachmentId}
+        attachmentId={
+          item ? item.coverAttachmentId : tree?.node.coverAttachmentId
+        }
         muted={item?.type === "task" && item.state === "done"}
-        className="mb-1.5 aspect-[3/1] max-h-20 min-w-44 rounded-md"
+        className={cn(
+          "aspect-[3/1] max-h-20 w-auto min-w-44",
+          nodeCoverClass(layout.depth),
+        )}
       />
       <div className="flex items-start gap-2">
         {kind === "task" && (

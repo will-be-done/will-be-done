@@ -429,10 +429,12 @@ export function useMindmapActions({
         })();
       },
       editDescription: (id) => {
-        const item = itemOf(id);
-        if (!item) return;
+        if (!entryOf(id)) return;
         useItemDetailsOpen.getState().setOpen(true);
-        useItemDetailsEditRequest.getState().editDescription(item.id);
+        // The details panel shows a topic under its node ID.
+        useItemDetailsEditRequest
+          .getState()
+          .editDescription(itemOf(id)?.id ?? id);
       },
       trashItem: (id) => {
         const entry = entryOf(id);

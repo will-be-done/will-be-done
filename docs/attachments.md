@@ -1,7 +1,7 @@
 # Attachments
 
-Files attached to Tasks, TaskTemplates, and Notes. The rows sync like any other
-model; the bytes never do. This document covers why it is split that way and
+Files attached to Tasks, TaskTemplates, Notes, and mindmap topics. The rows
+sync like any other model; the bytes never do. This document covers why it is split that way and
 the rules that keep the two halves consistent.
 
 ## Rows and bytes
@@ -26,8 +26,9 @@ the rules that keep the two halves consistent.
   description (see [rich-text.md](rich-text.md)). An inline reference always
   has a link: item writes call `ensureInlineAttachmentLinks`, so "used in"
   never parses Markdown. A new writer of `title` or `content` must do the same.
-- **Card covers** are nullable attachment IDs on Tasks, TaskTemplates, and
-  Notes. The first inline image becomes the cover unless the item already had
+- **Card covers** are nullable attachment IDs on Tasks, TaskTemplates, Notes,
+  and mindmap nodes, where only topics use them. A task or note node shows its
+  item's files and cover, so attaching to one is refused. The first inline image becomes the cover unless the item already had
   an inline image or the user explicitly cleared its cover. A cover must name
   an image linked to that item.
 

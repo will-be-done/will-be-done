@@ -21,6 +21,11 @@ const tapSlop = 8;
 const doubleTapMs = 300;
 const doubleTapSlop = 24;
 
+// Dialogs and menus opened from the map are portaled out of it, but React
+// still bubbles their events here; capturing those would swallow their clicks.
+const isFromPortal = (e: React.SyntheticEvent) =>
+  !(e.target instanceof Node && e.currentTarget.contains(e.target));
+
 // Pointer input on empty canvas: a mouse drag draws a selection box, the
 // middle button pans, and touch pans and pinches. Double-clicking or
 // double-tapping empty space starts a floating topic.
@@ -197,6 +202,7 @@ export function useCanvasGestures({
 
   // Dragging empty space selects with a rectangle; the middle button pans.
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (isFromPortal(e)) return;
     lastPointerTypeRef.current = e.pointerType;
     if (e.pointerType === "touch") {
       handleTouchDown(e);
@@ -335,6 +341,7 @@ export function useCanvasGestures({
   // taps are handled as taps, whether or not the browser also sends this.
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (
+      isFromPortal(e) ||
       lastPointerTypeRef.current === "touch" ||
       (e.target instanceof Element &&
         e.target.closest("[data-mindmap-node], button"))

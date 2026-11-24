@@ -21,6 +21,12 @@ export const mindmapNodeFocusKey = (
       ? buildFocusKey(node.noteId, noteType, node.id)
       : buildFocusKey(node.id, mindmapNodeType);
 
+/** The node of a focused topic; the central topic's key names its map, whose ID it shares. */
+export const mindmapTopicIdOfKey = (key: FocusKey) => {
+  const [type, id] = key.split("^^");
+  return type === mindmapNodeType || type === mindmapType ? id : undefined;
+};
+
 /** A task or note shown on a map, as opposed to in a list. */
 export const isMindmapItemFocusKey = (key: FocusKey) => {
   const [type, , nodeId] = key.split("^^");

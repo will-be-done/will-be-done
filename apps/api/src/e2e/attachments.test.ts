@@ -2,15 +2,19 @@ import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import {
   createAttachment,
+  createMindmap,
+  createMindmapNode,
   createSectionTask,
   createItemAttachment,
   deleteAttachment,
   deleteItemAttachment,
   downloadAttachmentContent,
   getAttachment,
+  getMindmap,
   getTask,
   listAttachments,
   listItemAttachments,
+  updateMindmapNode,
   updateTask,
   uploadAttachmentContent,
 } from "../generated/v1-client";
@@ -250,6 +254,83 @@ test("inline references list the file under the item", async () => {
   );
   expect(listed.data.itemAttachments.map((link) => link.attachmentId)).toEqual([
     attachment.id,
+  ]);
+});
+
+test("a mindmap topic lists files and shows a cover", async () => {
+  const { space, task, options } = await createTaskFixture(
+    await createAuthorization(),
+  );
+  const mindmap = expectResponseStatus(
+    await createMindmap(space.id, { title: "Plan" }, options),
+    201,
+  ).data.mindmap;
+  const topic = expectResponseStatus(
+    await createMindmapNode(space.id, mindmap.id, { title: "Topic" }, options),
+    201,
+  ).data.node;
+  const taskNode = expectResponseStatus(
+    await createMindmapNode(space.id, mindmap.id, { taskId: task.id }, options),
+    201,
+  ).data.node;
+  const upload = (parentId: string) =>
+    createAttachment(
+      space.id,
+      bytes("png"),
+      {
+        name: "topic.png",
+        mimeType: "image/png",
+        parentType: "mindmapNode",
+        parentId,
+      },
+      options,
+    );
+
+  // A task node shows its task's files.
+  expectResponseStatus(await upload(taskNode.id), 404);
+  const attachment = expectResponseStatus(await upload(topic.id), 201).data
+    .attachment;
+  expectResponseStatus(
+    await updateMindmapNode(
+      space.id,
+      taskNode.id,
+      { coverAttachmentId: attachment.id },
+      options,
+    ),
+    409,
+  );
+  expect(
+    expectResponseStatus(
+      await updateMindmapNode(
+        space.id,
+        topic.id,
+        { coverAttachmentId: attachment.id },
+        options,
+      ),
+      200,
+    ).data.node.coverAttachmentId,
+  ).toBe(attachment.id);
+
+  const nodes = expectResponseStatus(
+    await getMindmap(space.id, mindmap.id, options),
+    200,
+  ).data.nodes;
+  expect(nodes.find((node) => node.id === topic.id)?.coverAttachmentId).toBe(
+    attachment.id,
+  );
+  expect(
+    expectResponseStatus(
+      await getAttachment(space.id, attachment.id, options),
+      200,
+    ).data.attachment.usages,
+  ).toEqual([
+    {
+      parentType: "mindmapNode",
+      parentId: topic.id,
+      title: "Topic",
+      trashed: false,
+      mindmapId: mindmap.id,
+    },
   ]);
 });
 

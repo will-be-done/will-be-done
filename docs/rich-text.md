@@ -1,7 +1,7 @@
 # Rich Text Fields
 
-Task and template titles, descriptions, and checklist items are Markdown
-editors whose concurrent edits merge. This document covers why they are built
+Titles and descriptions of tasks, templates, notes, and mindmap topics, and
+checklist items, are Markdown editors whose concurrent edits merge. This document covers why they are built
 the way they are and the traps around them. The merge invariant itself is part
 of the sync rules in [sync.md](sync.md#merge-rules); follow that
 document for any change to how these fields merge.
@@ -86,11 +86,12 @@ field and fights concurrent edits. Things that would otherwise drift:
 - **Bare `www.` links** parse to `https://` hrefs and are written back bare.
 - **Emphasis edges.** Whitespace inside `**` is moved outside, since Markdown
   cannot open or close emphasis on whitespace.
-- **Attachments.** `![name](wbd-attachment:<id>)` in an item title or
-  description is an inline `image` node with `src`, `alt`, and `width`
-  attributes, for any file type; other image URLs stay links. Checklist and
-  topic editors have the node too, so such text can't stop their writes, but
-  don't create it from pasted HTML: they have no item to list the file under.
+- **Attachments.** `![name](wbd-attachment:<id>)` in an item's or mindmap
+  topic's title or description is an inline `image` node with `src`, `alt`,
+  and `width` attributes, for any file type; other image URLs stay links.
+  Checklist editors have the node too, so such text can't stop their writes,
+  but don't create it from pasted HTML: they have no item to list the file
+  under.
   A resized image keeps its width in the Markdown image title,
   `"width=320"`, so the size survives text writes. The node name and attributes must match the Tiptap node in
   `RichText/attachmentNode.tsx`. An editor that lacks a node stops writing the

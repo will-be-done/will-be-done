@@ -657,6 +657,17 @@ export const MindmapNodeSchema = z.object({
   taskId: z.string().nullable(),
   noteId: z.string().nullable(),
   title: z.string().describe("Topic text, or the task's or note's title"),
+  content: z
+    .string()
+    .describe(
+      "Markdown description: the topic's own, or the task's or note's; empty when none",
+    ),
+  coverAttachmentId: z
+    .string()
+    .nullable()
+    .describe(
+      "Image attachment shown on the card: the topic's own, or the task's or note's",
+    ),
   side: MindmapNodeSideSchema,
   position: MindmapPointSchema.nullable().describe(
     "Set on floating topics only",
@@ -746,8 +757,17 @@ export const CreateMindmapNodeBodySchema = z
 export const UpdateMindmapNodeBodySchema = z
   .object({
     title: z.string().trim().min(1).optional().describe("Topics only"),
+    content: z
+      .string()
+      .optional()
+      .describe("Topics only; Markdown description, empty to clear it"),
     collapsed: z.boolean().optional(),
     side: MindmapNodeSideSchema.optional(),
+    coverAttachmentId: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Topics only; an image attached to the topic, or null"),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -802,8 +822,10 @@ export const SearchResponseSchema = z
   );
 
 const AttachmentParentTypeSchema = z
-  .enum(["task", "template", "note"])
-  .describe("Kind of item that lists the attachment");
+  .enum(["task", "template", "note", "mindmapNode"])
+  .describe(
+    "Kind of item that lists the attachment; a mindmapNode must be a topic",
+  );
 
 export const AttachmentSchema = z.object({
   id: z.string().describe("Attachment identifier"),
@@ -832,13 +854,14 @@ export const AttachmentSchema = z.object({
 
 export const AttachmentUsageSchema = z.object({
   parentType: z
-    .enum(["task", "template", "note", "background"])
+    .enum(["task", "template", "note", "mindmapNode", "background"])
     .describe(
       "Kind of item that lists the attachment, or background for a file shown behind a project, mindmap, or view",
     ),
   parentId: z.string(),
   title: z.string().describe("Item title; empty for items in the trash"),
   trashed: z.boolean().describe("Whether the item is in the trash"),
+  mindmapId: z.string().optional().describe("The map of a mindmapNode"),
 });
 
 export const AttachmentWithUsagesSchema = AttachmentSchema.extend({

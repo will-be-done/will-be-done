@@ -5,7 +5,7 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 9, carried over the v4 transport routes. Version 5
+The current sync version is 10, carried over the v4 transport routes. Version 5
 added restore clocks; a v4 client would treat a restored entity as still deleted.
 Version 6 added the server-owned external calendar tables, which a v5 client
 cannot apply. Version 7 added the creation clock set (`rivalCreations`), which a
@@ -17,7 +17,9 @@ derives Markdown without the nodes and would sync that text. v3 upload and
 download procedures must not be reintroduced as an alternate path. Attachment
 bytes never travel over sync; see [attachments.md](attachments.md). Version 9
 added the cover attachment field to Tasks, TaskTemplates, and Notes; a v8
-client cannot preserve that field when it writes those rows.
+client cannot preserve that field when it writes those rows. Version 10 added
+files, covers, and descriptions on mindmap topics; a v9 client cannot read
+their attachment links or preserve a topic's cover or description.
 
 ## Required Server-Backup Recovery Guarantee
 

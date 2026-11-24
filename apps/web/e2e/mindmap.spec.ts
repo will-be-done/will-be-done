@@ -5,6 +5,7 @@ import {
   createTodayTask,
   openSpace,
   signupUser,
+  solidPng,
   uniqueE2EName,
 } from "./helpers";
 
@@ -190,6 +191,61 @@ test("builds and reshapes a map from the keyboard", async ({ page }) => {
   await page.keyboard.press("Backspace");
   await expect(page.locator("[data-mindmap-node]")).toHaveCount(1);
   await expect(node(page, "Plan")).toBeFocused();
+});
+
+test("a topic takes files, a cover and a description in the details panel", async ({
+  page,
+}, testInfo) => {
+  await openNewMindmap(page, "Plan");
+  await node(page, "Plan").click();
+  await page.keyboard.press("Tab");
+  await enterTitle(page, "Moodboard");
+  await page.keyboard.press("v");
+
+  const details = page.getByTestId("item-details-panel");
+  await expect(details.getByText("Moodboard")).toBeVisible();
+  await details.getByTestId("cover-upload-input").setInputFiles({
+    name: "mood.png",
+    mimeType: "image/png",
+    buffer: solidPng(160, 100),
+  });
+  await expect(
+    details.getByRole("button", { name: "Use mood.png as cover" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(node(page, "Moodboard").getByTestId("item-cover")).toHaveCount(
+    1,
+  );
+  await page.screenshot({ path: testInfo.outputPath("topic-cover.png") });
+
+  await node(page, "Moodboard").getByTestId("item-cover").click();
+  await expect(page.getByTestId("attachment-preview")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("topic-cover-preview.png"),
+  });
+  // Outside the image: the map behind must not swallow the click.
+  await page.mouse.click(40, 360);
+  await expect(page.getByTestId("attachment-preview")).toHaveCount(0);
+
+  await details.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(node(page, "Moodboard").getByTestId("item-cover")).toHaveCount(
+    0,
+  );
+  await expect(details.getByText("mood.png")).toHaveCount(0);
+  await expect(
+    details.getByRole("button", { name: "Open mood.png" }),
+  ).toBeVisible();
+
+  await node(page, "Moodboard").click();
+  await page.keyboard.press("e");
+  const description = details.getByLabel("Edit task description");
+  await expect(description).toBeFocused();
+  await page.keyboard.type("Warm colors only");
+  await node(page, "Plan").click();
+  await expect(details.getByText("Warm colors only")).toHaveCount(0);
+  await node(page, "Moodboard").click();
+  await expect(details.getByTestId("task-description")).toHaveText(
+    "Warm colors only",
+  );
 });
 
 test("drops tasks onto topics and moves topics by dragging", async ({

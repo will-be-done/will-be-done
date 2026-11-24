@@ -15,6 +15,8 @@ import {
   isNote,
   type Item,
   type ListItemType,
+  mindmapNodeById,
+  mindmapNodeType,
   stashEntryType,
   taskTemplateType,
   noteType,
@@ -24,6 +26,8 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
 import { TemplateBody } from "./TemplateBody.tsx";
 import { NoteBody } from "./NoteBody.tsx";
+import { TopicBody } from "./TopicBody.tsx";
+import { mindmapTopicIdOfKey } from "@/components/Mindmap/focusKeys.ts";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -60,8 +64,16 @@ export function ItemDetails() {
     placeholderData: (previous) => previous,
   });
   const focusedItem = focusedListItemId ? selectedItem : undefined;
-  const itemId = focusedItem?.id ?? null;
-  const isVisible = focusedItem !== undefined;
+  // A mindmap topic, the central one included, shows its title and files.
+  const focusedTopicId = focusKey ? mindmapTopicIdOfKey(focusKey) : undefined;
+  const { data: selectedTopic } = useAsyncSelector({
+    selector: mindmapNodeById,
+    args: { id: focusedTopicId ?? "" },
+    enabled: !!focusedTopicId,
+  });
+  const focusedTopic = focusedTopicId ? selectedTopic : undefined;
+  const itemId = focusedItem?.id ?? focusedTopic?.id ?? null;
+  const isVisible = itemId !== null;
 
   const { spaceId } = SpaceRoute.useParams();
   const width = useItemDetailsSize((s) => s.width);
@@ -203,7 +215,9 @@ export function ItemDetails() {
             parent={
               focusedItem
                 ? { parentType: focusedItem.type, parentId: focusedItem.id }
-                : undefined
+                : focusedTopic
+                  ? { parentType: mindmapNodeType, parentId: focusedTopic.id }
+                  : undefined
             }
             className="h-full"
           >
@@ -228,6 +242,14 @@ export function ItemDetails() {
               {focusedItem ? (
                 <ItemDetailsBody
                   item={focusedItem}
+                  isEditingTitle={isEditingTitle}
+                  setIsEditingTitle={setIsEditingTitle}
+                  isEditingDescription={isEditingDescription}
+                  setIsEditingDescription={setIsEditingDescription}
+                />
+              ) : focusedTopic ? (
+                <TopicBody
+                  node={focusedTopic}
                   isEditingTitle={isEditingTitle}
                   setIsEditingTitle={setIsEditingTitle}
                   isEditingDescription={isEditingDescription}

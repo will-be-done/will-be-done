@@ -214,7 +214,10 @@ full screen and download it. Drag an image's corner handle to resize it, or
 double-click the handle to return it to its original size. **Attach file** in
 the details panel adds a file to the item's list without placing it in the text.
 Inline files appear in that list too, and you can drag a file from the list into
-the title or description to place it inline. Files can be up to 50 MB.
+the title or description to place it inline. Mindmap topics take a
+description, files, and a cover too: select a topic to edit them in the details
+panel (`e` jumps to the description), or paste an image into its title or onto
+the focused topic. Files can be up to 50 MB.
 
 Files you add work offline and upload in the background. On each device, the
 app downloads every file in the space so it can open offline. The sync

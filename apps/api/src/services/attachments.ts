@@ -10,6 +10,7 @@ import {
 import {
   type Attachment,
   attachmentById,
+  attachmentParentExists,
   type AttachmentParentType,
   attachmentsPage,
   attachmentUsages,
@@ -20,10 +21,7 @@ import {
   itemAttachments,
   type ItemAttachment,
   MAX_ATTACHMENT_SIZE,
-  noteById,
   removeItemAttachment as removeItemAttachmentAction,
-  taskById,
-  taskTemplateById,
 } from "@will-be-done/slices/space";
 import { Effect } from "effect";
 import {
@@ -107,20 +105,23 @@ const requireAttachment = (db: SpaceDatabase, attachmentId: string) =>
     ),
   );
 
-const parentSelectors = {
-  task: { selector: taskById, name: "Task" },
-  template: { selector: taskTemplateById, name: "Task template" },
-  note: { selector: noteById, name: "Note" },
+const parentNames = {
+  task: "Task",
+  template: "Task template",
+  note: "Note",
+  mindmapNode: "Mindmap topic",
 } as const;
 
-const requireParent = (db: SpaceDatabase, { parentType, parentId }: Parent) => {
-  const { selector, name } = parentSelectors[parentType];
-  return select(db, { selector, args: { id: parentId } }).pipe(
-    Effect.flatMap((parent) =>
-      parent ? Effect.void : Effect.fail(new ResourceNotFoundError(name)),
+const requireParent = (db: SpaceDatabase, parent: Parent) =>
+  select(db, { selector: attachmentParentExists, args: parent }).pipe(
+    Effect.flatMap((exists) =>
+      exists
+        ? Effect.void
+        : Effect.fail(
+            new ResourceNotFoundError(parentNames[parent.parentType]),
+          ),
     ),
   );
-};
 
 export const listAttachments = ({
   cursor,

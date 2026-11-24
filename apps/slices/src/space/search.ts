@@ -332,7 +332,12 @@ const indexedTextOf = (
     const node = row as MindmapNode;
     // A task or note node shows its item, which is indexed on its own.
     if (node.taskId || node.noteId) return undefined;
-    return { docType: node.type, id: node.id, title: node.title, content: "" };
+    return {
+      docType: node.type,
+      id: node.id,
+      title: node.title,
+      content: node.content ?? "",
+    };
   }
   return undefined;
 };
@@ -807,7 +812,7 @@ export const searchSpace = selector({
         .map((node) => ({
           id: node.id,
           hit: { type: "mindmapNode", node } as const,
-          text: { title: node.title, content: "" },
+          text: { title: node.title, content: node.content ?? "" },
           done: false,
           createdAt: node.createdAt,
         })),

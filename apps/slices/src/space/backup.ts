@@ -169,6 +169,8 @@ interface MindmapNodeBackup {
   taskId: string | null;
   noteId?: string;
   title: string;
+  content?: string;
+  coverAttachmentId?: string | null;
   collapsed: boolean;
   createdAt: number;
 }
@@ -374,6 +376,8 @@ const backupSchema = v.object({
         taskId: v.union(v.string(), v.null()),
         noteId: v.optional(v.string()),
         title: v.string(),
+        content: v.optional(v.string()),
+        coverAttachmentId: v.optional(v.union(v.string(), v.null())),
         collapsed: v.boolean(),
         createdAt: v.number(),
       }),
@@ -965,6 +969,7 @@ const getNewModels = action({
             model.type === taskTemplateType,
         )
         .map(({ type, id }) => `${type}:${id}`),
+      ...mindmapNodes.map(({ id }) => `${mindmapNodeType}:${id}`),
       ...trashedParents,
     ]);
     const itemAttachments: ItemAttachment[] = [];
@@ -1170,7 +1175,12 @@ export const getSpaceBackup = selector({
         createdAt,
       })),
       mindmapNodes: mindmapNodes.map(
-        ({ type: _type, titleDoc: _titleDoc, ...node }) => node,
+        ({
+          type: _type,
+          titleDoc: _titleDoc,
+          contentDoc: _contentDoc,
+          ...node
+        }) => node,
       ),
       notes: notes.map((note) => ({
         id: note.id,

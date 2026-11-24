@@ -283,6 +283,11 @@ describe("search index", () => {
     );
     expect(search(db, "fuel")).toEqual([]);
     expect(search(db, "oxy")).toEqual(["topic"]);
+    syncDispatch(
+      db,
+      updateMindmapNode({ id: "topic", node: { content: "Breathe *deeply*" } }),
+    );
+    expect(search(db, "deeply")).toEqual(["topic"]);
 
     syncDispatch(db, convertMindmapNodeToTopic({ id: "linked" }));
     expect(search(db, "launch").sort()).toEqual(["linked", "task"]);
