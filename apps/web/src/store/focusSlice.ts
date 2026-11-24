@@ -167,6 +167,8 @@ interface FocusState {
   focusItemKey: FocusKey | null;
   editItemKey: FocusKey | null;
   isFocusDisabled: boolean;
+  // Overlays can nest, so shortcuts resume only when the last one closes.
+  focusDisabledBy: number;
   // Multi-selection: empty, or at least two keys. A single selected item is
   // just the focused one.
   selectedKeys: FocusKey[];
@@ -197,11 +199,20 @@ export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   focusItemKey: null,
   editItemKey: null,
   isFocusDisabled: false,
+  focusDisabledBy: 0,
   ...emptySelection,
   isDraggingSelection: false,
 
-  disableFocus: () => set({ isFocusDisabled: true }),
-  enableFocus: () => set({ isFocusDisabled: false }),
+  disableFocus: () =>
+    set((s) => ({
+      focusDisabledBy: s.focusDisabledBy + 1,
+      isFocusDisabled: true,
+    })),
+  enableFocus: () =>
+    set((s) => ({
+      focusDisabledBy: s.focusDisabledBy - 1,
+      isFocusDisabled: s.focusDisabledBy > 1,
+    })),
 
   focusByKey: (key: FocusKey, skipElFocus = false) => {
     const { focusItemKey, selectedKeys } = get();

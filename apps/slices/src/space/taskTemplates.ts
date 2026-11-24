@@ -584,9 +584,15 @@ export const createTaskTemplateFromTask = action({
     task: tasksTable.v(),
     data: v.partial(taskTemplatesTable.v()),
     now: v.number(),
+    id: v.optional(v.string()),
   },
-  handler: function* createTaskTemplateFromTask({ task, data, now }) {
-    const newId = uuidv7();
+  handler: function* createTaskTemplateFromTask({
+    task,
+    data,
+    now,
+    id: newId = uuidv7(),
+  }) {
+    if (newId === task.id) throw new Error("Conversion needs a new ID");
     // Read before deleteTasks removes the task's DailyEntry.
     const entryTime = (yield* dailyEntryByTaskId({ taskId: task.id }))?.time;
     yield* copyItems({
@@ -602,7 +608,6 @@ export const createTaskTemplateFromTask = action({
     yield* deleteTasks({ ids: [task.id] });
 
     const template: TaskTemplate = {
-      id: newId,
       type: taskTemplateType,
       title: task.title,
       ...(task.content === undefined ? {} : { content: task.content }),
@@ -620,6 +625,7 @@ export const createTaskTemplateFromTask = action({
         ? {}
         : { coverAttachmentId: task.coverAttachmentId }),
       ...data,
+      id: newId,
     };
     assertValidTaskTime(template.time);
     assertValidTaskDuration(template.durationMinutes);

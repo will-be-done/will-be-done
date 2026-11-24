@@ -9,6 +9,7 @@ import {
   projectTaskItem,
   signupUser,
   uniqueE2EName,
+  waitForSyncedText,
 } from "./helpers";
 
 test("opens a task page from its menu and edits the task there", async ({
@@ -92,10 +93,13 @@ test("follows a task converted to a note and redirects old links", async ({
   await page.getByRole("link", { name: "Open as page" }).click();
   await expect(page).toHaveURL(/\/tasks\/[^/?]+$/);
 
+  // The reload below must find the note, so wait until it is stored.
+  const noteSynced = waitForSyncedText(page, '\\"tableName\\":\\"notes\\"');
   await page.getByRole("button", { name: "Convert to note" }).click();
   await expect(page).toHaveURL(/\/notes\/[^/?]+$/);
   await expect(page.getByTestId("task-title")).toHaveText("Trip ideas");
   const noteUrl = page.url();
+  await noteSynced;
 
   await page.goto(noteUrl.replace("/notes/", "/item-details/"));
   await expect(page).toHaveURL(noteUrl);
@@ -105,4 +109,33 @@ test("follows a task converted to a note and redirects old links", async ({
   await expect(
     page.getByText("This item was deleted or never existed."),
   ).toBeVisible();
+});
+
+test("undoing a conversion after closing its popup leaves the popup closed", async ({
+  page,
+}) => {
+  await signupUser(page);
+  const spaceName = uniqueE2EName("Popup Undo Space");
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createProject(page, uniqueE2EName("Popup Undo Project"));
+  await createProjectTask(page, "Packing list");
+
+  await openTaskDetails(page, "Packing list");
+  await page.getByRole("button", { name: "Open in popup" }).click();
+  const popup = page.getByTestId("item-popup");
+  await expect(page).toHaveURL(/peek=/);
+  const taskPeek = new URL(page.url()).searchParams.get("peek");
+  await popup.getByRole("button", { name: "Convert to note" }).click();
+  await expect(page).toHaveURL((url) => {
+    const peek = url.searchParams.get("peek");
+    return !!peek && peek !== taskPeek;
+  });
+  await popup.getByRole("button", { name: "Close" }).click();
+  await expect(popup).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(projectTaskItem(page, "Packing list")).toBeVisible();
+  await expect(popup).toHaveCount(0);
+  await expect(page).not.toHaveURL(/peek=/);
 });

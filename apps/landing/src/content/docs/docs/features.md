@@ -197,6 +197,13 @@ Every task, note, and repeating task also has its own page, with a link you
 can copy and share between your devices. Open it with the expand button in the
 details panel, **Open page** in the task's **…** menu, or from search. On a
 phone, the details button opens it. Press `Esc` or the close button to go back.
+To look at an item without leaving the current view, use the popup button next
+to the expand button in the details panel; it shows the same page over the view.
+The popup is part of the view's link and browser history, so Back closes it.
+
+Click a todo task's project in its page header or card to open that project
+with the task focused; in the details, use the arrow next to the project name.
+Click the project name itself to move the item to another project.
 
 Completing a task changes its state wherever it appears. Completing a checklist
 item changes that checklist row.
@@ -208,9 +215,10 @@ place it inline. In a description, images show in the text; in a title, a file
 shows as a small chip with its name, size, and a thumbnail for images. The first
 image you paste into a title or description also becomes the card's cover. In
 the details panel, use **Cover** to choose another attached image, upload a new
-one, or remove the cover. You can also focus a task, template, or note card and
-paste an image to attach it directly as the cover. Select an image to view it
-full screen and download it. Drag an image's corner handle to resize it, or
+one, or remove the cover; **Add cover** uploads one when the item has no images.
+You can also focus a task, template, or note card and paste an image to attach
+it directly as the cover. Select an image to view it full screen and download
+it. Drag an image's corner handle to resize it, or
 double-click the handle to return it to its original size. **Attach file** in
 the details panel adds a file to the item's list without placing it in the text.
 Inline files appear in that list too, and you can drag a file from the list into

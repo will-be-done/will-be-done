@@ -19,6 +19,7 @@ import {
   generateTasksForTemplate,
   taskTemplateById,
 } from "./taskTemplates";
+import { createTaskFromTemplate } from "./tasks";
 import { dbIdTrait } from "@/traits";
 import {
   checklistItemsTable,
@@ -476,6 +477,53 @@ describe("taskTemplates timezone consistency", () => {
     const idsTZ3 = tasksTZ3.map((t) => t.id);
     const idsTZM5 = tasksTZM5.map((t) => t.id);
     expect(idsTZ3).toEqual(idsTZM5);
+  });
+
+  it("rejects reusing the source ID when converting between a task and a template", () => {
+    const db = createDB(0);
+    const now = new Date("2026-03-04T17:05:00Z").getTime();
+    const task: Task = {
+      type: "task",
+      id: "task-same-id",
+      title: "Converted task",
+      content: "",
+      state: "todo",
+      projectSectionId: "section-1",
+      orderToken: "a0",
+      lastToggledAt: now,
+      nature: "unknown",
+      createdAt: now,
+      templateId: null,
+      templateDate: null,
+    };
+    syncDispatch(
+      db,
+      action({
+        name: "insertTask",
+        args: {},
+        handler: function* insertTask() {
+          yield* insert(tasksTable, [task]);
+        },
+      })({}),
+    );
+
+    expect(() =>
+      syncDispatch(
+        db,
+        createTaskTemplateFromTask({ task, data: {}, now, id: task.id }),
+      ),
+    ).toThrow("Conversion needs a new ID");
+    const template = syncDispatch(
+      db,
+      createTaskTemplateFromTask({ task, data: { id: task.id }, now }),
+    );
+    expect(template.id).not.toBe(task.id);
+    expect(() =>
+      syncDispatch(
+        db,
+        createTaskFromTemplate({ taskTemplate: template, id: template.id }),
+      ),
+    ).toThrow("Conversion needs a new ID");
   });
 
   it("immediately generates today's task when converting a task to a template", () => {

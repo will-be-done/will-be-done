@@ -1,19 +1,29 @@
-import { useRef, useState, useCallback } from "react";
-import { Maximize2 } from "lucide-react";
+import {
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useRef,
+  useState,
+} from "react";
+import type { ReplaceItem } from "@/components/Task/useNoteConversion.ts";
+import { Maximize2, PanelTop } from "lucide-react";
 import { itemPageLocation } from "@/components/ItemPage/useOpenItemPage.ts";
 import { Link } from "@tanstack/react-router";
+import { ItemPeek } from "@/components/ItemPage/ItemPopup.tsx";
+import { useItemPeek } from "@/components/ItemPage/useItemPeek.ts";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 import { useItemDetailsEditing } from "./useItemDetailsEditing.ts";
+import { useItemReplacement } from "./useItemReplacement.ts";
 import { cn } from "@/lib/utils";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import {
   dailyEntryType,
-  itemByListItemId,
   isTask,
   isTaskTemplate,
   isNote,
   type Item,
+  itemByListItemId,
   type ListItemType,
   stashEntryType,
   taskTemplateType,
@@ -45,12 +55,13 @@ const isListItemType = (type: string): type is ListItemType =>
 export function ItemDetails() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
-  const focusKey = useFocusStore((s) => s.focusItemKey);
+  // The panel keeps showing the previous item until the next one's details
+  // stop suspending, instead of filling in as each part loads.
+  const focusKey = useDeferredValue(useFocusStore((s) => s.focusItemKey));
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
   const focusedListItemType =
     parsed && isListItemType(parsed.type) ? parsed.type : null;
   const focusedListItemId = focusedListItemType && parsed ? parsed.id : null;
-  // Keep the previous item while the next loads so focus moves don't flash empty.
   const { data: selectedItem } = useAsyncSelector({
     selector: itemByListItemId,
     args: {
@@ -59,11 +70,13 @@ export function ItemDetails() {
     },
     placeholderData: (previous) => previous,
   });
-  const focusedItem = focusedListItemId ? selectedItem : undefined;
+  const { item, replaceItem } = useItemReplacement(selectedItem);
+  const focusedItem = focusedListItemId ? item : undefined;
   const itemId = focusedItem?.id ?? null;
   const isVisible = focusedItem !== undefined;
 
   const { spaceId } = SpaceRoute.useParams();
+  const { open: openPeek } = useItemPeek();
   const width = useItemDetailsSize((s) => s.width);
   const setWidth = useItemDetailsSize((s) => s.setWidth);
   const { isOpen: isPanelOpen, toggle } = useItemDetailsOpen();
@@ -93,6 +106,7 @@ export function ItemDetails() {
     if (
       e.code === "KeyV" &&
       noModifiers &&
+      !useFocusStore.getState().isFocusDisabled &&
       !isEditingAnyField &&
       !e.defaultPrevented
     ) {
@@ -214,6 +228,17 @@ export function ItemDetails() {
                   Item Details
                 </span>
                 {focusedItem && (
+                  <button
+                    type="button"
+                    title="Open in popup"
+                    aria-label="Open in popup"
+                    onClick={() => openPeek(focusedItem.id)}
+                    className="-my-1 cursor-pointer rounded p-1 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
+                  >
+                    <PanelTop className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {focusedItem && (
                   <Link
                     {...itemPageLocation(spaceId, focusedItem)}
                     title="Open as page"
@@ -225,23 +250,27 @@ export function ItemDetails() {
                 )}
               </div>
 
-              {focusedItem ? (
-                <ItemDetailsBody
-                  item={focusedItem}
-                  isEditingTitle={isEditingTitle}
-                  setIsEditingTitle={setIsEditingTitle}
-                  isEditingDescription={isEditingDescription}
-                  setIsEditingDescription={setIsEditingDescription}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
-                  Select a task
-                </div>
-              )}
+              <Suspense fallback={null}>
+                {focusedItem ? (
+                  <ItemDetailsBody
+                    item={focusedItem}
+                    isEditingTitle={isEditingTitle}
+                    setIsEditingTitle={setIsEditingTitle}
+                    isEditingDescription={isEditingDescription}
+                    setIsEditingDescription={setIsEditingDescription}
+                    replaceItem={replaceItem}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
+                    Select a task
+                  </div>
+                )}
+              </Suspense>
             </ScrollArea>
           </AttachmentDropZone>
         </div>
       </div>
+      <ItemPeek />
     </div>
   );
 }
@@ -254,14 +283,14 @@ export function ItemDetailsBody({
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
-  onItemIdChange,
+  replaceItem,
 }: {
   item: Item;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
-  onItemIdChange?: (itemId: string) => void;
+  replaceItem?: ReplaceItem;
 }) {
   if (isTask(item)) {
     return (
@@ -271,7 +300,7 @@ export function ItemDetailsBody({
         setIsEditingTitle={setIsEditingTitle}
         isEditingDescription={isEditingDescription}
         setIsEditingDescription={setIsEditingDescription}
-        onItemIdChange={onItemIdChange}
+        replaceItem={replaceItem}
       />
     );
   }
@@ -284,7 +313,7 @@ export function ItemDetailsBody({
         setIsEditingTitle={setIsEditingTitle}
         isEditingDescription={isEditingDescription}
         setIsEditingDescription={setIsEditingDescription}
-        onItemIdChange={onItemIdChange}
+        replaceItem={replaceItem}
       />
     );
   }
@@ -297,7 +326,7 @@ export function ItemDetailsBody({
         setIsEditingTitle={setIsEditingTitle}
         isEditingDescription={isEditingDescription}
         setIsEditingDescription={setIsEditingDescription}
-        onItemIdChange={onItemIdChange}
+        replaceItem={replaceItem}
       />
     );
   }

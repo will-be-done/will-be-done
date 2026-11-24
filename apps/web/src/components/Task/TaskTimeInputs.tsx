@@ -3,6 +3,7 @@ import { Clock, Hourglass } from "lucide-react";
 import { format } from "date-fns";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -26,8 +27,10 @@ const optionClassName =
 const footerButtonClassName =
   "rounded-md px-3 py-1.5 text-xs cursor-pointer transition-colors text-content-tinted hover:bg-panel-tinted hover:text-content disabled:pointer-events-none disabled:opacity-40";
 
-// A text field that accepts typed values, with a button that opens a picker.
-// Typed text commits on Enter or blur; Escape or unparseable text reverts.
+// A text field that accepts typed values, with a button that opens a picker,
+// or, with `pickOnClick`, a click on the field itself, or Enter on an
+// untouched field. Typed text commits on Enter or blur; Escape or unparseable
+// text reverts.
 function PickerField({
   display,
   placeholder,
@@ -36,6 +39,7 @@ function PickerField({
   onCommitText,
   open,
   onOpenChange,
+  pickOnClick = false,
   className,
   children,
 }: {
@@ -46,50 +50,74 @@ function PickerField({
   onCommitText: (text: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  pickOnClick?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const cancelRef = useRef(false);
+  const fieldRef = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // A click keeps focus in the field for typing; the keyboard moves it into
+  // the picker and back.
+  const openedByKeyboard = useRef(false);
+  const openPicker = (byKeyboard: boolean) => {
+    openedByKeyboard.current = byKeyboard;
+    onOpenChange(true);
+  };
 
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <span
+  const field = (
+    <span
+      ref={fieldRef}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded px-1 -mx-1 text-xs transition-colors hover:bg-task-panel-hover focus-within:bg-task-panel-hover",
+        className,
+      )}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        value={draft ?? display}
+        onChange={(e) => setDraft(e.target.value)}
+        onClick={
+          pickOnClick
+            ? () => (open ? onOpenChange(false) : openPicker(false))
+            : undefined
+        }
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && pickOnClick && draft === null && !open) {
+            e.preventDefault();
+            openPicker(true);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            onOpenChange(false);
+            e.currentTarget.blur();
+          } else if (e.key === "Escape" && draft !== null) {
+            e.stopPropagation();
+            cancelRef.current = true;
+            e.currentTarget.blur();
+          } else if (e.key === "ArrowDown" && e.altKey) {
+            e.preventDefault();
+            openPicker(true);
+          }
+        }}
+        onBlur={(e) => {
+          const text = e.target.value;
+          setDraft(null);
+          if (cancelRef.current) {
+            cancelRef.current = false;
+          } else if (draft !== null) {
+            onCommitText(text);
+          }
+        }}
         className={cn(
-          "inline-flex items-center gap-0.5 rounded px-1 -mx-1 transition-colors hover:bg-task-panel-hover focus-within:bg-task-panel-hover",
-          className,
+          "bg-transparent [font-size:inherit] text-content placeholder:text-content-tinted focus:outline-none",
+          pickOnClick ? "w-full min-w-0 cursor-pointer" : "w-[4.5rem]",
         )}
-      >
-        <input
-          type="text"
-          aria-label={ariaLabel}
-          placeholder={placeholder}
-          value={draft ?? display}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.blur();
-            } else if (e.key === "Escape" && draft !== null) {
-              e.stopPropagation();
-              cancelRef.current = true;
-              e.currentTarget.blur();
-            } else if (e.key === "ArrowDown" && e.altKey) {
-              e.preventDefault();
-              onOpenChange(true);
-            }
-          }}
-          onBlur={(e) => {
-            const text = e.target.value;
-            setDraft(null);
-            if (cancelRef.current) {
-              cancelRef.current = false;
-            } else if (draft !== null) {
-              onCommitText(text);
-            }
-          }}
-          className="w-[4.5rem] bg-transparent text-xs text-content placeholder:text-content-tinted focus:outline-none"
-        />
+      />
+      {!pickOnClick && (
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -99,9 +127,36 @@ function PickerField({
             {icon}
           </button>
         </PopoverTrigger>
-      </span>
+      )}
+    </span>
+  );
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {pickOnClick ? <PopoverAnchor asChild>{field}</PopoverAnchor> : field}
       <PopoverContent
-        align="end"
+        align={pickOnClick ? "start" : "end"}
+        onOpenAutoFocus={(event) => {
+          if (pickOnClick && !openedByKeyboard.current) event.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          if (pickOnClick && openedByKeyboard.current) {
+            event.preventDefault();
+            inputRef.current?.focus({ preventScroll: true });
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (
+            pickOnClick &&
+            event.target instanceof Node &&
+            fieldRef.current?.contains(event.target)
+          ) {
+            event.preventDefault();
+            return;
+          }
+          // Focus goes where the user clicked or tabbed, not back to the field.
+          openedByKeyboard.current = false;
+        }}
         data-disable-task-shortcuts
         onDoubleClick={(event) => event.stopPropagation()}
         className="z-[10001] w-auto bg-task-dropdown p-0 backdrop-blur-none"
@@ -168,8 +223,20 @@ function TimePickerPanel({
   time: string | null;
   onPick: (time: string | null) => void;
 }) {
-  const [hour, setHour] = useState(time ? Number(time.slice(0, 2)) : null);
-  const [minute, setMinute] = useState(time ? Number(time.slice(3)) : null);
+  // Picks belong to the time they started from, so a typed time committing
+  // while the picker is open replaces them.
+  const [picked, setPicked] = useState<{
+    from: string | null;
+    hour: number;
+    minute: number;
+  }>();
+  const { hour, minute } =
+    picked?.from === time
+      ? picked
+      : {
+          hour: time ? Number(time.slice(0, 2)) : null,
+          minute: time ? Number(time.slice(3)) : null,
+        };
   const minutes =
     minute === null || minuteSteps.includes(minute)
       ? minuteSteps
@@ -182,19 +249,21 @@ function TimePickerPanel({
           label="Hour"
           values={hours}
           selected={hour}
-          onSelect={(value) => {
-            setHour(value);
-            if (minute === null) setMinute(0);
-          }}
+          onSelect={(value) =>
+            setPicked({ from: time, hour: value, minute: minute ?? 0 })
+          }
         />
         <PickerColumn
           label="Minute"
           values={minutes}
           selected={minute}
-          onSelect={(value) => {
-            setMinute(value);
-            if (hour === null) setHour(new Date().getHours());
-          }}
+          onSelect={(value) =>
+            setPicked({
+              from: time,
+              hour: hour ?? new Date().getHours(),
+              minute: value,
+            })
+          }
         />
       </div>
       <div className="flex items-center justify-between gap-1 border-t border-white/10 p-1.5">
@@ -234,10 +303,12 @@ function TimePickerPanel({
 export function TimeInput({
   time,
   onChange,
+  pickOnClick,
   className,
 }: {
   time: string | null;
   onChange: (time: string | null) => void;
+  pickOnClick?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -259,6 +330,7 @@ export function TimeInput({
       }}
       open={open}
       onOpenChange={setOpen}
+      pickOnClick={pickOnClick}
       className={className}
     >
       <TimePickerPanel
@@ -275,10 +347,12 @@ export function TimeInput({
 export function DurationInput({
   durationMinutes,
   onChange,
+  pickOnClick,
   className,
 }: {
   durationMinutes: number | null;
   onChange: (durationMinutes: number | null) => void;
+  pickOnClick?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -304,6 +378,7 @@ export function DurationInput({
       }}
       open={open}
       onOpenChange={setOpen}
+      pickOnClick={pickOnClick}
       className={className}
     >
       <div className="flex w-52 flex-col">

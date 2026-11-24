@@ -8,6 +8,8 @@ import {
   isNote,
   isTask,
   isTaskTemplate,
+  itemAttachments,
+  mindmapsOfItem,
   projectOfProjectSectionOrDefault,
   projectSectionById,
   projectSectionItemById,
@@ -23,12 +25,26 @@ export async function preloadItemPage(db: SubscribableDB, itemId: string) {
   });
   if (!item) return undefined;
 
+  // The page suspends on attachments and mindmaps, which are not preloaded
+  // with the space.
   const promises: Promise<unknown>[] = [
     preloadSelectorAsync(db, {
       selector: projectSectionById,
       args: { id: item.projectSectionId },
     }),
+    preloadSelectorAsync(db, {
+      selector: itemAttachments,
+      args: { parentType: item.type, parentId: item.id },
+    }),
   ];
+  if (!isTaskTemplate(item)) {
+    promises.push(
+      preloadSelectorAsync(db, {
+        selector: mindmapsOfItem,
+        args: { id: item.id },
+      }),
+    );
+  }
 
   if (!isNote(item)) {
     promises.push(

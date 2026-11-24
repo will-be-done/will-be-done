@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Clock, Folder, Hash, Hourglass, Pencil } from "lucide-react";
+import { ArrowUpRight, Clock, Folder, Hash, Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DurationInput, TimeInput } from "@/components/Task/TaskTimeInputs";
 import { ProjectIcon } from "@/components/ui/emoji";
@@ -118,6 +118,10 @@ export function EditableTitle({
 
 // ─── DetailRow ────────────────────────────────────────────────────────────────
 
+// An editable value fills its column, and its text lines up with plain values.
+export const detailValueClass =
+  "-mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 cursor-pointer items-center rounded px-1.5 text-left transition-colors hover:bg-task-panel-hover";
+
 export function DetailRow({
   icon,
   label,
@@ -131,7 +135,7 @@ export function DetailRow({
   if (variant === "page") {
     return (
       <div className="flex min-h-8 items-center gap-2">
-        <span className="flex w-24 shrink-0 items-center gap-2 text-content-tinted">
+        <span className="flex w-[5.5rem] shrink-0 items-center gap-2 text-content-tinted">
           {icon}
           {label}
         </span>
@@ -187,7 +191,7 @@ export function EditableDescription({
       data-testid="task-description"
       className={
         variant === "page"
-          ? "min-h-40 w-full cursor-text text-[15px] leading-7 text-content"
+          ? "min-h-24 w-full cursor-text text-[15px] leading-7 text-content [&_[role=toolbar]]:opacity-0 [&_[role=toolbar]]:transition-opacity hover:[&_[role=toolbar]]:opacity-100 focus-within:[&_[role=toolbar]]:opacity-100 [@media(hover:none)]:[&_[role=toolbar]]:opacity-100"
           : "min-h-[94px] w-full cursor-text rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-within:ring-1 focus-within:ring-accent"
       }
       onClick={() => editorRef.current?.focusEnd()}
@@ -218,32 +222,36 @@ export function EditableDescription({
 
 export function ProjectDetailRow({
   project,
-  onOpenClick,
-  onEditClick,
+  onChangeClick,
+  onShowClick,
 }: {
   project: { id: string; icon: string; title: string };
-  onOpenClick: () => void;
-  onEditClick: () => void;
+  onChangeClick: () => void;
+  onShowClick: () => void;
 }) {
   return (
     <DetailRow icon={<Folder className="h-3 w-3 shrink-0" />} label="Project">
-      <span className="inline-flex min-w-0 items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         <button
-          className="min-w-0 cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left truncate"
-          onClick={onOpenClick}
+          type="button"
+          title="Change project"
+          className={cn(detailValueClass, "mr-0 w-auto")}
+          onClick={onChangeClick}
         >
-          <ProjectIcon icon={project.icon} /> {project.title}
+          <span className="truncate">
+            <ProjectIcon icon={project.icon} /> {project.title}
+          </span>
         </button>
         <button
           type="button"
-          title="Move to project"
-          aria-label="Move to project"
-          className="cursor-pointer rounded p-0.5 text-content-tinted hover:bg-task-panel-hover hover:text-content transition-colors"
-          onClick={onEditClick}
+          title="Show in project"
+          aria-label="Show in project"
+          className="shrink-0 cursor-pointer rounded p-0.5 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
+          onClick={onShowClick}
         >
-          <Pencil className="h-3 w-3" />
+          <ArrowUpRight className="h-3.5 w-3.5" />
         </button>
-      </span>
+      </div>
     </DetailRow>
   );
 }
@@ -264,7 +272,10 @@ export function SectionDetailRow({
       <select
         value={projectSectionId}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-transparent text-content [font-size:inherit] focus:outline-none cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors"
+        className={cn(
+          detailValueClass,
+          "appearance-none bg-transparent text-content [font-size:inherit] focus:outline-none",
+        )}
       >
         {projectSections.map((section) => (
           <option
@@ -282,6 +293,8 @@ export function SectionDetailRow({
 
 // ─── TimeDetailRow ───────────────────────────────────────────────────────────
 
+const pickerValueClass = cn(detailValueClass, "text-[length:inherit]");
+
 export function TimeDetailRow({
   time,
   onChange,
@@ -291,7 +304,12 @@ export function TimeDetailRow({
 }) {
   return (
     <DetailRow icon={<Clock className="h-3 w-3 shrink-0" />} label="Time">
-      <TimeInput time={time} onChange={onChange} />
+      <TimeInput
+        time={time}
+        onChange={onChange}
+        pickOnClick
+        className={pickerValueClass}
+      />
     </DetailRow>
   );
 }
@@ -310,7 +328,12 @@ export function DurationDetailRow({
       icon={<Hourglass className="h-3 w-3 shrink-0" />}
       label="Duration"
     >
-      <DurationInput durationMinutes={durationMinutes} onChange={onChange} />
+      <DurationInput
+        durationMinutes={durationMinutes}
+        onChange={onChange}
+        pickOnClick
+        className={pickerValueClass}
+      />
     </DetailRow>
   );
 }

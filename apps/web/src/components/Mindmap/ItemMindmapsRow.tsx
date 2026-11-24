@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useAsyncSelector } from "@will-be-done/hyperdb/react";
+import { useSuspenseSelector } from "@will-be-done/hyperdb/react";
 import { mindmapsOfItem } from "@will-be-done/slices/space";
 import { Network } from "lucide-react";
 import { DetailRow } from "@/components/ItemDetails/shared.tsx";
@@ -9,7 +9,7 @@ import { mindmapTitle } from "./useCreateMindmap.ts";
 // The mindmaps a task or note appears on.
 export function ItemMindmapsRow({ itemId }: { itemId: string }) {
   const { spaceId } = Route.useParams();
-  const { data: mindmaps = [] } = useAsyncSelector({
+  const mindmaps = useSuspenseSelector({
     selector: mindmapsOfItem,
     args: { id: itemId },
   });
