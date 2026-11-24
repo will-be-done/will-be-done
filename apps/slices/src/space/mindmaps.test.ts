@@ -981,6 +981,42 @@ describe("mindmaps", () => {
         ),
       ),
     ).toBe(inboxSectionId);
+
+    // Nodes made from an item join its section, over the chosen project.
+    const later = syncDispatch(
+      db,
+      createProjectSection({
+        sectionDraft: { title: "Later", projectId: work.id },
+        position: "append",
+      }),
+    );
+    for (const create of [createMindmapTask, createMindmapNote]) {
+      expect(
+        sectionOf(
+          syncDispatch(
+            db,
+            create({
+              mindmapId: "map",
+              placement,
+              projectSectionId: later.id,
+            }),
+          ),
+        ),
+      ).toBe(later.id);
+      expect(
+        sectionOf(
+          syncDispatch(
+            db,
+            create({
+              mindmapId: "map",
+              placement,
+              projectId: work.id,
+              projectSectionId: "gone",
+            }),
+          ),
+        ),
+      ).toBe(workSection!.id);
+    }
   });
 
   test("a note node survives trash and task conversion, and unlinks to a topic", () => {

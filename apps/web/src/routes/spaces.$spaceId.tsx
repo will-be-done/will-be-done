@@ -22,6 +22,10 @@ import {
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
 import { captureWebAnalytics } from "@/lib/analytics";
+import {
+  InitialSyncGate,
+  LoadingScreen,
+} from "@/components/Layout/LoadingScreen";
 
 // Every view under a space can show an item in a popup over itself.
 const searchParams = z.object({
@@ -39,6 +43,7 @@ export const Route = createFileRoute("/spaces/$spaceId")({
   loader: ({ context }) => {
     return context.spaceDbPromise;
   },
+  pendingComponent: () => <LoadingScreen label="Loading space" />,
 });
 
 async function loadSpaceDb(spaceId: string) {
@@ -69,16 +74,18 @@ function RouteComponent() {
   return (
     <DBProvider value={newStore as SubscribableDB}>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <KeyPressedCtxProvider>
-          <div className="relative h-full">
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-10 [app-region:drag]" />
+        <InitialSyncGate showProgress>
+          <KeyPressedCtxProvider>
+            <div className="relative h-full">
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-10 [app-region:drag]" />
 
-            <GlobalListener />
-            <ResetFocusOnNavigate />
+              <GlobalListener />
+              <ResetFocusOnNavigate />
 
-            <Outlet />
-          </div>
-        </KeyPressedCtxProvider>
+              <Outlet />
+            </div>
+          </KeyPressedCtxProvider>
+        </InitialSyncGate>
       </ThemeProvider>
     </DBProvider>
   );

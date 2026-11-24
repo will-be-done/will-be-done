@@ -122,7 +122,7 @@ const config: SyncConfig = {
   afterInit: Effect.void,
 };
 
-const createSyncer = (syncConfig = config) => {
+const createSyncer = (syncConfig = config, initialSync = false) => {
   const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
   execSync(
     db.loadTables([
@@ -135,7 +135,10 @@ const createSyncer = (syncConfig = config) => {
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: inScope(db, Syncer.make("client-1", syncConfig, nextClock)),
+    syncer: inScope(
+      db,
+      Syncer.make("client-1", syncConfig, nextClock, { initialSync }),
+    ),
   };
 };
 
@@ -257,6 +260,29 @@ describe("sync status", () => {
     syncer.forceSync();
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
     expect(syncer.status.get().error).toBeNull();
+    await stop(syncer, run);
+  });
+
+  it("runs a never-synced database's first session at once and ends initial sync when it finishes", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer(config, true);
+    stubSuccessfulSync();
+    expect(syncer.initialSync.get()).toBe(true);
+
+    const run = syncer.run();
+    await Effect.runPromise(syncer.initialSync.waitFor((pending) => !pending));
+    expect(syncer.status.get().phase).toBe("synced");
+    await stop(syncer, run);
+  });
+
+  it("ends initial sync when the first session fails", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer(config, true);
+    stubFetch(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    const run = syncer.run();
+    await Effect.runPromise(syncer.initialSync.waitFor((pending) => !pending));
+    expect(syncer.status.get().phase).toBe("error");
     await stop(syncer, run);
   });
 
