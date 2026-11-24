@@ -25,7 +25,7 @@ import {
   type Item,
   itemByListItemId,
   type ListItemType,
-  mindmapNodeById,
+  mindmapNodeOrRootById,
   mindmapNodeType,
   stashEntryType,
   taskTemplateType,
@@ -79,7 +79,7 @@ export function ItemDetails() {
   // A mindmap topic, the central one included, shows its title and files.
   const focusedTopicId = focusKey ? mindmapTopicIdOfKey(focusKey) : undefined;
   const { data: selectedTopic } = useAsyncSelector({
-    selector: mindmapNodeById,
+    selector: mindmapNodeOrRootById,
     args: { id: focusedTopicId ?? "" },
     enabled: !!focusedTopicId,
     placeholderData: (previous) => previous,

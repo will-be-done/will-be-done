@@ -19,6 +19,7 @@ import {
   itemAttachmentsTable,
   mindmapNodesTable,
   mindmapNodeType,
+  mindmapsTable,
   unlinkedAttachmentIds,
 } from "@will-be-done/slices/space";
 import { Clock, Effect, Schedule } from "effect";
@@ -68,7 +69,8 @@ export const deleteUnlinkedAttachments = action({
 // Removing a topic deletes its links, but one added meanwhile on another
 // device survives the merge. Topics are never trashed, so nothing else would
 // remove it, and it would keep its file forever. Only deleted topics count: a
-// topic that has not arrived yet must keep its links.
+// topic that has not arrived yet, or a central topic standing in for its
+// row, must keep its links.
 export const deleteRemovedTopicLinks = action({
   name: "deleteRemovedTopicLinks",
   args: {},
@@ -86,11 +88,13 @@ export const deleteRemovedTopicLinks = action({
     );
     const missing = nodeIds.filter((id) => !live.has(id));
     if (missing.length === 0) return [];
+    // A central topic shares its map's ID and may never have had a row.
     const removed = new Set(
       (yield* selectFrom(changesTable, "byId").where((q) =>
-        missing.map((id) =>
+        missing.flatMap((id) => [
           q.eq("id", changeId(mindmapNodesTable.tableName, id)),
-        ),
+          q.eq("id", changeId(mindmapsTable.tableName, id)),
+        ]),
       ))
         .filter(isDeletedChange)
         .map((change) => change.entityId),

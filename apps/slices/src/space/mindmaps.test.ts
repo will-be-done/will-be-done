@@ -44,6 +44,7 @@ import {
   createMindmapTask,
   deleteMindmap,
   deleteMindmapNodes,
+  discardEmptyMindmapTopic,
   mindmapsOfItem,
   mindmapsWithTitles,
   mindmapsWithTitlesByIds,
@@ -1127,6 +1128,55 @@ describe("mindmaps", () => {
     );
     const topic = syncDispatch(db, convertMindmapNodeToTopic({ id: "idea" }));
     expect(topic.content).toBe("Edited on the note");
+  });
+
+  test("a cleared topic is discarded only when nothing else is in it", () => {
+    const db = createDB();
+    for (const id of ["empty", "described", "parent"]) {
+      syncDispatch(
+        db,
+        createMindmapNode({
+          mindmapId: "map",
+          id,
+          placement: { parentId: "map", position: "last" },
+        }),
+      );
+    }
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "child",
+        title: "Child",
+        placement: { parentId: "parent", position: "last" },
+      }),
+    );
+    syncDispatch(
+      db,
+      updateMindmapNode({ id: "described", node: { content: "Notes" } }),
+    );
+    const discard = (id: string) =>
+      syncDispatch(db, discardEmptyMindmapTopic({ id }));
+
+    expect(discard("empty")).toBe(true);
+    expect(discard("described")).toBe(false);
+    expect(discard("parent")).toBe(false);
+    expect(discard("map")).toBe(false);
+    expect(treeShape(db)).toBe("described parent(child)");
+  });
+
+  test("unlinking a node whose task is gone keeps the note it shows", () => {
+    const db = createDB();
+    syncDispatch(db, updateNote({ id: "n1", note: { content: "Body" } }));
+    syncDispatch(
+      db,
+      insertNodes({
+        rows: [node("both", "map", { taskId: "gone", noteId: "n1" })],
+      }),
+    );
+
+    const topic = syncDispatch(db, convertMindmapNodeToTopic({ id: "both" }));
+    expect(topic).toMatchObject({ title: "Draft", content: "Body" });
   });
 
   test("a selection converts to one kind, new items in map order", () => {

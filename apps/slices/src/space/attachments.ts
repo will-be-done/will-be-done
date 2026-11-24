@@ -16,6 +16,7 @@ import {
   removeRichTextDocAttachments,
   seedRichTextDoc,
 } from "../common/richText";
+import { mindmapNodeOrRootById } from "./mindmapTopics";
 import { syncItemRichText } from "./richTextItems";
 import {
   type Attachment,
@@ -28,6 +29,7 @@ import {
   itemAttachmentsTable,
   itemAttachmentType,
   mindmapNodesTable,
+  mindmapsTable,
   mindmapNodeType,
   notesTable,
   noteType,
@@ -313,6 +315,18 @@ export const attachmentUsages = selector({
         titles.set(`${mindmapNodeType}:${node.id}`, node.title);
         nodeMaps.set(node.id, node.mindmapId);
       }
+      // A central topic whose row has not synced is still its map's.
+      const unsynced = nodeIds.filter((id) => !nodeMaps.has(id));
+      const maps =
+        unsynced.length > 0
+          ? yield* selectFrom(mindmapsTable, "byId").where((q) =>
+              unsynced.map((id) => q.eq("id", id)),
+            )
+          : [];
+      for (const map of maps) {
+        titles.set(`${mindmapNodeType}:${map.id}`, "");
+        nodeMaps.set(map.id, map.id);
+      }
     }
 
     const result: Record<string, AttachmentUsage[]> = {};
@@ -350,9 +364,7 @@ export const attachmentUsages = selector({
 
 function* parentExists(parentType: AttachmentParentType, parentId: string) {
   if (parentType === mindmapNodeType) {
-    const node = yield* selectFrom(mindmapNodesTable, "byId")
-      .where((q) => q.eq("id", parentId))
-      .first();
+    const node = yield* mindmapNodeOrRootById({ id: parentId });
     return !!node && !node.taskId && !node.noteId;
   }
   const table =
@@ -586,9 +598,7 @@ function* updateItemCoverAttachment(
     return;
   }
   if (parentType === mindmapNodeType) {
-    const item = yield* selectFrom(mindmapNodesTable, "byId")
-      .where((q) => q.eq("id", parentId))
-      .first();
+    const item = yield* mindmapNodeOrRootById({ id: parentId });
     if (!item) throw new Error("Attachment parent not found");
     yield* upsert(mindmapNodesTable, [{ ...item, coverAttachmentId }]);
     return;

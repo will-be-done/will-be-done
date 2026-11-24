@@ -64,6 +64,7 @@ import {
   createMindmapNode,
   deleteMindmap,
   deleteMindmapNodes,
+  discardEmptyMindmapTopic,
   pasteMindmapNodes,
   updateMindmapNode,
 } from "./mindmaps";
@@ -736,6 +737,54 @@ describe("attachments", () => {
         args: { attachmentIds: ["f1"] },
       }).f1,
     ).toEqual([]);
+  });
+
+  test("the central topic takes files before its row syncs", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    syncDispatch(db, dropTopicRow({ id: "map" }));
+    addFile(db, "f1");
+    const center = { parentType: mindmapNodeType, parentId: "map" } as const;
+
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...center }));
+    expect(
+      selectSync(db, {
+        selector: attachmentUsages,
+        args: { attachmentIds: ["f1"] },
+      }).f1,
+    ).toMatchObject([{ parentId: "map", mindmapId: "map" }]);
+    syncDispatch(db, setItemCoverAttachment({ ...center, attachmentId: "f1" }));
+    expect(read(db).nodes.find(({ id }) => id === "map")).toMatchObject({
+      coverAttachmentId: "f1",
+    });
+
+    syncDispatch(db, dropTopicRow({ id: "map" }));
+    syncDispatch(db, deleteMindmap({ id: "map" }));
+    expect(read(db).links).toEqual([]);
+  });
+
+  test("a cleared topic that lists a file is kept", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(
+      db,
+      attachToItem({
+        attachmentId: "f1",
+        parentType: mindmapNodeType,
+        parentId: "a",
+      }),
+    );
+
+    expect(syncDispatch(db, discardEmptyMindmapTopic({ id: "a" }))).toBe(false);
   });
 
   test("trash keeps links until it is emptied", () => {

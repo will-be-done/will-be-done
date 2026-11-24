@@ -47,7 +47,9 @@ It stays a topic and stays in the center: moves, removal, conversion, and
 sibling placements skip or reject it, and it goes only with `deleteMindmap`.
 Its ID is fixed rather than random so a map can never have two, and so the
 tree can stand in an empty one (`mindmapRootNode`) while the row has not
-synced; `updateMindmapNode` on that stand-in writes the row.
+synced; `updateMindmapNode` on that stand-in writes the row. The details panel
+and attachments read it through `mindmapNodeOrRootById`, so the stand-in
+takes files and a cover too.
 
 Any other parentless node is a **floating root**: a topic placed anywhere on
 the canvas, centered on its `x`, `y` (map units; the central topic sits at the
@@ -404,8 +406,10 @@ Popovers and dialogs (the date picker, the move dialog) portal out of the
 viewport, but React still bubbles their key events to it. The move dialog runs
 with `keepsFocus`, because the node stays on the map after its item moves.
 
-A topic left empty with no children is discarded when editing ends; an empty
-task or note is kept, as in project lists. Removing nodes focuses the nearest
+A topic left with no title, description, cover, files, or children is
+discarded when editing ends (`discardEmptyMindmapTopic`, which checks in the
+write so content synced in meanwhile keeps it); an empty task or note is kept,
+as in project lists. Removing nodes focuses the nearest
 surviving ancestor.
 
 ### Selection

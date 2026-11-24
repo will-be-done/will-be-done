@@ -9,6 +9,7 @@ import {
   createMindmapNote,
   createMindmapTask,
   deleteMindmapNodes,
+  discardEmptyMindmapTopic,
   getDMY,
   type ListItemType,
   type MindmapNode,
@@ -256,18 +257,13 @@ export function useMindmapActions({
         );
       },
       discardIfEmpty: (id, refocus) => {
-        const entry = entryOf(id);
-        // A title may have synced in since editing began.
-        if (
-          entry?.kind !== "node" ||
-          entry.tree.children.length > 0 ||
-          entry.tree.node.title.trim()
-        ) {
-          return;
-        }
         const parentKey = parentKeyOf(id);
-        void dispatch(deleteMindmapNodes({ ids: [id] }));
-        if (refocus && parentKey) focusNode(parentKey);
+        void (async () => {
+          // Checked in the write: a title, description, or file may have
+          // synced in since editing began.
+          const discarded = await dispatch(discardEmptyMindmapTopic({ id }));
+          if (discarded && refocus && parentKey) focusNode(parentKey);
+        })();
       },
       convert: (id, to) => {
         const ids = selectedNodesWith(id) ?? [id];
@@ -440,7 +436,11 @@ export function useMindmapActions({
         })();
       },
       editDescription: (id) => {
-        if (!entryOf(id)) return;
+        const entry = entryOf(id);
+        if (!entry) return;
+        // The menu of an unfocused node acts on it; the store alone moves, so
+        // nothing later takes focus from the description editor.
+        useFocusStore.getState().focusByKey(entry.focusKey, true);
         useItemDetailsOpen.getState().setOpen(true);
         // The details panel shows a topic under its node ID.
         useItemDetailsEditRequest

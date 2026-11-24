@@ -26,6 +26,7 @@ import {
   itemAttachmentType,
   mindmapNodesTable,
   mindmapNodeType,
+  mindmapsTable,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
 import { Effect } from "effect";
@@ -129,7 +130,8 @@ const addBackgroundLink = action({
   },
 });
 
-// "unlisted" on a topic that was deleted, "live" on one not synced yet.
+// "unlisted" on a deleted topic and on the center of a deleted map that never
+// had its row; "live" on a topic not synced yet.
 const addTopicLinks = action({
   name: "addTopicLinksAttachmentCleanupTest",
   args: {},
@@ -140,6 +142,12 @@ const addTopicLinks = action({
         id: "link-gone-topic",
         parentType: mindmapNodeType,
         parentId: "gone",
+      },
+      {
+        ...link("unlisted"),
+        id: "link-gone-map",
+        parentType: mindmapNodeType,
+        parentId: "old-map",
       },
       {
         ...link("live"),
@@ -153,6 +161,16 @@ const addTopicLinks = action({
         id: changeId(mindmapNodesTable.tableName, "gone"),
         entityId: "gone",
         tableName: mindmapNodesTable.tableName,
+        createdAt: hlc(now - 1000),
+        updatedAt: hlc(now - 500),
+        deletedAt: hlc(now - 500),
+        clientId: "client",
+        changes: {},
+      },
+      {
+        id: changeId(mindmapsTable.tableName, "old-map"),
+        entityId: "old-map",
+        tableName: mindmapsTable.tableName,
         createdAt: hlc(now - 1000),
         updatedAt: hlc(now - 500),
         deletedAt: hlc(now - 500),

@@ -25,9 +25,11 @@ import {
   coverAttachmentProblem,
   deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
+  itemAttachmentLinks,
   moveItemAttachments,
   withAutoCoverAttachment,
 } from "./attachments";
+import { mindmapNodeOrRootById, mindmapRootNode } from "./mindmapTopics";
 import { convertNoteToTask, convertTaskToNote, noteById } from "./notes";
 import {
   createNoteInSection,
@@ -81,22 +83,6 @@ export type MindmapTree = {
 /** The center topic is the node whose ID is its map's. */
 export const isMindmapRoot = (node: Pick<MindmapNode, "id" | "mindmapId">) =>
   node.id === node.mindmapId;
-
-// Written with the map, but stood in for while its row has not synced yet.
-export const mindmapRootNode = (
-  mindmap: Pick<Mindmap, "id" | "createdAt">,
-): MindmapNode => ({
-  type: mindmapNodeType,
-  id: mindmap.id,
-  mindmapId: mindmap.id,
-  parentId: null,
-  orderToken: "a0",
-  side: "right",
-  taskId: null,
-  title: "",
-  collapsed: false,
-  createdAt: mindmap.createdAt,
-});
 
 /** A new map's center topic starts as its name, which is plain text. */
 export const newMindmapRootNode = (
@@ -638,7 +624,10 @@ export const deleteMindmap = action({
     const nodes = yield* mindmapNodes({ mindmapId: id });
     const nodeIds = nodes.map((node) => node.id);
     yield* deleteRows(mindmapNodesTable, nodeIds);
-    yield* deleteItemAttachmentLinks(mindmapNodeType, nodeIds);
+    // The central topic can hold files before its row syncs.
+    yield* deleteItemAttachmentLinks(mindmapNodeType, [
+      ...new Set([id, ...nodeIds]),
+    ]);
     yield* deleteRows(mindmapsTable, [id]);
   },
 });
@@ -807,10 +796,7 @@ export const updateMindmapNode = action({
     ),
   },
   handler: function* updateMindmapNode({ id, node }) {
-    const mindmap = yield* mindmapById({ id });
-    const current =
-      (yield* mindmapNodeById({ id })) ??
-      (mindmap ? mindmapRootNode(mindmap) : undefined);
+    const current = yield* mindmapNodeOrRootById({ id });
     if (!current) throw new Error("Mindmap node not found");
     const next = yield* withAutoCoverAttachment(
       syncItemRichText(current, { ...current, ...node }),
@@ -819,6 +805,40 @@ export const updateMindmapNode = action({
     yield* upsert(mindmapNodesTable, [next]);
     yield* ensureInlineAttachmentLinks(mindmapNodeType, id, next, current);
     return next;
+  },
+});
+
+/**
+ * Removes a topic left with nothing in it, as when its new title was cleared:
+ * no title, description, cover, files, or children. Returns whether it did.
+ */
+export const discardEmptyMindmapTopic = action({
+  name: "discardEmptyMindmapTopic",
+  args: { id: v.string() },
+  handler: function* discardEmptyMindmapTopic({ id }) {
+    const node = yield* mindmapNodeById({ id });
+    if (
+      !node ||
+      node.taskId ||
+      node.noteId ||
+      isMindmapRoot(node) ||
+      node.title.trim() ||
+      node.content?.trim() ||
+      node.coverAttachmentId
+    ) {
+      return false;
+    }
+    const [child] = yield* selectFrom(mindmapNodesTable, "byMindmapParentOrder")
+      .where((q) => q.eq("mindmapId", node.mindmapId).eq("parentId", id))
+      .limit(1);
+    if (child) return false;
+    const [file] = yield* itemAttachmentLinks({
+      parentType: mindmapNodeType,
+      parentId: id,
+    });
+    if (file) return false;
+    yield* deleteMindmapNodes({ ids: [id] });
+    return true;
   },
 });
 
@@ -1331,9 +1351,10 @@ export const convertMindmapNodeToTopic = action({
     if (!node) throw new Error("Mindmap node not found");
     if (!node.taskId && !node.noteId) return node;
 
-    const item = node.taskId
-      ? yield* taskById({ id: node.taskId })
-      : yield* noteById({ id: node.noteId! });
+    // The item the tree shows: the task, or the note when the task is gone.
+    const item =
+      (node.taskId ? yield* taskById({ id: node.taskId }) : undefined) ??
+      (node.noteId ? yield* noteById({ id: node.noteId }) : undefined);
     // The topic keeps the item's files, which the item keeps too.
     if (item) {
       yield* copyItemAttachments(
