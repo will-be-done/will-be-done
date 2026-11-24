@@ -152,7 +152,10 @@ function PickerField({
             fieldRef.current?.contains(event.target)
           ) {
             event.preventDefault();
+            return;
           }
+          // Focus goes where the user clicked or tabbed, not back to the field.
+          openedByKeyboard.current = false;
         }}
         data-disable-task-shortcuts
         onDoubleClick={(event) => event.stopPropagation()}

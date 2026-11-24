@@ -608,7 +608,6 @@ export const createTaskTemplateFromTask = action({
     yield* deleteTasks({ ids: [task.id] });
 
     const template: TaskTemplate = {
-      id: newId,
       type: taskTemplateType,
       title: task.title,
       ...(task.content === undefined ? {} : { content: task.content }),
@@ -626,6 +625,7 @@ export const createTaskTemplateFromTask = action({
         ? {}
         : { coverAttachmentId: task.coverAttachmentId }),
       ...data,
+      id: newId,
     };
     assertValidTaskTime(template.time);
     assertValidTaskDuration(template.durationMinutes);

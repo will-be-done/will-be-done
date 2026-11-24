@@ -515,8 +515,9 @@ describe("taskTemplates timezone consistency", () => {
     ).toThrow("Conversion needs a new ID");
     const template = syncDispatch(
       db,
-      createTaskTemplateFromTask({ task, data: {}, now }),
+      createTaskTemplateFromTask({ task, data: { id: task.id }, now }),
     );
+    expect(template.id).not.toBe(task.id);
     expect(() =>
       syncDispatch(
         db,

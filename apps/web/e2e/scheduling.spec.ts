@@ -125,4 +125,12 @@ test("keeps a typed time when OK is pressed in the open time picker", async ({
   await page.keyboard.press("Escape");
   await expect(ok).toBeHidden();
   await expect(time).toBeFocused();
+
+  // Clicking another field while it is open leaves focus where the user went.
+  await page.keyboard.press("Enter");
+  await expect(ok).toBeVisible();
+  const panel = page.getByTestId("item-details-panel");
+  await panel.getByTestId("task-title").click();
+  await expect(ok).toBeHidden();
+  await expect(panel.getByLabel("Edit task title")).toBeFocused();
 });

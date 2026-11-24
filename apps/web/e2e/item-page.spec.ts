@@ -124,8 +124,13 @@ test("undoing a conversion after closing its popup leaves the popup closed", asy
   await openTaskDetails(page, "Packing list");
   await page.getByRole("button", { name: "Open in popup" }).click();
   const popup = page.getByTestId("item-popup");
-  await popup.getByRole("button", { name: "Convert to note" }).click();
   await expect(page).toHaveURL(/peek=/);
+  const taskPeek = new URL(page.url()).searchParams.get("peek");
+  await popup.getByRole("button", { name: "Convert to note" }).click();
+  await expect(page).toHaveURL((url) => {
+    const peek = url.searchParams.get("peek");
+    return !!peek && peek !== taskPeek;
+  });
   await popup.getByRole("button", { name: "Close" }).click();
   await expect(popup).toHaveCount(0);
 
