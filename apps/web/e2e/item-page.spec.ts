@@ -110,3 +110,27 @@ test("follows a task converted to a note and redirects old links", async ({
     page.getByText("This item was deleted or never existed."),
   ).toBeVisible();
 });
+
+test("undoing a conversion after closing its popup leaves the popup closed", async ({
+  page,
+}) => {
+  await signupUser(page);
+  const spaceName = uniqueE2EName("Popup Undo Space");
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createProject(page, uniqueE2EName("Popup Undo Project"));
+  await createProjectTask(page, "Packing list");
+
+  await openTaskDetails(page, "Packing list");
+  await page.getByRole("button", { name: "Open in popup" }).click();
+  const popup = page.getByTestId("item-popup");
+  await popup.getByRole("button", { name: "Convert to note" }).click();
+  await expect(page).toHaveURL(/peek=/);
+  await popup.getByRole("button", { name: "Close" }).click();
+  await expect(popup).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(projectTaskItem(page, "Packing list")).toBeVisible();
+  await expect(popup).toHaveCount(0);
+  await expect(page).not.toHaveURL(/peek=/);
+});

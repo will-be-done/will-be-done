@@ -28,8 +28,9 @@ const footerButtonClassName =
   "rounded-md px-3 py-1.5 text-xs cursor-pointer transition-colors text-content-tinted hover:bg-panel-tinted hover:text-content disabled:pointer-events-none disabled:opacity-40";
 
 // A text field that accepts typed values, with a button that opens a picker,
-// or, with `pickOnClick`, a click on the field itself.
-// Typed text commits on Enter or blur; Escape or unparseable text reverts.
+// or, with `pickOnClick`, a click on the field itself, or Enter on an
+// untouched field. Typed text commits on Enter or blur; Escape or unparseable
+// text reverts.
 function PickerField({
   display,
   placeholder,
@@ -56,6 +57,14 @@ function PickerField({
   const [draft, setDraft] = useState<string | null>(null);
   const cancelRef = useRef(false);
   const fieldRef = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // A click keeps focus in the field for typing; the keyboard moves it into
+  // the picker and back.
+  const openedByKeyboard = useRef(false);
+  const openPicker = (byKeyboard: boolean) => {
+    openedByKeyboard.current = byKeyboard;
+    onOpenChange(true);
+  };
 
   const field = (
     <span
@@ -66,14 +75,22 @@ function PickerField({
       )}
     >
       <input
+        ref={inputRef}
         type="text"
         aria-label={ariaLabel}
         placeholder={placeholder}
         value={draft ?? display}
         onChange={(e) => setDraft(e.target.value)}
-        onClick={pickOnClick ? () => onOpenChange(true) : undefined}
+        onClick={
+          pickOnClick
+            ? () => (open ? onOpenChange(false) : openPicker(false))
+            : undefined
+        }
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
+          if (e.key === "Enter" && pickOnClick && draft === null && !open) {
+            e.preventDefault();
+            openPicker(true);
+          } else if (e.key === "Enter") {
             e.preventDefault();
             onOpenChange(false);
             e.currentTarget.blur();
@@ -83,7 +100,7 @@ function PickerField({
             e.currentTarget.blur();
           } else if (e.key === "ArrowDown" && e.altKey) {
             e.preventDefault();
-            onOpenChange(true);
+            openPicker(true);
           }
         }}
         onBlur={(e) => {
@@ -119,10 +136,15 @@ function PickerField({
       {pickOnClick ? <PopoverAnchor asChild>{field}</PopoverAnchor> : field}
       <PopoverContent
         align={pickOnClick ? "start" : "end"}
-        // The field keeps focus so typing still works while the picker shows.
-        onOpenAutoFocus={
-          pickOnClick ? (event) => event.preventDefault() : undefined
-        }
+        onOpenAutoFocus={(event) => {
+          if (pickOnClick && !openedByKeyboard.current) event.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          if (pickOnClick && openedByKeyboard.current) {
+            event.preventDefault();
+            inputRef.current?.focus({ preventScroll: true });
+          }
+        }}
         onInteractOutside={(event) => {
           if (
             pickOnClick &&

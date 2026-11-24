@@ -493,6 +493,7 @@ export const createTaskFromTemplate = action({
     taskTemplate,
     id: newId = uuidv7(),
   }) {
+    if (newId === taskTemplate.id) throw new Error("Conversion needs a new ID");
     yield* copyItems({
       fromParentId: taskTemplate.id,
       fromParentType: "template",

@@ -190,7 +190,6 @@ export function ItemAttachments({
           </button>
           <button
             type="button"
-            aria-label="Upload a new cover"
             onClick={pickCover}
             className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content"
           >

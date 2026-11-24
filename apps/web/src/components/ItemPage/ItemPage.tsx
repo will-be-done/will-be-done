@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { Suspense, useRef } from "react";
 import { ChevronRight, Link2, Maximize2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
@@ -307,7 +307,10 @@ export function ItemPageScreen({ itemId }: { itemId: string }) {
   return (
     <GlobalLayout>
       <LayoutWithSidebar>
-        <ItemPage itemId={itemId} />
+        {/* Keeps a read the loader missed from blanking the whole layout. */}
+        <Suspense fallback={null}>
+          <ItemPage itemId={itemId} />
+        </Suspense>
       </LayoutWithSidebar>
     </GlobalLayout>
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
@@ -34,7 +34,29 @@ export function useItemReplacement(
   }
   const item = replacement ? (next ?? loaded ?? replacement.from) : loaded;
 
+  // The item this view shows, or null once it unmounts. A conversion that
+  // settles after the user closed the view or picked another item, including
+  // its undo from the toast, must not move the view.
+  const shownId = useRef<string | null | undefined>(undefined);
+  useLayoutEffect(() => {
+    shownId.current = loaded?.id;
+  });
+  useLayoutEffect(
+    () => () => {
+      shownId.current = null;
+    },
+    [],
+  );
+  const converting = useRef(false);
+
   const replaceItem: ReplaceItem = (to, run) => {
+    // A second click would convert a row the first one already deleted.
+    if (converting.current) return;
+    converting.current = true;
+    const startedOn = shownId.current;
+    const isStillShown = () =>
+      shownId.current !== null &&
+      [undefined, startedOn, to.id].includes(shownId.current);
     setReplacement({ ...to, from: loaded });
     const readNext = () =>
       select({
@@ -62,12 +84,16 @@ export function useItemReplacement(
         .then(run)
         .then(readNext)
         .catch((error: unknown) => {
-          setReplacement(undefined);
+          console.error(error);
           toast.error("Couldn't convert the item", {
             description: error instanceof Error ? error.message : undefined,
           });
-          throw error;
+          return undefined;
+        })
+        .finally(() => {
+          converting.current = false;
         });
+      if (!isStillShown()) return;
       if (next) onReplaced?.(next);
       else setReplacement(undefined);
     })();

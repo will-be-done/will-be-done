@@ -592,6 +592,7 @@ export const createTaskTemplateFromTask = action({
     now,
     id: newId = uuidv7(),
   }) {
+    if (newId === task.id) throw new Error("Conversion needs a new ID");
     // Read before deleteTasks removes the task's DailyEntry.
     const entryTime = (yield* dailyEntryByTaskId({ taskId: task.id }))?.time;
     yield* copyItems({

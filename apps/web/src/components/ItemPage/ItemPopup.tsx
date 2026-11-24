@@ -27,9 +27,19 @@ export function ItemPopup({
 
   useEffect(() => {
     const opener = document.activeElement;
-    popupRef.current?.focus({ preventScroll: true });
+    const popup = popupRef.current;
+    popup?.focus({ preventScroll: true });
     return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) {
+      // Leave focus alone when closing moved it on, such as to the task that
+      // Show in project reveals.
+      const active = document.activeElement;
+      const focusWasDropped =
+        !active || active === document.body || !!popup?.contains(active);
+      if (
+        focusWasDropped &&
+        opener instanceof HTMLElement &&
+        opener.isConnected
+      ) {
         opener.focus({ preventScroll: true });
       }
     };

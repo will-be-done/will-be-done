@@ -117,4 +117,12 @@ test("keeps a typed time when OK is pressed in the open time picker", async ({
   await time.fill("11:30");
   await ok.click();
   await expect(time).toHaveValue("11:30 AM");
+
+  // The keyboard opens the picker too, and comes back to the field.
+  await time.focus();
+  await page.keyboard.press("Enter");
+  await expect(ok).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(ok).toBeHidden();
+  await expect(time).toBeFocused();
 });
