@@ -1,6 +1,7 @@
 import type { HyperDB, SubscribableDB } from "@will-be-done/hyperdb";
 import {
   getLatestPersistedClock,
+  getSyncStateOrDefault,
   migrateSyncV4Clocks,
 } from "@will-be-done/slices/common";
 import {
@@ -81,7 +82,15 @@ const startStore = (
     yield* Effect.gen(function* () {
       if (syncConfig.beforeInit) yield* syncConfig.beforeInit;
 
-      const syncer = yield* Syncer.make(clientId, syncConfig, nextClock);
+      const syncState = yield* database.select({
+        selector: getSyncStateOrDefault,
+        args: {},
+      });
+      const syncer = yield* Syncer.make(clientId, syncConfig, nextClock, {
+        initialSync:
+          syncState.lastServerAppliedRevision === undefined &&
+          syncState.lastServerAppliedClock === "",
+      });
       const crossTabChanges = yield* makeCrossTabChanges({
         clientId,
         syncConfig,

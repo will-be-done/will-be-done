@@ -13,6 +13,19 @@ export type SyncPhase =
   | "error"
   | "update-required";
 
+export const phaseLabels: Record<SyncPhase, string> = {
+  waiting: "Waiting to sync",
+  connecting: "Connecting to server",
+  preparing: "Preparing changes",
+  uploading: "Sending changes",
+  committing: "Saving changes on server",
+  downloading: "Receiving changes",
+  applying: "Applying changes",
+  synced: "All changes synced",
+  error: "Sync interrupted",
+  "update-required": "Update required",
+};
+
 export type SyncStatus = {
   phase: SyncPhase;
   lastSyncedAt: number | null;
@@ -33,6 +46,7 @@ export const syncByDB = new WeakMap<
   {
     status: State<SyncStatus>;
     leader: State<boolean>;
+    initialSync: State<boolean>;
     syncNow: () => Promise<void>;
   }
 >();

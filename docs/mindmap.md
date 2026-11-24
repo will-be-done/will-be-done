@@ -158,7 +158,8 @@ Removing a node, a subtree, or a whole map (`deleteMindmapNodes`,
 Tasks and Notes stay in their projects. Neither asks for confirmation; the client offers Undo in a
 toast instead.
 
-Items created from a map go to the **first** section of the project shown in
+Items created from a map go to the `projectSectionId` argument while that
+section exists; otherwise to the **first** section of the project shown in
 the page's bottom panel (the `projectId` argument), or of the inbox when none
 is given or the project is gone (`sectionForNewItem`). It is the first section
 rather than a fixed one because sections, including the inbox's original one,
@@ -346,8 +347,8 @@ the node ID keeps the key distinct from the same item shown in a project list.
 ### Keyboard
 
 New nodes match the kind of the node they are created from: a topic makes
-topics, a task makes tasks, a note makes notes, created in the bottom panel's
-project. On the root, new nodes are topics.
+topics, a task makes tasks, a note makes notes, created in the section of the
+item they are created from. On the root, new nodes are topics.
 
 | Keys                      | Action                                         |
 | ------------------------- | ---------------------------------------------- |

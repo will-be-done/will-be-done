@@ -65,7 +65,7 @@ for (const source of ["Inbox", "project"] as const) {
         } else {
           await page
             .getByTestId("item-details-panel")
-            .getByRole("button", { name: "Move to project" })
+            .getByTitle("Change project")
             .click();
         }
 
@@ -147,7 +147,7 @@ test("creates projects and moves a task between them", async ({ page }) => {
   await expect(detailsPanel).toHaveAttribute("aria-hidden", "false");
   await expect(detailsPanel.getByText(sourceProject)).toBeVisible();
 
-  await detailsPanel.getByRole("button", { name: "Move to project" }).click();
+  await detailsPanel.getByTitle("Change project").click();
 
   const projectSearch = page.getByPlaceholder("Search projects...");
   await expect(projectSearch).toBeVisible();

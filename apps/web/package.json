@@ -53,7 +53,7 @@
     "@trpc/client": "^11.27.0",
     "@trpc/tanstack-react-query": "^11.27.0",
     "@will-be-done/api": "workspace:*",
-    "@will-be-done/hyperdb": "^0.11.0",
+    "@will-be-done/hyperdb": "^0.12.0",
     "@will-be-done/hyperdb-devtool": "^0.4.13",
     "@will-be-done/slices": "workspace:*",
     "broadcast-channel": "^7.2.0",

@@ -488,9 +488,12 @@ export const toggleTaskState = action({
 
 export const createTaskFromTemplate = action({
   name: "createTaskFromTemplate",
-  args: { taskTemplate: taskTemplatesTable.v() },
-  handler: function* createTaskFromTemplate({ taskTemplate }) {
-    const newId = uuidv7();
+  args: { taskTemplate: taskTemplatesTable.v(), id: v.optional(v.string()) },
+  handler: function* createTaskFromTemplate({
+    taskTemplate,
+    id: newId = uuidv7(),
+  }) {
+    if (newId === taskTemplate.id) throw new Error("Conversion needs a new ID");
     yield* copyItems({
       fromParentId: taskTemplate.id,
       fromParentType: "template",

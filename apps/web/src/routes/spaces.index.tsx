@@ -42,6 +42,10 @@ import {
 } from "@will-be-done/slices/user";
 import { userDBConfig } from "@/store/configs";
 import { captureWebAnalytics } from "@/lib/analytics";
+import {
+  InitialSyncGate,
+  LoadingScreen,
+} from "@/components/Layout/LoadingScreen";
 
 export const Route = createFileRoute("/spaces/")({
   component: SpacePage,
@@ -66,6 +70,7 @@ export const Route = createFileRoute("/spaces/")({
 
     return initDbStore(userDBConfig(userId));
   },
+  pendingComponent: () => <LoadingScreen label="Loading" />,
 });
 
 function SpacePageComponent() {
@@ -305,7 +310,9 @@ function SpacePage() {
 
   return (
     <DBProvider value={newStore as SubscribableDB}>
-      <SpacePageComponent />
+      <InitialSyncGate>
+        <SpacePageComponent />
+      </InitialSyncGate>
     </DBProvider>
   );
 }

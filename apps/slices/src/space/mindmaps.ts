@@ -33,6 +33,7 @@ import {
   createNoteInSection,
   createTaskInSection,
   firstProjectSectionChild,
+  projectSectionById,
 } from "./projectSections";
 import { inboxProjectId } from "./projects";
 import { syncItemRichText } from "./richTextItems";
@@ -1168,11 +1169,18 @@ export const pasteMindmapOutline = action({
   },
 });
 
-// New items go to the first section of the chosen project, or of the inbox,
-// whose original section can be deleted.
+// New items go to the given section, or to the first section of the chosen
+// project or of the inbox, whose original section can be deleted.
 function* sectionForNewItem(
   projectId: string | undefined,
+  projectSectionId?: string,
 ): SelectorGenerator<string> {
+  if (
+    projectSectionId &&
+    (yield* projectSectionById({ id: projectSectionId }))
+  ) {
+    return projectSectionId;
+  }
   const inboxId = yield* inboxProjectId({});
   const section =
     (yield* firstProjectSectionChild({ projectId: projectId ?? inboxId })) ??
@@ -1234,7 +1242,7 @@ export const convertMindmapNodeToTask = action({
   },
 });
 
-/** Creates a task in a project's first section and places it on the map. */
+/** Creates a task in its new-item section and places it on the map. */
 export const createMindmapTask = action({
   name: "createMindmapTask",
   args: {
@@ -1242,15 +1250,17 @@ export const createMindmapTask = action({
     placement: mindmapPlacement,
     title: v.optional(v.string()),
     projectId: newItemProjectId,
+    projectSectionId: v.optional(v.string()),
   },
   handler: function* createMindmapTask({
     mindmapId,
     placement,
     title,
     projectId,
+    projectSectionId,
   }): ActionGenerator<MindmapNode> {
     const task = yield* createTaskInSection({
-      projectSectionId: yield* sectionForNewItem(projectId),
+      projectSectionId: yield* sectionForNewItem(projectId, projectSectionId),
       position: "prepend",
       taskAttrs: { title: title ?? "" },
     });
@@ -1283,7 +1293,7 @@ export const convertMindmapNodeToNote = action({
   },
 });
 
-/** Creates a note in a project's first section and places it on the map. */
+/** Creates a note in its new-item section and places it on the map. */
 export const createMindmapNote = action({
   name: "createMindmapNote",
   args: {
@@ -1291,15 +1301,17 @@ export const createMindmapNote = action({
     placement: mindmapPlacement,
     title: v.optional(v.string()),
     projectId: newItemProjectId,
+    projectSectionId: v.optional(v.string()),
   },
   handler: function* createMindmapNote({
     mindmapId,
     placement,
     title,
     projectId,
+    projectSectionId,
   }): ActionGenerator<MindmapNode> {
     const note = yield* createNoteInSection({
-      projectSectionId: yield* sectionForNewItem(projectId),
+      projectSectionId: yield* sectionForNewItem(projectId, projectSectionId),
       position: "prepend",
       noteAttrs: { title: title ?? "" },
     });

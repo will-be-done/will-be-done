@@ -42,7 +42,6 @@ import type { MindmapLayout } from "./mindmapLayout.ts";
 import {
   type CanvasIndex,
   mapNodeOrder,
-  type NodeKind,
   nodeKind,
   rangeOf,
   subtreeIds,
@@ -97,17 +96,33 @@ export function useMindmapActions({
         ? entryOf(entry.parentId)?.focusKey
         : undefined;
     };
-    // New nodes match the node they are created from: tasks beget tasks.
-    const create = async (placement: MindmapPlacement, kind: NodeKind) =>
+    // New nodes match the node they are created from: tasks beget tasks, in
+    // the same section. Without one, new nodes are topics.
+    const create = async (placement: MindmapPlacement, fromId?: string) => {
+      const entry = fromId === undefined ? undefined : entryOf(fromId);
+      const tree = entry?.kind === "node" ? entry.tree : undefined;
+      const kind = tree ? nodeKind(tree) : "topic";
+      const projectSectionId = tree?.section?.id;
       editNode(
         await dispatch(
           kind === "task"
-            ? createMindmapTask({ mindmapId, placement, projectId })
+            ? createMindmapTask({
+                mindmapId,
+                placement,
+                projectId,
+                projectSectionId,
+              })
             : kind === "note"
-              ? createMindmapNote({ mindmapId, placement, projectId })
+              ? createMindmapNote({
+                  mindmapId,
+                  placement,
+                  projectId,
+                  projectSectionId,
+                })
               : createMindmapNode({ mindmapId, placement }),
         ),
       );
+    };
     const taskOf = (id: string) => {
       const entry = entryOf(id);
       return entry?.kind === "node" ? entry.tree.task : undefined;
@@ -168,10 +183,6 @@ export function useMindmapActions({
         }
       }
     };
-    const kindOf = (id: string): NodeKind => {
-      const entry = entryOf(id);
-      return entry?.kind === "node" ? nodeKind(entry.tree) : "topic";
-    };
     // Focus moves to the nearest ancestor that survives the removal.
     const removeNodes = (ids: string[]) => {
       const removed = new Set<string>();
@@ -202,17 +213,17 @@ export function useMindmapActions({
             parentId: entry?.kind === "node" ? id : mindmapId,
             position: "last",
           },
-          kindOf(id),
+          id,
         );
       },
       addSibling: (id, edge) => {
         // A root has no siblings; it grows a main branch instead.
         const entry = entryOf(id);
         if (entry?.kind !== "node" || entry.parentId === null) {
-          void create({ parentId: id, position: "last" }, "topic");
+          void create({ parentId: id, position: "last" });
           return;
         }
-        void create({ siblingId: id, edge }, kindOf(id));
+        void create({ siblingId: id, edge }, id);
       },
       removeNodes,
       remove: (id) => {
