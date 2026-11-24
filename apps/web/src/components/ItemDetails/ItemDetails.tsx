@@ -70,8 +70,13 @@ export function ItemDetails() {
     selector: mindmapNodeById,
     args: { id: focusedTopicId ?? "" },
     enabled: !!focusedTopicId,
+    placeholderData: (previous) => previous,
   });
-  const focusedTopic = focusedTopicId ? selectedTopic : undefined;
+  // Another device may have turned the focused topic into a task or note.
+  const focusedTopic =
+    focusedTopicId && !selectedTopic?.taskId && !selectedTopic?.noteId
+      ? selectedTopic
+      : undefined;
   const itemId = focusedItem?.id ?? focusedTopic?.id ?? null;
   const isVisible = itemId !== null;
 

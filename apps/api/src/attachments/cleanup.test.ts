@@ -24,6 +24,8 @@ import {
   attachmentType,
   itemAttachmentsTable,
   itemAttachmentType,
+  mindmapNodesTable,
+  mindmapNodeType,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
 import { Effect } from "effect";
@@ -127,6 +129,50 @@ const addBackgroundLink = action({
   },
 });
 
+// "unlisted" on a topic that was deleted, "live" on one not synced yet.
+const addTopicLinks = action({
+  name: "addTopicLinksAttachmentCleanupTest",
+  args: {},
+  handler: function* () {
+    yield* insert(itemAttachmentsTable, [
+      {
+        ...link("unlisted"),
+        id: "link-gone-topic",
+        parentType: mindmapNodeType,
+        parentId: "gone",
+      },
+      {
+        ...link("live"),
+        id: "link-pending-topic",
+        parentType: mindmapNodeType,
+        parentId: "pending",
+      },
+    ]);
+    yield* insert(changesTable, [
+      {
+        id: changeId(mindmapNodesTable.tableName, "gone"),
+        entityId: "gone",
+        tableName: mindmapNodesTable.tableName,
+        createdAt: hlc(now - 1000),
+        updatedAt: hlc(now - 500),
+        deletedAt: hlc(now - 500),
+        clientId: "client",
+        changes: {},
+      },
+    ]);
+  },
+});
+
+const linkIds = createAction()({
+  name: "linkIdsAttachmentCleanupTest",
+  args: {},
+  handler: function* () {
+    return (yield* selectFrom(itemAttachmentsTable, "byIds")).map(
+      ({ id }) => id,
+    );
+  },
+});
+
 const addRow = action({
   name: "addRowAttachmentCleanupTest",
   args: { id: v.string() },
@@ -221,6 +267,18 @@ describe("attachment storage cleanup", () => {
     await sweep(now + UNSYNCED_ATTACHMENT_GRACE_MS);
 
     expect(await stored()).toEqual([revived!]);
+  });
+
+  test("unlists files from deleted topics, not from topics yet to arrive", async () => {
+    const { db, sweep } = await setup([]);
+    syncDispatch(db, setLink({ attachmentId: "live", linked: false }));
+    syncDispatch(db, addTopicLinks({}));
+
+    await sweep(now);
+    expect(syncDispatch(db, linkIds({}))).toEqual(["link-pending-topic"]);
+
+    await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS);
+    expect(syncDispatch(db, rowIds({}))).toEqual(["live"]);
   });
 
   test("keeps files used as backgrounds", async () => {

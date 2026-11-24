@@ -276,6 +276,8 @@ export type AttachmentUsage = {
 
 // Where each attachment on a page is listed. A link whose item is gone
 // belongs to an item in the trash: links stay until the trash is emptied.
+// Topics are never trashed: a link to a missing one was added while another
+// device removed it, and lists nothing until the server sweep deletes it.
 export const attachmentUsages = selector({
   name: "attachmentUsages",
   args: { attachmentIds: v.array(v.string()) },
@@ -326,6 +328,7 @@ export const attachmentUsages = selector({
         continue;
       }
       const title = titles.get(`${link.parentType}:${link.parentId}`);
+      if (link.parentType === mindmapNodeType && title === undefined) continue;
       const mindmapId =
         link.parentType === mindmapNodeType
           ? nodeMaps.get(link.parentId)
@@ -597,20 +600,34 @@ function* updateItemCoverAttachment(
   yield* upsert(tasksTable, [{ ...item, coverAttachmentId }]);
 }
 
+// Why an attachment can't be this item's cover, if it can't.
+export function* coverAttachmentProblem(
+  parentType: AttachmentParentType,
+  parentId: string,
+  attachmentId: string,
+) {
+  const attachment = yield* attachmentById({ id: attachmentId });
+  if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
+    return "Cover must be an image attachment";
+  }
+  const links = yield* itemAttachmentLinks({ parentType, parentId });
+  return links.some((link) => link.attachmentId === attachmentId)
+    ? undefined
+    : "Cover attachment is not linked to this item";
+}
+
 function* validateCoverAttachment(
   parentType: AttachmentParentType,
   parentId: string,
   attachmentId: string | null,
 ) {
   if (attachmentId === null) return;
-  const attachment = yield* attachmentById({ id: attachmentId });
-  if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
-    throw new Error("Cover must be an image attachment");
-  }
-  const links = yield* itemAttachmentLinks({ parentType, parentId });
-  if (!links.some((link) => link.attachmentId === attachmentId)) {
-    throw new Error("Cover attachment is not linked to this item");
-  }
+  const problem = yield* coverAttachmentProblem(
+    parentType,
+    parentId,
+    attachmentId,
+  );
+  if (problem) throw new Error(problem);
 }
 
 export const setItemCoverAttachment = action({

@@ -1,7 +1,7 @@
 # Search Design and Invariants
 
-Global search finds Tasks and Notes by title and description, and mindmap topics
-by title, offline, on every replica. This document records why it is built this
+Global search finds Tasks, Notes, and mindmap topics by title and description,
+offline, on every replica. This document records why it is built this
 way and what must stay true when changing it. Update it in the same change when
 the index, tokenizer, ranking, or result-opening behavior changes.
 
@@ -96,7 +96,7 @@ Invariants:
 
 ## What is indexed
 
-- Tasks and Notes: title and content (`content` is the description).
+- Tasks, Notes, and topics: title and content (`content` is the description).
 - Mindmap nodes only when they are topics (no `taskId`/`noteId`). A Task or
   Note node shows its item, which is already indexed; indexing both would
   duplicate the result. Converting a node to a topic indexes it.

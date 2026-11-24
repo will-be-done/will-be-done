@@ -39,7 +39,13 @@ export function ItemCover({
     <>
       <div
         data-testid="item-cover"
-        onClick={previewParent && (() => setIsPreviewing(true))}
+        onClick={
+          previewParent &&
+          ((e) => {
+            // Modifier clicks change the selection instead.
+            if (!e.shiftKey && !e.metaKey && !e.ctrlKey) setIsPreviewing(true);
+          })
+        }
         className={cn(
           "aspect-[16/9] max-h-44 w-full overflow-hidden rounded-t-lg bg-panel-tinted",
           muted && "opacity-65 saturate-50",

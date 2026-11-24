@@ -3,6 +3,7 @@ import {
   createAction,
   createSelector,
   DB,
+  deleteRows,
   execSync,
   type HyperDB,
   insert,
@@ -101,6 +102,26 @@ const seed = action({
       },
     ]);
     yield* insert(tasksTable, [task("t1"), task("t2")]);
+  },
+});
+
+const dropLinks = action({
+  name: "dropLinksAttachmentTest",
+  args: {},
+  handler: function* () {
+    const links = yield* selectFrom(itemAttachmentsTable, "byIds");
+    yield* deleteRows(
+      itemAttachmentsTable,
+      links.map((link) => link.id),
+    );
+  },
+});
+
+const dropTopicRow = action({
+  name: "dropTopicRowAttachmentTest",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    yield* deleteRows(mindmapNodesTable, [id]);
   },
 });
 
@@ -657,6 +678,64 @@ describe("attachments", () => {
     syncDispatch(db, deleteMindmap({ id: "map" }));
     expect(read(db).links.map((link) => link.parentId)).toEqual([note.id]);
     expect(read(db).attachments.map((a) => a.id)).toEqual(["f1"]);
+  });
+
+  test("a topic whose cover lost its link still converts, without the cover", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    const topic = { parentType: mindmapNodeType, parentId: "a" } as const;
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        title: "Topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...topic }));
+    syncDispatch(db, setItemCoverAttachment({ ...topic, attachmentId: "f1" }));
+    // As when another device's removal of the link merges in.
+    syncDispatch(db, dropLinks({}));
+
+    const note = syncDispatch(
+      db,
+      convertMindmapNodeToNote({ id: "a", projectId: "project" }),
+    );
+    expect(note).not.toHaveProperty("coverAttachmentId");
+  });
+
+  test("a file listed on a topic removed elsewhere is unused, not in trash", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        title: "Topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(
+      db,
+      attachToItem({
+        attachmentId: "f1",
+        parentType: mindmapNodeType,
+        parentId: "a",
+      }),
+    );
+    // Another device's removal merges in without this device's new link.
+    syncDispatch(db, dropTopicRow({ id: "a" }));
+
+    expect(
+      selectSync(db, {
+        selector: attachmentUsages,
+        args: { attachmentIds: ["f1"] },
+      }).f1,
+    ).toEqual([]);
   });
 
   test("trash keeps links until it is emptied", () => {

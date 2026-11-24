@@ -22,6 +22,7 @@ import {
 import {
   copyAttachmentsToItemCopies,
   copyItemAttachments,
+  coverAttachmentProblem,
   deleteItemAttachmentLinks,
   ensureInlineAttachmentLinks,
   moveItemAttachments,
@@ -1183,15 +1184,29 @@ function* sectionForNewItem(
 // The project new tasks and notes go to; defaults to the inbox.
 const newItemProjectId = v.optional(v.string());
 
-// What a topic gives the item it becomes; its files move separately, first,
-// so the cover is linked when the item is written.
-const topicItemAttrs = (node: MindmapNode) => ({
-  title: node.title,
-  ...(node.content ? { content: node.content } : {}),
-  ...(node.coverAttachmentId === undefined
-    ? {}
-    : { coverAttachmentId: node.coverAttachmentId }),
-});
+// What a topic gives the item it becomes; its files move there first, so the
+// cover is linked when the item is written. A cover whose file or link a
+// concurrent edit removed is dropped rather than blocking the conversion.
+function* topicItemAttrs(
+  node: MindmapNode,
+  item: { parentType: typeof taskType | typeof noteType; parentId: string },
+) {
+  yield* moveItemAttachments(
+    { parentType: mindmapNodeType, parentId: node.id },
+    item,
+  );
+  const cover = node.coverAttachmentId;
+  const keepCover =
+    cover === null ||
+    (cover !== undefined &&
+      !(yield* coverAttachmentProblem(item.parentType, item.parentId, cover)));
+  return {
+    id: item.parentId,
+    title: node.title,
+    ...(node.content ? { content: node.content } : {}),
+    ...(keepCover ? { coverAttachmentId: cover } : {}),
+  };
+}
 
 export const convertMindmapNodeToTask = action({
   name: "convertMindmapNodeToTask",
@@ -1204,15 +1219,13 @@ export const convertMindmapNodeToTask = action({
       throw new Error("Only a topic converts to a task");
     }
 
-    const taskId = uuidv7();
-    yield* moveItemAttachments(
-      { parentType: mindmapNodeType, parentId: node.id },
-      { parentType: taskType, parentId: taskId },
-    );
     const task = yield* createTaskInSection({
       projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
-      taskAttrs: { id: taskId, ...topicItemAttrs(node) },
+      taskAttrs: yield* topicItemAttrs(node, {
+        parentType: taskType,
+        parentId: uuidv7(),
+      }),
     });
     yield* upsert(mindmapNodesTable, [
       { ...asItemNode(node), taskId: task.id },
@@ -1255,15 +1268,13 @@ export const convertMindmapNodeToNote = action({
       throw new Error("Only a topic converts to a note");
     }
 
-    const noteId = uuidv7();
-    yield* moveItemAttachments(
-      { parentType: mindmapNodeType, parentId: node.id },
-      { parentType: noteType, parentId: noteId },
-    );
     const note = yield* createNoteInSection({
       projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
-      noteAttrs: { id: noteId, ...topicItemAttrs(node) },
+      noteAttrs: yield* topicItemAttrs(node, {
+        parentType: noteType,
+        parentId: uuidv7(),
+      }),
     });
     yield* upsert(mindmapNodesTable, [
       { ...asItemNode(node), noteId: note.id },

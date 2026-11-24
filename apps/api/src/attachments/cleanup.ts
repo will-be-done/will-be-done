@@ -8,9 +8,17 @@ import {
   type HyperDB,
 } from "@will-be-done/hyperdb";
 import {
+  changeId,
+  changesTable,
+  isDeletedChange,
+} from "@will-be-done/slices/common";
+import {
   allAttachments,
   attachmentRowStates,
   deleteAttachments,
+  itemAttachmentsTable,
+  mindmapNodesTable,
+  mindmapNodeType,
   unlinkedAttachmentIds,
 } from "@will-be-done/slices/space";
 import { Clock, Effect, Schedule } from "effect";
@@ -57,6 +65,44 @@ export const deleteUnlinkedAttachments = action({
   },
 });
 
+// Removing a topic deletes its links, but one added meanwhile on another
+// device survives the merge. Topics are never trashed, so nothing else would
+// remove it, and it would keep its file forever. Only deleted topics count: a
+// topic that has not arrived yet must keep its links.
+export const deleteRemovedTopicLinks = action({
+  name: "deleteRemovedTopicLinks",
+  args: {},
+  handler: function* deleteRemovedTopicLinks() {
+    const links = yield* selectFrom(
+      itemAttachmentsTable,
+      "byParentOrder",
+    ).where((q) => q.eq("parentType", mindmapNodeType));
+    const nodeIds = [...new Set(links.map((link) => link.parentId))];
+    if (nodeIds.length === 0) return [];
+    const live = new Set(
+      (yield* selectFrom(mindmapNodesTable, "byId").where((q) =>
+        nodeIds.map((id) => q.eq("id", id)),
+      )).map((node) => node.id),
+    );
+    const missing = nodeIds.filter((id) => !live.has(id));
+    if (missing.length === 0) return [];
+    const removed = new Set(
+      (yield* selectFrom(changesTable, "byId").where((q) =>
+        missing.map((id) =>
+          q.eq("id", changeId(mindmapNodesTable.tableName, id)),
+        ),
+      ))
+        .filter(isDeletedChange)
+        .map((change) => change.entityId),
+    );
+    const orphans = links
+      .filter((link) => removed.has(link.parentId))
+      .map((link) => link.id);
+    if (orphans.length > 0) yield* deleteRows(itemAttachmentsTable, orphans);
+    return orphans;
+  },
+});
+
 const saveSweepMarks = action({
   name: "saveAttachmentSweepMarks",
   args: {
@@ -93,6 +139,7 @@ export const sweepSpaceAttachments = (
       return now;
     };
 
+    yield* Effect.promise(() => asyncDispatch(db, deleteRemovedTopicLinks({})));
     const rows = yield* Effect.promise(() =>
       selectAsync(db, { selector: allAttachments, args: {} }),
     );

@@ -61,7 +61,9 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
 - **Trash.** A trashed item keeps its links, so finding where a file is used
   or whether it is orphaned is an indexed read, never a scan of trash
   snapshots. A link whose item is missing belongs to a trashed item. Purging
-  deletes the links only. Deleting a file also strips its
+  deletes the links only. Topics are never trashed; removing one deletes its
+  links, so a link to a missing topic was added while another device removed
+  it. It lists nothing, and the server sweep deletes it. Deleting a file also strips its
   references from trash snapshots, or restoring would bring them back.
 - **Link IDs** derive from the item and the file, so replicas that link the
   same file to the same item (inline references, generated tasks) converge on
@@ -83,6 +85,9 @@ and a device with a wrong clock must not shorten the wait.
   every replica. Relisting the file in the meantime restarts the wait, even
   when no sweep saw it listed: a hook clears the mark whenever the file or a
   link to it is written.
+- Links to deleted topics are deleted first, so their files count as unlisted.
+  Only a tombstoned topic counts: one that has not arrived yet keeps its
+  links.
 - Bytes whose row has been tombstoned for 7 days are deleted, so offline
   replicas that still hold the row can settle.
 - Bytes whose row never arrived are deleted after 30 days. A server
