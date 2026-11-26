@@ -86,9 +86,17 @@ export const deleteRemovedTopicLinks = action({
         nodeIds.map((id) => q.eq("id", id)),
       )).map((node) => node.id),
     );
-    const missing = nodeIds.filter((id) => !live.has(id));
+    // A central topic shares its map's ID and lives with its map, even when
+    // it has no row or its row was tombstoned before a backup import.
+    const unrowed = nodeIds.filter((id) => !live.has(id));
+    if (unrowed.length === 0) return [];
+    const liveMaps = new Set(
+      (yield* selectFrom(mindmapsTable, "byId").where((q) =>
+        unrowed.map((id) => q.eq("id", id)),
+      )).map((map) => map.id),
+    );
+    const missing = unrowed.filter((id) => !liveMaps.has(id));
     if (missing.length === 0) return [];
-    // A central topic shares its map's ID and may never have had a row.
     const removed = new Set(
       (yield* selectFrom(changesTable, "byId").where((q) =>
         missing.flatMap((id) => [

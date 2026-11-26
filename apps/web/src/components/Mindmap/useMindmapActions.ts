@@ -258,11 +258,16 @@ export function useMindmapActions({
       },
       discardIfEmpty: (id, refocus) => {
         const parentKey = parentKeyOf(id);
+        const ownKey = entryOf(id)?.focusKey;
         void (async () => {
           // Checked in the write: a title, description, or file may have
           // synced in since editing began.
           const discarded = await dispatch(discardEmptyMindmapTopic({ id }));
-          if (discarded && refocus && parentKey) focusNode(parentKey);
+          // The user may have focused something else meanwhile.
+          const stillFocused = useFocusStore.getState().focusItemKey === ownKey;
+          if (discarded && refocus && parentKey && stillFocused) {
+            focusNode(parentKey);
+          }
         })();
       },
       convert: (id, to) => {

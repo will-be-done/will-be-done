@@ -681,7 +681,7 @@ describe("attachments", () => {
     expect(read(db).attachments.map((a) => a.id)).toEqual(["f1"]);
   });
 
-  test("a topic whose cover lost its link still converts, without the cover", () => {
+  test("a cover that lost its link converts either way, without the cover", () => {
     const db = createDB();
     syncDispatch(db, createMindmap({ id: "map" }));
     const topic = { parentType: mindmapNodeType, parentId: "a" } as const;
@@ -705,6 +705,14 @@ describe("attachments", () => {
       convertMindmapNodeToNote({ id: "a", projectId: "project" }),
     );
     expect(note).not.toHaveProperty("coverAttachmentId");
+
+    const item = { parentType: noteType, parentId: note.id } as const;
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...item }));
+    syncDispatch(db, setItemCoverAttachment({ ...item, attachmentId: "f1" }));
+    syncDispatch(db, dropLinks({}));
+
+    const unlinked = syncDispatch(db, convertMindmapNodeToTopic({ id: "a" }));
+    expect(unlinked).not.toHaveProperty("coverAttachmentId");
   });
 
   test("a file listed on a topic removed elsewhere is unused, not in trash", () => {

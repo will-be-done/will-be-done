@@ -1355,12 +1355,19 @@ export const convertMindmapNodeToTopic = action({
     const item =
       (node.taskId ? yield* taskById({ id: node.taskId }) : undefined) ??
       (node.noteId ? yield* noteById({ id: node.noteId }) : undefined);
-    // The topic keeps the item's files, which the item keeps too.
+    // The topic keeps the item's files, which the item keeps too. A cover
+    // whose link a concurrent edit removed is dropped, as in `topicItemAttrs`.
+    let keepCover = false;
     if (item) {
       yield* copyItemAttachments(
         { parentType: item.type, parentId: item.id },
         { parentType: mindmapNodeType, parentId: node.id },
       );
+      const cover = item.coverAttachmentId;
+      keepCover =
+        cover === null ||
+        (cover !== undefined &&
+          !(yield* coverAttachmentProblem(mindmapNodeType, node.id, cover)));
     }
     const { noteId: _noteId, ...rest } = asItemNode(node);
     const next: MindmapNode = {
@@ -1368,9 +1375,7 @@ export const convertMindmapNodeToTopic = action({
       taskId: null,
       title: item?.title ?? "",
       ...(item?.content ? { content: item.content } : {}),
-      ...(item?.coverAttachmentId === undefined
-        ? {}
-        : { coverAttachmentId: item.coverAttachmentId }),
+      ...(keepCover ? { coverAttachmentId: item?.coverAttachmentId } : {}),
     };
     yield* upsert(mindmapNodesTable, [next]);
     return next;

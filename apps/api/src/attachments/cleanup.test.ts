@@ -27,6 +27,7 @@ import {
   mindmapNodesTable,
   mindmapNodeType,
   mindmapsTable,
+  mindmapType,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
 import { Effect } from "effect";
@@ -131,7 +132,8 @@ const addBackgroundLink = action({
 });
 
 // "unlisted" on a deleted topic and on the center of a deleted map that never
-// had its row; "live" on a topic not synced yet.
+// had its row; "live" on a topic not synced yet and on the center of a live
+// map whose row was tombstoned.
 const addTopicLinks = action({
   name: "addTopicLinksAttachmentCleanupTest",
   args: {},
@@ -155,6 +157,21 @@ const addTopicLinks = action({
         parentType: mindmapNodeType,
         parentId: "pending",
       },
+      {
+        ...link("live"),
+        id: "link-live-map",
+        parentType: mindmapNodeType,
+        parentId: "live-map",
+      },
+    ]);
+    yield* insert(mindmapsTable, [
+      {
+        type: mindmapType,
+        id: "live-map",
+        title: "Map",
+        orderToken: "a0",
+        createdAt: now,
+      },
     ]);
     yield* insert(changesTable, [
       {
@@ -171,6 +188,16 @@ const addTopicLinks = action({
         id: changeId(mindmapsTable.tableName, "old-map"),
         entityId: "old-map",
         tableName: mindmapsTable.tableName,
+        createdAt: hlc(now - 1000),
+        updatedAt: hlc(now - 500),
+        deletedAt: hlc(now - 500),
+        clientId: "client",
+        changes: {},
+      },
+      {
+        id: changeId(mindmapNodesTable.tableName, "live-map"),
+        entityId: "live-map",
+        tableName: mindmapNodesTable.tableName,
         createdAt: hlc(now - 1000),
         updatedAt: hlc(now - 500),
         deletedAt: hlc(now - 500),
@@ -293,7 +320,10 @@ describe("attachment storage cleanup", () => {
     syncDispatch(db, addTopicLinks({}));
 
     await sweep(now);
-    expect(syncDispatch(db, linkIds({}))).toEqual(["link-pending-topic"]);
+    expect(syncDispatch(db, linkIds({})).sort()).toEqual([
+      "link-live-map",
+      "link-pending-topic",
+    ]);
 
     await sweep(now + UNLINKED_ATTACHMENT_GRACE_MS);
     expect(syncDispatch(db, rowIds({}))).toEqual(["live"]);

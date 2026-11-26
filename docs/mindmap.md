@@ -325,10 +325,6 @@ one topic. Where a browser supports touch drag and drop, its long press
 starts a node drag, which cancels the touch. Marquee selection is mouse-only.
 `e2e/mindmap.spec.ts` drives these with real touch events.
 
-A focused topic, the central one included, opens in the details panel with
-its title, description, files, and cover (`TopicBody`). Pasting an image while a topic is
-focused attaches it as the cover, as on item cards.
-
 On phones (`useIsMobile`) a focused node shows `MindmapMobileToolbar` at the
 bottom: add a child (a branch on roots), add below, edit, the item's
 full-screen details, the node menu, and remove. List items' `MobileTaskToolbar`
