@@ -18,6 +18,7 @@ import {
   generateTasksFromTemplates,
   generateTasksForTemplate,
   taskTemplateById,
+  taskTemplateUpcomingOccurrences,
 } from "./taskTemplates";
 import { createTaskFromTemplate } from "./tasks";
 import { dbIdTrait } from "@/traits";
@@ -330,6 +331,49 @@ describe("taskTemplates timezone consistency", () => {
       expect(d.getUTCMinutes()).toBe(0);
       expect(d.getUTCSeconds()).toBe(0);
       expect(d.getUTCMilliseconds()).toBe(0);
+    }
+  });
+
+  it("lists one daily occurrence per local day across a DST start", () => {
+    // Australia/Sydney moves from UTC+10 to UTC+11 on 2026-10-04.
+    const previousTZ = process.env.TZ;
+    process.env.TZ = "Australia/Sydney";
+    try {
+      const dtStart = new Date("2026-09-30T10:00:00+10:00").getTime();
+      const template: TaskTemplate = {
+        type: "template",
+        id: "template-dst-start",
+        title: "Daily across DST start",
+        orderToken: "a",
+        repeatRule: "RRULE:FREQ=DAILY;INTERVAL=1",
+        repeatRuleDtStart: dtStart,
+        createdAt: dtStart,
+        lastGeneratedAt: dtStart,
+        projectSectionId: "section-1",
+      };
+      const db = createDB(0);
+      vi.restoreAllMocks();
+      insertTemplate(db, template);
+      const occurrences = runSelector(
+        db,
+        function* () {
+          return yield* taskTemplateUpcomingOccurrences({
+            fromDate: new Date("2026-10-02T00:00:00+10:00").getTime(),
+            toDate: new Date("2026-10-06T00:00:00+11:00").getTime(),
+          });
+        },
+        [],
+      );
+
+      expect(occurrences.map((o) => o.date)).toEqual([
+        "2026-10-02",
+        "2026-10-03",
+        "2026-10-04",
+        "2026-10-05",
+        "2026-10-06",
+      ]);
+    } finally {
+      process.env.TZ = previousTZ;
     }
   });
 

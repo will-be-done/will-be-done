@@ -122,8 +122,10 @@ function toUTC(date: Date): Date {
 }
 
 function fromUTC(date: Date): Date {
-  const timezoneOffset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() + timezoneOffset);
+  // Use the offset in force at the resulting local time, which differs from
+  // the one at `date` when a DST change falls between them.
+  const guess = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+  return new Date(date.getTime() + guess.getTimezoneOffset() * 60000);
 }
 
 const defaultRule = "FREQ=DAILY;INTERVAL=1";
