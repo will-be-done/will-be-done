@@ -1,0 +1,5 @@
+interface:
+  display_name: "Release"
+  short_description: "Cut a release and update the landing site"
+policy:
+  allow_implicit_invocation: false
