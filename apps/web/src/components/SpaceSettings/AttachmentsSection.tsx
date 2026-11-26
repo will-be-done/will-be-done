@@ -14,6 +14,7 @@ import {
   type Attachment,
   type AttachmentUsage,
 } from "@will-be-done/slices/space";
+import { richTextMarkdownToPlainText } from "@will-be-done/slices/common";
 import { Route } from "@/routes/spaces.$spaceId";
 import {
   formatFileSize,
@@ -30,12 +31,14 @@ import { settingsButtonClass } from "./SettingsUI";
 const PAGE_SIZE = 50;
 
 const usageLabel = (usage: AttachmentUsage) =>
-  usage.title.trim() ||
+  richTextMarkdownToPlainText(usage.title, "title").trim() ||
   (usage.parentType === "note"
     ? "Untitled note"
     : usage.parentType === "template"
       ? "Untitled template"
-      : "Untitled task");
+      : usage.parentType === "mindmapNode"
+        ? "Untitled topic"
+        : "Untitled task");
 
 export function AttachmentsSection() {
   const { spaceId } = Route.useParams();
@@ -123,6 +126,19 @@ export function AttachmentsSection() {
                         >
                           Background
                         </span>
+                      ) : usage.mindmapId ? (
+                        <Link
+                          key={`${usage.parentType}:${usage.parentId}`}
+                          to="/spaces/$spaceId/mindmaps/$mindmapId"
+                          params={{ spaceId, mindmapId: usage.mindmapId }}
+                          search={{
+                            projectId: "inbox",
+                            itemId: usage.parentId,
+                          }}
+                          className="max-w-[200px] truncate text-accent hover:underline"
+                        >
+                          {usageLabel(usage)}
+                        </Link>
                       ) : usage.trashed ? (
                         <Link
                           key={`trash:${usage.parentId}`}

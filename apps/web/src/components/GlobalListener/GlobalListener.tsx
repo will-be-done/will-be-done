@@ -9,6 +9,7 @@ import {
   dailyEntryType,
   isTask,
   itemsOfListItems,
+  mindmapNodeType,
   noteType,
   setItemCoverAttachment,
   stashEntryType,
@@ -28,6 +29,7 @@ import {
   useFocusStore,
 } from "@/store/focusSlice.ts";
 import { isApple } from "@/components/RichText/keys";
+import { mindmapTopicIdOfKey } from "@/components/Mindmap/focusKeys.ts";
 import {
   getDraggedSelectionKeys,
   useSelectionActions,
@@ -274,8 +276,10 @@ export function GlobalListener() {
       const files = pastedFiles(e.clipboardData);
       const focusKey = useFocusStore.getState().focusItemKey;
       const parsed = focusKey ? parseColumnKey(focusKey) : null;
+      const topicId = focusKey ? mindmapTopicIdOfKey(focusKey) : undefined;
       const hasImage = files.some((file) => isImageAttachment(file.type));
       const isSupportedItem =
+        topicId !== undefined ||
         parsed?.type === taskType ||
         parsed?.type === taskTemplateType ||
         parsed?.type === noteType ||
@@ -294,6 +298,8 @@ export function GlobalListener() {
             parsed.type === noteType
           ) {
             parent = { parentType: parsed.type, parentId: parsed.id };
+          } else if (topicId !== undefined) {
+            parent = { parentType: mindmapNodeType, parentId: topicId };
           } else if (
             parsed.type === dailyEntryType ||
             parsed.type === stashEntryType

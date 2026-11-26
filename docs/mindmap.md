@@ -25,17 +25,19 @@ Lists show the central topic's plain text while the name is empty
 
 Every node, the central topic included, is a `mindmap_nodes` row:
 
-| Field        | Meaning                                                    |
-| ------------ | ---------------------------------------------------------- |
-| `mindmapId`  | Owning map.                                                |
-| `parentId`   | The parent node's ID, or `null` on a root.                 |
-| `orderToken` | Fractional key among siblings of the same parent.          |
-| `side`       | `left` or `right` of the root. Read on main branches only. |
-| `x`, `y`     | A floating root's center. Optional; set on floating roots. |
-| `taskId`     | Linked Task, or `null`.                                    |
-| `noteId`     | Linked Note. Optional; absent means no note.               |
-| `title(Doc)` | Topic text. Empty on task and note nodes.                  |
-| `collapsed`  | Children are hidden in the layout.                         |
+| Field               | Meaning                                                    |
+| ------------------- | ---------------------------------------------------------- |
+| `mindmapId`         | Owning map.                                                |
+| `parentId`          | The parent node's ID, or `null` on a root.                 |
+| `orderToken`        | Fractional key among siblings of the same parent.          |
+| `side`              | `left` or `right` of the root. Read on main branches only. |
+| `x`, `y`            | A floating root's center. Optional; set on floating roots. |
+| `taskId`            | Linked Task, or `null`.                                    |
+| `noteId`            | Linked Note. Optional; absent means no note.               |
+| `title(Doc)`        | Topic text. Empty on task and note nodes.                  |
+| `content(Doc)`      | A topic's description. Optional; absent on items.          |
+| `coverAttachmentId` | A topic's card image. Optional; ignored on items.          |
+| `collapsed`         | Children are hidden in the layout.                         |
 
 The central topic is the root whose ID is the map's (`isMindmapRoot`), so a
 main branch's `parentId` is the map ID. `createMindmap` writes it with the map,
@@ -45,7 +47,9 @@ It stays a topic and stays in the center: moves, removal, conversion, and
 sibling placements skip or reject it, and it goes only with `deleteMindmap`.
 Its ID is fixed rather than random so a map can never have two, and so the
 tree can stand in an empty one (`mindmapRootNode`) while the row has not
-synced; `updateMindmapNode` on that stand-in writes the row.
+synced; `updateMindmapNode` on that stand-in writes the row. The details panel
+and attachments read it through `mindmapNodeOrRootById`, so the stand-in
+takes files and a cover too.
 
 Any other parentless node is a **floating root**: a topic placed anywhere on
 the canvas, centered on its `x`, `y` (map units; the central topic sits at the
@@ -57,7 +61,8 @@ root missing a coordinate sits at 0 on that axis.
 
 A node is exactly one kind:
 
-- **topic**: neither `taskId` nor `noteId`; it owns its title;
+- **topic**: neither `taskId` nor `noteId`; it owns its title, description,
+  files (`item_attachments` with parent type `mindmapNode`), and cover;
 - **task**: `taskId` set; it shows and edits the Task's title and state, and
   shows its selected cover image;
 - **note**: `noteId` set; it shows and edits the Note's title and shows its
@@ -151,8 +156,8 @@ Item hooks (`detachMindmapNodesOfItems`, `relinkMindmapNodes`, trash) act on
 all of an item's nodes, and `mindmapsOfItem` lists each map once.
 
 Removing a node, a subtree, or a whole map (`deleteMindmapNodes`,
-`deleteMindmap`) deletes only `mindmap_nodes` rows. Tasks and Notes stay in
-their projects. Neither asks for confirmation; the client offers Undo in a
+`deleteMindmap`) deletes only `mindmap_nodes` rows and the topics' file links.
+Tasks and Notes stay in their projects. Neither asks for confirmation; the client offers Undo in a
 toast instead.
 
 Items created from a map go to the `projectSectionId` argument while that
@@ -164,10 +169,14 @@ can be deleted:
 
 - `createMindmapTask` / `createMindmapNote` create an empty item and place it;
 - `convertMindmapNodeToTask` / `convertMindmapNodeToNote` turn a topic into an
-  item with the topic's title and clear the node's own title; only topics
-  convert;
+  item with the topic's title, description, files, and cover, and clear them
+  from the node;
+  only topics convert. The files move before the item is written, so its cover
+  is already linked;
 - `convertMindmapNodeToTopic` unlinks a task or note node into a topic with the
-  item's current title; the item stays;
+  item's current title, description, files, and cover; the item stays and
+  keeps its files. Descriptions carry over as Markdown, without their docs,
+  as titles do: the new row seeds its own doc on the first edit;
 - `convertMindmapNodes` makes every node of a selection one kind, through the
   actions above and the Task <-> Note conversions below. It skips roots, goes
   backwards so prepended items keep map order, and re-reads each node because
@@ -204,9 +213,9 @@ lifts its children and restoring brings it back`.
 - Unlike the other space tables, the web client does not preload these into
   memory; HybridDB reads them from storage when a view first needs them. Their
   selectors must stay bounded by an index (one map's nodes), never full scans.
-- Backups include `mindmaps` and `mindmapNodes`. Loading a backup skips nodes
-  whose map is missing or that link items none of which are live in the
-  backup.
+- Backups include `mindmaps` and `mindmapNodes`, with topics' descriptions,
+  covers, and file links. Loading a backup skips nodes whose map is missing or that link items
+  none of which are live in the backup.
   `noteId` is optional in the backup schema for the same reason it is optional
   in the table.
 - Trash snapshots are validated on backup load: every stored node must link
@@ -237,10 +246,13 @@ lifts its children and restoring brings it back`.
   root node's `title`.
 - Moving or deleting the central topic is a 409.
 - A node reports `kind` (`topic`, `task`, `note`), `taskId`, `noteId` (`null`
-  when absent), and `title`, which is the item's title for task and note nodes.
+  when absent), and `title`, `content`, and `coverAttachmentId`, which are the
+  item's for task and note nodes.
+- Attachment routes take `mindmapNode` as a parent type for topics only; a task
+  or note node's files are its item's.
 - `createMindmapNode` takes exactly one of `title`, `taskId`, `noteId`.
-- Renaming a task or note node through `updateMindmapNode` is a 409; rename the
-  item instead.
+- Setting a task or note node's title, description, or cover through
+  `updateMindmapNode` is a 409; update the item instead.
 - The API does not expose topic conversion; it is a client action.
 
 `apps/api/src/e2e/mindmaps.test.ts` covers every operation, including a note
@@ -350,7 +362,7 @@ item they are created from. On the root, new nodes are topics.
 | `t`                       | Schedule a task for today.                     |
 | `r`                       | Reset a task's schedule.                       |
 | `Shift+S`                 | Stash a todo task.                             |
-| `e`                       | Edit the item's description in details.        |
+| `e`                       | Edit the node's description in details.        |
 | `c`                       | Add a checklist item to a task node.           |
 | `a`                       | Open the node's "…" menu.                      |
 | `.`                       | Collapse or expand.                            |
@@ -390,8 +402,10 @@ Popovers and dialogs (the date picker, the move dialog) portal out of the
 viewport, but React still bubbles their key events to it. The move dialog runs
 with `keepsFocus`, because the node stays on the map after its item moves.
 
-A topic left empty with no children is discarded when editing ends; an empty
-task or note is kept, as in project lists. Removing nodes focuses the nearest
+A topic left with no title, description, cover, files, or children is
+discarded when editing ends (`discardEmptyMindmapTopic`, which checks in the
+write so content synced in meanwhile keeps it); an empty task or note is kept,
+as in project lists. Removing nodes focuses the nearest
 surviving ancestor.
 
 ### Selection
@@ -435,7 +449,9 @@ would land in that task's project.
 - Paste goes under the focused node (or the central topic) and selects what
   arrived. Map nodes paste with `pasteMindmapNodes`: a cut within the map
   moves the nodes; otherwise they are rebuilt linked to the same tasks and
-  notes, and a cut deletes the originals. A copy rebuilds only the nodes it
+  notes, rebuilt topics keep their description and list the same files with
+  the same cover, and a cut
+  deletes the originals. A copy rebuilds only the nodes it
   stored, so pasting into the copied node again does not also copy the
   earlier paste; titles are read at paste time. A copy never duplicates
   items.

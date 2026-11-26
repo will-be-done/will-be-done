@@ -7,6 +7,7 @@ import {
 import { richTextDocToMarkdown } from "@will-be-done/slices/common";
 import {
   dailyEntryDateOfTask,
+  mindmapNodeType,
   toggleTaskState,
   updateMindmapNode,
   updateNote,
@@ -32,6 +33,7 @@ import {
   type Direction,
   type NodeKind,
   branchColor,
+  nodeCoverClass,
   nodeShapeClass,
   useMindmapDatePicker,
   useMindmapMenu,
@@ -134,7 +136,14 @@ export function MindmapNodeCard({
     enabled: !!task,
   });
   const color = branchColor(layout.branch);
-  const attachFiles = useAttachFiles(item?.type ?? "task", item?.id ?? "");
+  const attachmentParent = {
+    parentType: item?.type ?? mindmapNodeType,
+    parentId: item?.id ?? id,
+  } as const;
+  const attachFiles = useAttachFiles(
+    attachmentParent.parentType,
+    attachmentParent.parentId,
+  );
 
   const stored = item
     ? { text: item.title, doc: item.titleDoc }
@@ -269,9 +278,13 @@ export function MindmapNodeCard({
       }}
     >
       <ItemCover
-        attachmentId={item?.coverAttachmentId}
+        attachmentId={item ? item.coverAttachmentId : node.coverAttachmentId}
         muted={isDone}
-        className="mb-1.5 aspect-[3/1] max-h-20 min-w-44 rounded-md"
+        previewParent={attachmentParent}
+        className={cn(
+          "aspect-[3/1] max-h-20 w-auto min-w-44",
+          nodeCoverClass(layout.depth),
+        )}
       />
       <div className="flex items-start gap-2">
         {task && (
@@ -311,7 +324,7 @@ export function MindmapNodeCard({
                 onExit={handleExit}
                 onBlur={handleBlur}
                 required={!!item}
-                {...(item ? { attachFiles } : {})}
+                attachFiles={attachFiles}
                 autoFocus
                 caretOffset={caretOffset}
                 placeholder={placeholder}

@@ -28,6 +28,7 @@ import {
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import {
+  BadRequestError,
   ConflictError,
   InvalidPlacementError,
   ResourceNotFoundError,
@@ -52,6 +53,8 @@ export interface PublicMindmapNode {
   taskId: string | null;
   noteId: string | null;
   title: string;
+  content: string;
+  coverAttachmentId: string | null;
   side: MindmapNodeSide;
   position: Point | null;
   collapsed: boolean;
@@ -88,6 +91,11 @@ export const toPublicNode = (
     taskId: kind === "task" ? node.taskId : null,
     noteId: kind === "note" ? (node.noteId ?? null) : null,
     title: kind === "topic" ? node.title : ((task ?? note)?.title ?? ""),
+    content: (kind === "topic" ? node.content : (task ?? note)?.content) ?? "",
+    coverAttachmentId:
+      (kind === "topic"
+        ? node.coverAttachmentId
+        : (task ?? note)?.coverAttachmentId) ?? null,
     side: node.side,
     position:
       node.parentId === null && !isMindmapRoot(node)
@@ -353,36 +361,59 @@ export async function updateMindmapNode({
   userId,
   nodeId,
   title,
+  content,
   collapsed,
   side,
+  coverAttachmentId,
 }: {
   spaceId: string;
   userId: string;
   nodeId: string;
   title?: string;
+  content?: string;
   collapsed?: boolean;
   side?: MindmapNodeSide;
+  coverAttachmentId?: string | null;
 }): Promise<PublicMindmapNode> {
   const db = await getSpaceDatabase(spaceId, userId);
   const node = await requireNode(db, nodeId);
-  if (title !== undefined && (node.taskId || node.noteId)) {
+  if (
+    (title !== undefined ||
+      content !== undefined ||
+      coverAttachmentId !== undefined) &&
+    (node.taskId || node.noteId)
+  ) {
     throw new ConflictError(
-      "A task or note node shows its item's title; update the item instead",
+      "A task or note node shows its item's title, description and cover; update the item instead",
     );
   }
 
-  const updated = await asyncDispatch(
-    db,
-    updateMindmapNodeAction({
-      id: nodeId,
-      node: {
-        ...(title === undefined ? {} : { title }),
-        ...(collapsed === undefined ? {} : { collapsed }),
-        ...(side === undefined ? {} : { side }),
-      },
-    }),
-  );
-  return publicNode(db, updated);
+  try {
+    const updated = await asyncDispatch(
+      db,
+      updateMindmapNodeAction({
+        id: nodeId,
+        node: {
+          ...(title === undefined ? {} : { title }),
+          ...(content === undefined ? {} : { content }),
+          ...(collapsed === undefined ? {} : { collapsed }),
+          ...(side === undefined ? {} : { side }),
+          ...(coverAttachmentId === undefined ? {} : { coverAttachmentId }),
+        },
+      }),
+    );
+    return await publicNode(db, updated);
+  } catch (error) {
+    if (
+      coverAttachmentId !== undefined &&
+      error instanceof Error &&
+      (error.message === "Cover must be an image attachment" ||
+        error.message === "Cover attachment is not linked to this item")
+    ) {
+      throw new BadRequestError(error.message);
+    }
+    throw error;
+  }
 }
 
 export async function moveMindmapNode({

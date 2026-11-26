@@ -25,6 +25,8 @@ import {
   type Item,
   itemByListItemId,
   type ListItemType,
+  mindmapNodeOrRootById,
+  mindmapNodeType,
   stashEntryType,
   taskTemplateType,
   noteType,
@@ -34,6 +36,8 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
 import { TemplateBody } from "./TemplateBody.tsx";
 import { NoteBody } from "./NoteBody.tsx";
+import { TopicBody } from "./TopicBody.tsx";
+import { mindmapTopicIdOfKey } from "@/components/Mindmap/focusKeys.ts";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -72,8 +76,21 @@ export function ItemDetails() {
   });
   const { item, replaceItem } = useItemReplacement(selectedItem);
   const focusedItem = focusedListItemId ? item : undefined;
-  const itemId = focusedItem?.id ?? null;
-  const isVisible = focusedItem !== undefined;
+  // A mindmap topic, the central one included, shows its title and files.
+  const focusedTopicId = focusKey ? mindmapTopicIdOfKey(focusKey) : undefined;
+  const { data: selectedTopic } = useAsyncSelector({
+    selector: mindmapNodeOrRootById,
+    args: { id: focusedTopicId ?? "" },
+    enabled: !!focusedTopicId,
+    placeholderData: (previous) => previous,
+  });
+  // Another device may have turned the focused topic into a task or note.
+  const focusedTopic =
+    focusedTopicId && !selectedTopic?.taskId && !selectedTopic?.noteId
+      ? selectedTopic
+      : undefined;
+  const itemId = focusedItem?.id ?? focusedTopic?.id ?? null;
+  const isVisible = itemId !== null;
 
   const { spaceId } = SpaceRoute.useParams();
   const { open: openPeek } = useItemPeek();
@@ -217,7 +234,9 @@ export function ItemDetails() {
             parent={
               focusedItem
                 ? { parentType: focusedItem.type, parentId: focusedItem.id }
-                : undefined
+                : focusedTopic
+                  ? { parentType: mindmapNodeType, parentId: focusedTopic.id }
+                  : undefined
             }
             className="h-full"
           >
@@ -259,6 +278,14 @@ export function ItemDetails() {
                     isEditingDescription={isEditingDescription}
                     setIsEditingDescription={setIsEditingDescription}
                     replaceItem={replaceItem}
+                  />
+                ) : focusedTopic ? (
+                  <TopicBody
+                    node={focusedTopic}
+                    isEditingTitle={isEditingTitle}
+                    setIsEditingTitle={setIsEditingTitle}
+                    isEditingDescription={isEditingDescription}
+                    setIsEditingDescription={setIsEditingDescription}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">

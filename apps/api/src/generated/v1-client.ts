@@ -8756,6 +8756,10 @@ export type GetMindmap200NodesItem = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
+  /** Markdown description: the topic's own, or the task's or note's; empty when none */
+  content: string;
+  /** Image attachment shown on the card: the topic's own, or the task's or note's */
+  coverAttachmentId: string | null;
   /** Side of its root a main branch sits on */
   side: GetMindmap200NodesItemSide;
   /** Set on floating topics only */
@@ -9289,6 +9293,10 @@ export type CreateMindmapNode201Node = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
+  /** Markdown description: the topic's own, or the task's or note's; empty when none */
+  content: string;
+  /** Image attachment shown on the card: the topic's own, or the task's or note's */
+  coverAttachmentId: string | null;
   /** Side of its root a main branch sits on */
   side: CreateMindmapNode201NodeSide;
   /** Set on floating topics only */
@@ -9442,9 +9450,13 @@ export type UpdateMindmapNodeBody = {
    * @minLength 1
    */
   title?: string;
+  /** Topics only; Markdown description, empty to clear it */
+  content?: string;
   collapsed?: boolean;
   /** Side of its root a main branch sits on */
   side?: UpdateMindmapNodeBodySide;
+  /** Topics only; an image attached to the topic, or null */
+  coverAttachmentId?: string | null;
 };
 
 export type UpdateMindmapNode200NodeType =
@@ -9498,6 +9510,10 @@ export type UpdateMindmapNode200Node = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
+  /** Markdown description: the topic's own, or the task's or note's; empty when none */
+  content: string;
+  /** Image attachment shown on the card: the topic's own, or the task's or note's */
+  coverAttachmentId: string | null;
   /** Side of its root a main branch sits on */
   side: UpdateMindmapNode200NodeSide;
   /** Set on floating topics only */
@@ -9865,6 +9881,10 @@ export type MoveMindmapNode200Node = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
+  /** Markdown description: the topic's own, or the task's or note's; empty when none */
+  content: string;
+  /** Image attachment shown on the card: the topic's own, or the task's or note's */
+  coverAttachmentId: string | null;
   /** Side of its root a main branch sits on */
   side: MoveMindmapNode200NodeSide;
   /** Set on floating topics only */
@@ -10073,6 +10093,10 @@ export type SearchSpace200ResultsItem =
       noteId: string | null;
       /** Topic text, or the task's or note's title */
       title: string;
+      /** Markdown description: the topic's own, or the task's or note's; empty when none */
+      content: string;
+      /** Image attachment shown on the card: the topic's own, or the task's or note's */
+      coverAttachmentId: string | null;
       /** Side of its root a main branch sits on */
       side: "left" | "right";
       /** Set on floating topics only */
@@ -10217,6 +10241,7 @@ export const ListAttachments200AttachmentsItemUsagesItemParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
   background: "background",
 } as const;
 
@@ -10228,6 +10253,8 @@ export type ListAttachments200AttachmentsItemUsagesItem = {
   title: string;
   /** Whether the item is in the trash */
   trashed: boolean;
+  /** The map of a mindmapNode */
+  mindmapId?: string;
 };
 
 export type ListAttachments200AttachmentsItem = {
@@ -10386,7 +10413,7 @@ export type CreateAttachmentParams = {
    */
   mimeType?: string;
   /**
-   * Kind of item that lists the attachment
+   * Kind of item that lists the attachment; a mindmapNode must be a topic
    */
   parentType?: CreateAttachmentParentType;
   /**
@@ -10402,6 +10429,7 @@ export const CreateAttachmentParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
 } as const;
 
 export type CreateAttachment201Attachment = {
@@ -10575,6 +10603,7 @@ export const GetAttachment200AttachmentUsagesItemParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
   background: "background",
 } as const;
 
@@ -10586,6 +10615,8 @@ export type GetAttachment200AttachmentUsagesItem = {
   title: string;
   /** Whether the item is in the trash */
   trashed: boolean;
+  /** The map of a mindmapNode */
+  mindmapId?: string;
 };
 
 export type GetAttachment200Attachment = {
@@ -11052,7 +11083,7 @@ export type UploadAttachmentContent500 = {
 
 export type ListItemAttachmentsParams = {
   /**
-   * Kind of item that lists the attachment
+   * Kind of item that lists the attachment; a mindmapNode must be a topic
    */
   parentType: ListItemAttachmentsParentType;
   /**
@@ -11068,10 +11099,11 @@ export const ListItemAttachmentsParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
 } as const;
 
 /**
- * Kind of item that lists the attachment
+ * Kind of item that lists the attachment; a mindmapNode must be a topic
  */
 export type ListItemAttachments200ItemAttachmentsItemParentType =
   (typeof ListItemAttachments200ItemAttachmentsItemParentType)[keyof typeof ListItemAttachments200ItemAttachmentsItemParentType];
@@ -11080,6 +11112,7 @@ export const ListItemAttachments200ItemAttachmentsItemParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
 } as const;
 
 export type ListItemAttachments200ItemAttachmentsItemAttachment = {
@@ -11120,7 +11153,7 @@ export type ListItemAttachments200ItemAttachmentsItem = {
   /** Item attachment identifier */
   id: string;
   attachmentId: string;
-  /** Kind of item that lists the attachment */
+  /** Kind of item that lists the attachment; a mindmapNode must be a topic */
   parentType: ListItemAttachments200ItemAttachmentsItemParentType;
   parentId: string;
   orderToken: string;
@@ -11240,7 +11273,7 @@ export type ListItemAttachments500 = {
 };
 
 /**
- * Kind of item that lists the attachment
+ * Kind of item that lists the attachment; a mindmapNode must be a topic
  */
 export type CreateItemAttachmentBodyParentType =
   (typeof CreateItemAttachmentBodyParentType)[keyof typeof CreateItemAttachmentBodyParentType];
@@ -11249,19 +11282,20 @@ export const CreateItemAttachmentBodyParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
 } as const;
 
 export type CreateItemAttachmentBody = {
   /** @minLength 1 */
   attachmentId: string;
-  /** Kind of item that lists the attachment */
+  /** Kind of item that lists the attachment; a mindmapNode must be a topic */
   parentType: CreateItemAttachmentBodyParentType;
   /** @minLength 1 */
   parentId: string;
 };
 
 /**
- * Kind of item that lists the attachment
+ * Kind of item that lists the attachment; a mindmapNode must be a topic
  */
 export type CreateItemAttachment201ItemAttachmentParentType =
   (typeof CreateItemAttachment201ItemAttachmentParentType)[keyof typeof CreateItemAttachment201ItemAttachmentParentType];
@@ -11270,6 +11304,7 @@ export const CreateItemAttachment201ItemAttachmentParentType = {
   task: "task",
   template: "template",
   note: "note",
+  mindmapNode: "mindmapNode",
 } as const;
 
 export type CreateItemAttachment201ItemAttachmentAttachment = {
@@ -11310,7 +11345,7 @@ export type CreateItemAttachment201ItemAttachment = {
   /** Item attachment identifier */
   id: string;
   attachmentId: string;
-  /** Kind of item that lists the attachment */
+  /** Kind of item that lists the attachment; a mindmapNode must be a topic */
   parentType: CreateItemAttachment201ItemAttachmentParentType;
   parentId: string;
   orderToken: string;

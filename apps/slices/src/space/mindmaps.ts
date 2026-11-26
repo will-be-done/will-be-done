@@ -19,6 +19,17 @@ import {
   plainTextToRichTextMarkdown,
   richTextMarkdownToPlainText,
 } from "../common/richText";
+import {
+  copyAttachmentsToItemCopies,
+  copyItemAttachments,
+  coverAttachmentProblem,
+  deleteItemAttachmentLinks,
+  ensureInlineAttachmentLinks,
+  itemAttachmentLinks,
+  moveItemAttachments,
+  withAutoCoverAttachment,
+} from "./attachments";
+import { mindmapNodeOrRootById, mindmapRootNode } from "./mindmapTopics";
 import { convertNoteToTask, convertTaskToNote, noteById } from "./notes";
 import {
   createNoteInSection,
@@ -40,11 +51,13 @@ import {
   mindmapType,
   type Note,
   notesTable,
+  noteType,
   type Project,
   type ProjectSection,
   projectSectionsTable,
   projectsTable,
   type Task,
+  taskType,
 } from "./tables";
 
 export type MindmapTreeNode = {
@@ -71,22 +84,6 @@ export type MindmapTree = {
 export const isMindmapRoot = (node: Pick<MindmapNode, "id" | "mindmapId">) =>
   node.id === node.mindmapId;
 
-// Written with the map, but stood in for while its row has not synced yet.
-export const mindmapRootNode = (
-  mindmap: Pick<Mindmap, "id" | "createdAt">,
-): MindmapNode => ({
-  type: mindmapNodeType,
-  id: mindmap.id,
-  mindmapId: mindmap.id,
-  parentId: null,
-  orderToken: "a0",
-  side: "right",
-  taskId: null,
-  title: "",
-  collapsed: false,
-  createdAt: mindmap.createdAt,
-});
-
 /** A new map's center topic starts as its name, which is plain text. */
 export const newMindmapRootNode = (
   mindmap: Pick<Mindmap, "id" | "title" | "createdAt">,
@@ -104,6 +101,16 @@ export const mindmapDisplayTitle = (
   richTextMarkdownToPlainText(root?.title ?? "", "title");
 
 export type MindmapListItem = { mindmap: Mindmap; title: string };
+
+// Task and note nodes show their item's title, description and cover, never
+// ones of their own.
+const asItemNode = ({
+  titleDoc: _titleDoc,
+  content: _content,
+  contentDoc: _contentDoc,
+  coverAttachmentId: _coverAttachmentId,
+  ...node
+}: MindmapNode): MindmapNode => ({ ...node, title: "" });
 
 const compareNodes = (a: MindmapNode, b: MindmapNode) => {
   if (a.orderToken !== b.orderToken)
@@ -615,10 +622,12 @@ export const deleteMindmap = action({
   args: { id: v.string() },
   handler: function* deleteMindmap({ id }) {
     const nodes = yield* mindmapNodes({ mindmapId: id });
-    yield* deleteRows(
-      mindmapNodesTable,
-      nodes.map((node) => node.id),
-    );
+    const nodeIds = nodes.map((node) => node.id);
+    yield* deleteRows(mindmapNodesTable, nodeIds);
+    // The central topic can hold files before its row syncs.
+    yield* deleteItemAttachmentLinks(mindmapNodeType, [
+      ...new Set([id, ...nodeIds]),
+    ]);
     yield* deleteRows(mindmapsTable, [id]);
   },
 });
@@ -750,7 +759,7 @@ export const createMindmapNode = action({
       mindmapId,
       placement,
     );
-    const node: MindmapNode = {
+    const node: MindmapNode = yield* withAutoCoverAttachment({
       type: mindmapNodeType,
       id: id ?? uuidv7(),
       mindmapId,
@@ -763,8 +772,9 @@ export const createMindmapNode = action({
       title: taskId === undefined && noteId === undefined ? (title ?? "") : "",
       collapsed: false,
       createdAt: Date.now(),
-    };
+    });
     yield* insert(mindmapNodesTable, [node]);
+    yield* ensureInlineAttachmentLinks(mindmapNodeType, node.id, node);
     return node;
   },
 });
@@ -777,20 +787,58 @@ export const updateMindmapNode = action({
       v.object({
         title: v.string(),
         titleDoc: v.string(),
+        content: v.string(),
+        contentDoc: v.string(),
         collapsed: v.boolean(),
         side: mindmapNodeSide,
+        coverAttachmentId: v.union(v.string(), v.null()),
       }),
     ),
   },
   handler: function* updateMindmapNode({ id, node }) {
-    const mindmap = yield* mindmapById({ id });
-    const current =
-      (yield* mindmapNodeById({ id })) ??
-      (mindmap ? mindmapRootNode(mindmap) : undefined);
+    const current = yield* mindmapNodeOrRootById({ id });
     if (!current) throw new Error("Mindmap node not found");
-    const next = syncItemRichText(current, { ...current, ...node });
+    const next = yield* withAutoCoverAttachment(
+      syncItemRichText(current, { ...current, ...node }),
+      current,
+    );
     yield* upsert(mindmapNodesTable, [next]);
+    yield* ensureInlineAttachmentLinks(mindmapNodeType, id, next, current);
     return next;
+  },
+});
+
+/**
+ * Removes a topic left with nothing in it, as when its new title was cleared:
+ * no title, description, cover, files, or children. Returns whether it did.
+ */
+export const discardEmptyMindmapTopic = action({
+  name: "discardEmptyMindmapTopic",
+  args: { id: v.string() },
+  handler: function* discardEmptyMindmapTopic({ id }) {
+    const node = yield* mindmapNodeById({ id });
+    if (
+      !node ||
+      node.taskId ||
+      node.noteId ||
+      isMindmapRoot(node) ||
+      node.title.trim() ||
+      node.content?.trim() ||
+      node.coverAttachmentId
+    ) {
+      return false;
+    }
+    const [child] = yield* selectFrom(mindmapNodesTable, "byMindmapParentOrder")
+      .where((q) => q.eq("mindmapId", node.mindmapId).eq("parentId", id))
+      .limit(1);
+    if (child) return false;
+    const [file] = yield* itemAttachmentLinks({
+      parentType: mindmapNodeType,
+      parentId: id,
+    });
+    if (file) return false;
+    yield* deleteMindmapNodes({ ids: [id] });
+    return true;
   },
 });
 
@@ -818,6 +866,7 @@ export const deleteMindmapNodes = action({
       }
     }
     yield* deleteRows(mindmapNodesTable, [...toDelete]);
+    yield* deleteItemAttachmentLinks(mindmapNodeType, [...toDelete]);
   },
 });
 
@@ -977,6 +1026,7 @@ export const pasteMindmapNodes = action({
       );
     const now = Date.now();
     const created: MindmapNode[] = [];
+    const copiedTopics: { originalId: string; copyId: string }[] = [];
     const rebuild = (
       source: MindmapNode,
       parent: string | null,
@@ -1000,9 +1050,8 @@ export const pasteMindmapNodes = action({
         x: _x,
         y: _y,
         noteId: _noteId,
-        titleDoc: _titleDoc,
         ...rest
-      } = source;
+      } = isItem ? asItemNode(source) : source;
       const node: MindmapNode = {
         ...rest,
         id: uuidv7(),
@@ -1012,11 +1061,12 @@ export const pasteMindmapNodes = action({
         side,
         taskId,
         ...(noteId ? { noteId } : {}),
-        ...(!isItem && source.titleDoc ? { titleDoc: source.titleDoc } : {}),
         ...point,
         createdAt: now,
       };
       created.push(node);
+      if (!isItem)
+        copiedTopics.push({ originalId: source.id, copyId: node.id });
       for (const child of copiedChildrenOf(source)) {
         rebuild(child, node.id, child.orderToken);
       }
@@ -1026,6 +1076,9 @@ export const pasteMindmapNodes = action({
       rebuild(root, parentId, orderTokens[index]!, points?.[index]),
     );
     if (created.length > 0) yield* insert(mindmapNodesTable, created);
+    yield* copyAttachmentsToItemCopies(
+      copiedTopics.map((pair) => ({ ...pair, parentType: mindmapNodeType })),
+    );
     if (mode === "cut") {
       yield* deleteMindmapNodes({ ids: roots.map((node) => node.id) });
     }
@@ -1159,6 +1212,30 @@ function* sectionForNewItem(
 // The project new tasks and notes go to; defaults to the inbox.
 const newItemProjectId = v.optional(v.string());
 
+// What a topic gives the item it becomes; its files move there first, so the
+// cover is linked when the item is written. A cover whose file or link a
+// concurrent edit removed is dropped rather than blocking the conversion.
+function* topicItemAttrs(
+  node: MindmapNode,
+  item: { parentType: typeof taskType | typeof noteType; parentId: string },
+) {
+  yield* moveItemAttachments(
+    { parentType: mindmapNodeType, parentId: node.id },
+    item,
+  );
+  const cover = node.coverAttachmentId;
+  const keepCover =
+    cover === null ||
+    (cover !== undefined &&
+      !(yield* coverAttachmentProblem(item.parentType, item.parentId, cover)));
+  return {
+    id: item.parentId,
+    title: node.title,
+    ...(node.content ? { content: node.content } : {}),
+    ...(keepCover ? { coverAttachmentId: cover } : {}),
+  };
+}
+
 export const convertMindmapNodeToTask = action({
   name: "convertMindmapNodeToTask",
   args: { id: v.string(), projectId: newItemProjectId },
@@ -1173,10 +1250,14 @@ export const convertMindmapNodeToTask = action({
     const task = yield* createTaskInSection({
       projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
-      taskAttrs: { title: node.title },
+      taskAttrs: yield* topicItemAttrs(node, {
+        parentType: taskType,
+        parentId: uuidv7(),
+      }),
     });
-    const { titleDoc: _titleDoc, ...rest } = node;
-    yield* upsert(mindmapNodesTable, [{ ...rest, taskId: task.id, title: "" }]);
+    yield* upsert(mindmapNodesTable, [
+      { ...asItemNode(node), taskId: task.id },
+    ]);
     return task;
   },
 });
@@ -1220,10 +1301,14 @@ export const convertMindmapNodeToNote = action({
     const note = yield* createNoteInSection({
       projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
-      noteAttrs: { title: node.title },
+      noteAttrs: yield* topicItemAttrs(node, {
+        parentType: noteType,
+        parentId: uuidv7(),
+      }),
     });
-    const { titleDoc: _titleDoc, ...rest } = node;
-    yield* upsert(mindmapNodesTable, [{ ...rest, noteId: note.id, title: "" }]);
+    yield* upsert(mindmapNodesTable, [
+      { ...asItemNode(node), noteId: note.id },
+    ]);
     return note;
   },
 });
@@ -1254,7 +1339,10 @@ export const createMindmapNote = action({
   },
 });
 
-/** Unlinks a task or note node into a topic with its title; the item stays. */
+/**
+ * Unlinks a task or note node into a topic with its title, description, files
+ * and cover; the item stays.
+ */
 export const convertMindmapNodeToTopic = action({
   name: "convertMindmapNodeToTopic",
   args: { id: v.string() },
@@ -1263,14 +1351,31 @@ export const convertMindmapNodeToTopic = action({
     if (!node) throw new Error("Mindmap node not found");
     if (!node.taskId && !node.noteId) return node;
 
-    const item = node.taskId
-      ? yield* taskById({ id: node.taskId })
-      : yield* noteById({ id: node.noteId! });
-    const { titleDoc: _titleDoc, noteId: _noteId, ...rest } = node;
+    // The item the tree shows: the task, or the note when the task is gone.
+    const item =
+      (node.taskId ? yield* taskById({ id: node.taskId }) : undefined) ??
+      (node.noteId ? yield* noteById({ id: node.noteId }) : undefined);
+    // The topic keeps the item's files, which the item keeps too. A cover
+    // whose link a concurrent edit removed is dropped, as in `topicItemAttrs`.
+    let keepCover = false;
+    if (item) {
+      yield* copyItemAttachments(
+        { parentType: item.type, parentId: item.id },
+        { parentType: mindmapNodeType, parentId: node.id },
+      );
+      const cover = item.coverAttachmentId;
+      keepCover =
+        cover === null ||
+        (cover !== undefined &&
+          !(yield* coverAttachmentProblem(mindmapNodeType, node.id, cover)));
+    }
+    const { noteId: _noteId, ...rest } = asItemNode(node);
     const next: MindmapNode = {
       ...rest,
       taskId: null,
       title: item?.title ?? "",
+      ...(item?.content ? { content: item.content } : {}),
+      ...(keepCover ? { coverAttachmentId: item?.coverAttachmentId } : {}),
     };
     yield* upsert(mindmapNodesTable, [next]);
     return next;

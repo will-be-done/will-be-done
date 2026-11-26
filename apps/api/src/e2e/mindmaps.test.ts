@@ -132,6 +132,16 @@ test("covers every mindmap operation", async () => {
     200,
   );
   expect(collapsed.data.node.collapsed).toBe(true);
+  const described = expectResponseStatus(
+    await updateMindmapNode(
+      space.id,
+      marketing.id,
+      { content: "Launch **plan**" },
+      options,
+    ),
+    200,
+  );
+  expect(described.data.node.content).toBe("Launch **plan**");
 
   // The central topic is a node with the mindmap's ID; it can be renamed but
   // stays in the center.
@@ -162,6 +172,15 @@ test("covers every mindmap operation", async () => {
       space.id,
       taskNode.id,
       { title: "Renamed" },
+      options,
+    ),
+    409,
+  );
+  expectResponseStatus(
+    await updateMindmapNode(
+      space.id,
+      taskNode.id,
+      { content: "Details" },
       options,
     ),
     409,

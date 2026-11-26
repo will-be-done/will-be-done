@@ -141,7 +141,9 @@ jobs:
           base: origin/${{ github.base_ref }}:apps/api/openapi.json
           revision: HEAD:apps/api/openapi.json
           fail-on: WARN
-          err-ignore: apps/api/oasdiff-err-ignore.txt
+          # oasdiff versions differ in which level they give a change.
+          err-ignore: apps/api/oasdiff-ignore.txt
+          warn-ignore: apps/api/oasdiff-ignore.txt
           review: false
 
   web-e2e:

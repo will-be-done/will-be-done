@@ -422,6 +422,15 @@ export const nodeShapeClass = (depth: number) =>
       ? "rounded-xl border-2 bg-panel-tinted px-3 py-1.5 text-[14px] font-medium"
       : "rounded-lg border bg-panel-tinted/70 px-2.5 py-1 text-[13px]";
 
+// Cancels the shape's padding so a cover reaches the card's edges; the top
+// radius is the shape's minus its border.
+export const nodeCoverClass = (depth: number) =>
+  depth === 0
+    ? "-mx-5 -mt-3 mb-2 rounded-t-2xl"
+    : depth === 1
+      ? "-mx-3 -mt-1.5 mb-1.5 rounded-t-[10px]"
+      : "-mx-2.5 -mt-1 mb-1 rounded-t-[7px]";
+
 // Main branch colors, picked to read on the dark surface.
 export const branchColors = [
   "#60a5fa",

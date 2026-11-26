@@ -3,6 +3,7 @@ import {
   createAction,
   createSelector,
   DB,
+  deleteRows,
   execSync,
   type HyperDB,
   insert,
@@ -21,6 +22,8 @@ import {
   attachmentsTable,
   itemAttachmentsTable,
   itemAttachmentType,
+  mindmapNodesTable,
+  mindmapNodeType,
   notesTable,
   noteType,
   projectSectionsTable,
@@ -54,6 +57,17 @@ import {
 import { getSpaceBackup, loadSpaceBackup } from "./backup";
 import { insertItemCopies } from "./selection";
 import { deleteItemsByIds } from "./items";
+import {
+  convertMindmapNodeToNote,
+  convertMindmapNodeToTopic,
+  createMindmap,
+  createMindmapNode,
+  deleteMindmap,
+  deleteMindmapNodes,
+  discardEmptyMindmapTopic,
+  pasteMindmapNodes,
+  updateMindmapNode,
+} from "./mindmaps";
 
 const action = createAction();
 const selector = createSelector();
@@ -89,6 +103,26 @@ const seed = action({
       },
     ]);
     yield* insert(tasksTable, [task("t1"), task("t2")]);
+  },
+});
+
+const dropLinks = action({
+  name: "dropLinksAttachmentTest",
+  args: {},
+  handler: function* () {
+    const links = yield* selectFrom(itemAttachmentsTable, "byIds");
+    yield* deleteRows(
+      itemAttachmentsTable,
+      links.map((link) => link.id),
+    );
+  },
+});
+
+const dropTopicRow = action({
+  name: "dropTopicRowAttachmentTest",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    yield* deleteRows(mindmapNodesTable, [id]);
   },
 });
 
@@ -169,6 +203,7 @@ const rows = selector({
       tasks: yield* selectFrom(tasksTable, "byIds"),
       notes: yield* selectFrom(notesTable, "byIds"),
       templates: yield* selectFrom(taskTemplatesTable, "byIds"),
+      nodes: yield* selectFrom(mindmapNodesTable, "byIds"),
     };
   },
 });
@@ -217,12 +252,14 @@ describe("attachments", () => {
     "createTaskTemplate",
     "updateTemplate",
     "updateNote",
+    "updateMindmapNode",
   ] as const)(
     "%s validates explicit covers after linking inline images",
     (method) => {
       const db = createDB();
       syncDispatch(db, insertTemplate({}));
       syncDispatch(db, insertNote({ id: "note" }));
+      syncDispatch(db, createMindmap({ id: "map" }));
       addFile(db, "image");
       syncDispatch(
         db,
@@ -276,6 +313,17 @@ describe("attachments", () => {
             );
           case "updateNote":
             return syncDispatch(db, updateNote({ id: "note", note: fields }));
+          case "updateMindmapNode":
+            return syncDispatch(
+              db,
+              updateMindmapNode({
+                id: "map",
+                node: {
+                  coverAttachmentId,
+                  ...(content === undefined ? {} : { title: content }),
+                },
+              }),
+            );
         }
       };
       expect(() => write("missing")).toThrow(
@@ -293,7 +341,7 @@ describe("attachments", () => {
     },
   );
 
-  test.each(["task", "template", "note"] as const)(
+  test.each(["task", "template", "note", "mindmapNode"] as const)(
     "backups preserve selected, cleared, and unset %s covers",
     (parentType) => {
       for (const attachmentId of ["image", null, undefined]) {
@@ -302,6 +350,8 @@ describe("attachments", () => {
         if (parentType === "template") syncDispatch(db, insertTemplate({}));
         if (parentType === "note")
           syncDispatch(db, insertNote({ id: parentId }));
+        if (parentType === "mindmapNode")
+          syncDispatch(db, createMindmap({ id: parentId }));
         addFile(db, "image");
         syncDispatch(
           db,
@@ -323,7 +373,9 @@ describe("attachments", () => {
             ? state.tasks
             : parentType === "note"
               ? state.notes
-              : state.templates;
+              : parentType === "mindmapNode"
+                ? state.nodes
+                : state.templates;
         const item = items.find(({ id }) => id === parentId)!;
         expect(item.coverAttachmentId).toBe(attachmentId);
         if (attachmentId === undefined)
@@ -543,6 +595,204 @@ describe("attachments", () => {
     expect(listOf(db, copy!.id)).toEqual(["f1"]);
     expect(copy!.coverAttachmentId).toBe("f1");
     expect(listOf(db, "t1")).toEqual(["f1"]);
+  });
+
+  test("a topic's files follow it through copies, conversions, and removal", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    const topic = { parentType: mindmapNodeType, parentId: "a" } as const;
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        title: "Topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    const taskNode = syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        taskId: "t1",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...topic }));
+    syncDispatch(db, setItemCoverAttachment({ ...topic, attachmentId: "f1" }));
+    // A task node shows its task's files.
+    expect(() =>
+      syncDispatch(
+        db,
+        attachToItem({
+          attachmentId: "f1",
+          parentType: mindmapNodeType,
+          parentId: taskNode.id,
+        }),
+      ),
+    ).toThrow("Attachment parent not found");
+
+    const [copy] = syncDispatch(
+      db,
+      pasteMindmapNodes({
+        mindmapId: "map",
+        ids: ["a", taskNode.id],
+        placement: { parentId: "map", position: "last" },
+        mode: "copy",
+      }),
+    );
+    expect(listOf(db, copy!.id, mindmapNodeType)).toEqual(["f1"]);
+    expect(copy!.coverAttachmentId).toBe("f1");
+    expect(
+      selectSync(db, {
+        selector: attachmentUsages,
+        args: { attachmentIds: ["f1"] },
+      }).f1,
+    ).toContainEqual({
+      parentType: mindmapNodeType,
+      parentId: "a",
+      title: "Topic",
+      trashed: false,
+      mindmapId: "map",
+    });
+
+    const note = syncDispatch(
+      db,
+      convertMindmapNodeToNote({ id: "a", projectId: "project" }),
+    );
+    expect(listOf(db, note.id, noteType)).toEqual(["f1"]);
+    expect(note.coverAttachmentId).toBe("f1");
+    expect(listOf(db, "a", mindmapNodeType)).toEqual([]);
+    expect(read(db).nodes.find(({ id }) => id === "a")).not.toHaveProperty(
+      "coverAttachmentId",
+    );
+
+    // Unlinking keeps the files on both.
+    const unlinked = syncDispatch(db, convertMindmapNodeToTopic({ id: "a" }));
+    expect(unlinked.coverAttachmentId).toBe("f1");
+    expect(listOf(db, "a", mindmapNodeType)).toEqual(["f1"]);
+    expect(listOf(db, note.id, noteType)).toEqual(["f1"]);
+
+    syncDispatch(db, deleteMindmapNodes({ ids: [copy!.id] }));
+    expect(listOf(db, copy!.id, mindmapNodeType)).toEqual([]);
+    syncDispatch(db, deleteMindmap({ id: "map" }));
+    expect(read(db).links.map((link) => link.parentId)).toEqual([note.id]);
+    expect(read(db).attachments.map((a) => a.id)).toEqual(["f1"]);
+  });
+
+  test("a cover that lost its link converts either way, without the cover", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    const topic = { parentType: mindmapNodeType, parentId: "a" } as const;
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        title: "Topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...topic }));
+    syncDispatch(db, setItemCoverAttachment({ ...topic, attachmentId: "f1" }));
+    // As when another device's removal of the link merges in.
+    syncDispatch(db, dropLinks({}));
+
+    const note = syncDispatch(
+      db,
+      convertMindmapNodeToNote({ id: "a", projectId: "project" }),
+    );
+    expect(note).not.toHaveProperty("coverAttachmentId");
+
+    const item = { parentType: noteType, parentId: note.id } as const;
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...item }));
+    syncDispatch(db, setItemCoverAttachment({ ...item, attachmentId: "f1" }));
+    syncDispatch(db, dropLinks({}));
+
+    const unlinked = syncDispatch(db, convertMindmapNodeToTopic({ id: "a" }));
+    expect(unlinked).not.toHaveProperty("coverAttachmentId");
+  });
+
+  test("a file listed on a topic removed elsewhere is unused, not in trash", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        title: "Topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(
+      db,
+      attachToItem({
+        attachmentId: "f1",
+        parentType: mindmapNodeType,
+        parentId: "a",
+      }),
+    );
+    // Another device's removal merges in without this device's new link.
+    syncDispatch(db, dropTopicRow({ id: "a" }));
+
+    expect(
+      selectSync(db, {
+        selector: attachmentUsages,
+        args: { attachmentIds: ["f1"] },
+      }).f1,
+    ).toEqual([]);
+  });
+
+  test("the central topic takes files before its row syncs", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    syncDispatch(db, dropTopicRow({ id: "map" }));
+    addFile(db, "f1");
+    const center = { parentType: mindmapNodeType, parentId: "map" } as const;
+
+    syncDispatch(db, attachToItem({ attachmentId: "f1", ...center }));
+    expect(
+      selectSync(db, {
+        selector: attachmentUsages,
+        args: { attachmentIds: ["f1"] },
+      }).f1,
+    ).toMatchObject([{ parentId: "map", mindmapId: "map" }]);
+    syncDispatch(db, setItemCoverAttachment({ ...center, attachmentId: "f1" }));
+    expect(read(db).nodes.find(({ id }) => id === "map")).toMatchObject({
+      coverAttachmentId: "f1",
+    });
+
+    syncDispatch(db, dropTopicRow({ id: "map" }));
+    syncDispatch(db, deleteMindmap({ id: "map" }));
+    expect(read(db).links).toEqual([]);
+  });
+
+  test("a cleared topic that lists a file is kept", () => {
+    const db = createDB();
+    syncDispatch(db, createMindmap({ id: "map" }));
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    addFile(db, "f1");
+    syncDispatch(
+      db,
+      attachToItem({
+        attachmentId: "f1",
+        parentType: mindmapNodeType,
+        parentId: "a",
+      }),
+    );
+
+    expect(syncDispatch(db, discardEmptyMindmapTopic({ id: "a" }))).toBe(false);
   });
 
   test("trash keeps links until it is emptied", () => {

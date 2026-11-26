@@ -1,7 +1,7 @@
 # Attachments
 
-Files attached to Tasks, TaskTemplates, and Notes. The rows sync like any other
-model; the bytes never do. This document covers why it is split that way and
+Files attached to Tasks, TaskTemplates, Notes, and mindmap topics. The rows
+sync like any other model; the bytes never do. This document covers why it is split that way and
 the rules that keep the two halves consistent.
 
 ## Rows and bytes
@@ -26,8 +26,9 @@ the rules that keep the two halves consistent.
   description (see [rich-text.md](rich-text.md)). An inline reference always
   has a link: item writes call `ensureInlineAttachmentLinks`, so "used in"
   never parses Markdown. A new writer of `title` or `content` must do the same.
-- **Card covers** are nullable attachment IDs on Tasks, TaskTemplates, and
-  Notes. The first inline image becomes the cover unless the item already had
+- **Card covers** are nullable attachment IDs on Tasks, TaskTemplates, Notes,
+  and mindmap nodes, where only topics use them. A task or note node shows its
+  item's files and cover, so attaching to one is refused. The first inline image becomes the cover unless the item already had
   an inline image or the user explicitly cleared its cover. A cover must name
   an image linked to that item.
 
@@ -60,7 +61,9 @@ Keep them out of HyperDB: rows there are preloaded and synced in full.
 - **Trash.** A trashed item keeps its links, so finding where a file is used
   or whether it is orphaned is an indexed read, never a scan of trash
   snapshots. A link whose item is missing belongs to a trashed item. Purging
-  deletes the links only. Deleting a file also strips its
+  deletes the links only. Topics are never trashed; removing one deletes its
+  links, so a link to a missing topic was added while another device removed
+  it. It lists nothing, and the server sweep deletes it. Deleting a file also strips its
   references from trash snapshots, or restoring would bring them back.
 - **Link IDs** derive from the item and the file, so replicas that link the
   same file to the same item (inline references, generated tasks) converge on
@@ -82,6 +85,9 @@ and a device with a wrong clock must not shorten the wait.
   every replica. Relisting the file in the meantime restarts the wait, even
   when no sweep saw it listed: a hook clears the mark whenever the file or a
   link to it is written.
+- Links to deleted topics are deleted first, so their files count as unlisted.
+  Only a tombstoned topic counts: one that has not arrived yet keeps its
+  links.
 - Bytes whose row has been tombstoned for 7 days are deleted, so offline
   replicas that still hold the row can settle.
 - Bytes whose row never arrived are deleted after 30 days. A server

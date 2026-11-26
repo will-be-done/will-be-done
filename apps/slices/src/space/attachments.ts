@@ -16,6 +16,7 @@ import {
   removeRichTextDocAttachments,
   seedRichTextDoc,
 } from "../common/richText";
+import { mindmapNodeOrRootById } from "./mindmapTopics";
 import { syncItemRichText } from "./richTextItems";
 import {
   type Attachment,
@@ -27,6 +28,9 @@ import {
   type ItemAttachment,
   itemAttachmentsTable,
   itemAttachmentType,
+  mindmapNodesTable,
+  mindmapsTable,
+  mindmapNodeType,
   notesTable,
   noteType,
   tasksTable,
@@ -268,10 +272,14 @@ export type AttachmentUsage = {
   parentId: string;
   title: string;
   trashed: boolean;
+  // Set for mindmap topics, which open on their map.
+  mindmapId?: string;
 };
 
 // Where each attachment on a page is listed. A link whose item is gone
 // belongs to an item in the trash: links stay until the trash is emptied.
+// Topics are never trashed: a link to a missing one was added while another
+// device removed it, and lists nothing until the server sweep deletes it.
 export const attachmentUsages = selector({
   name: "attachmentUsages",
   args: { attachmentIds: v.array(v.string()) },
@@ -297,6 +305,29 @@ export const attachmentUsages = selector({
       );
       for (const row of rows) titles.set(`${type}:${row.id}`, row.title);
     }
+    const nodeIds = idsOf(mindmapNodeType);
+    const nodeMaps = new Map<string, string>();
+    if (nodeIds.length > 0) {
+      const nodes = yield* selectFrom(mindmapNodesTable, "byId").where((q) =>
+        nodeIds.map((id) => q.eq("id", id)),
+      );
+      for (const node of nodes) {
+        titles.set(`${mindmapNodeType}:${node.id}`, node.title);
+        nodeMaps.set(node.id, node.mindmapId);
+      }
+      // A central topic whose row has not synced is still its map's.
+      const unsynced = nodeIds.filter((id) => !nodeMaps.has(id));
+      const maps =
+        unsynced.length > 0
+          ? yield* selectFrom(mindmapsTable, "byId").where((q) =>
+              unsynced.map((id) => q.eq("id", id)),
+            )
+          : [];
+      for (const map of maps) {
+        titles.set(`${mindmapNodeType}:${map.id}`, "");
+        nodeMaps.set(map.id, map.id);
+      }
+    }
 
     const result: Record<string, AttachmentUsage[]> = {};
     for (const id of attachmentIds) result[id] = [];
@@ -311,11 +342,17 @@ export const attachmentUsages = selector({
         continue;
       }
       const title = titles.get(`${link.parentType}:${link.parentId}`);
+      if (link.parentType === mindmapNodeType && title === undefined) continue;
+      const mindmapId =
+        link.parentType === mindmapNodeType
+          ? nodeMaps.get(link.parentId)
+          : undefined;
       result[link.attachmentId]?.push({
         parentType: link.parentType,
         parentId: link.parentId,
         title: title ?? "",
         trashed: title === undefined,
+        ...(mindmapId === undefined ? {} : { mindmapId }),
       });
     }
     for (const usages of Object.values(result)) {
@@ -326,6 +363,10 @@ export const attachmentUsages = selector({
 });
 
 function* parentExists(parentType: AttachmentParentType, parentId: string) {
+  if (parentType === mindmapNodeType) {
+    const node = yield* mindmapNodeOrRootById({ id: parentId });
+    return !!node && !node.taskId && !node.noteId;
+  }
   const table =
     parentType === noteType
       ? notesTable
@@ -507,6 +548,16 @@ export const setAttachmentImageSize = action({
   },
 });
 
+// Whether files can be listed under this item: it exists, and a mindmap node
+// is a topic.
+export const attachmentParentExists = selector({
+  name: "attachmentParentExists",
+  args: { parentType: attachmentParentType, parentId: v.string() },
+  handler: function* attachmentParentExists({ parentType, parentId }) {
+    return yield* parentExists(parentType, parentId);
+  },
+});
+
 export const attachToItem = action({
   name: "attachToItem",
   args: {
@@ -546,11 +597,33 @@ function* updateItemCoverAttachment(
     yield* upsert(notesTable, [{ ...item, coverAttachmentId }]);
     return;
   }
+  if (parentType === mindmapNodeType) {
+    const item = yield* mindmapNodeOrRootById({ id: parentId });
+    if (!item) throw new Error("Attachment parent not found");
+    yield* upsert(mindmapNodesTable, [{ ...item, coverAttachmentId }]);
+    return;
+  }
   const item = yield* selectFrom(tasksTable, "byId")
     .where((q) => q.eq("id", parentId))
     .first();
   if (!item) throw new Error("Attachment parent not found");
   yield* upsert(tasksTable, [{ ...item, coverAttachmentId }]);
+}
+
+// Why an attachment can't be this item's cover, if it can't.
+export function* coverAttachmentProblem(
+  parentType: AttachmentParentType,
+  parentId: string,
+  attachmentId: string,
+) {
+  const attachment = yield* attachmentById({ id: attachmentId });
+  if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
+    return "Cover must be an image attachment";
+  }
+  const links = yield* itemAttachmentLinks({ parentType, parentId });
+  return links.some((link) => link.attachmentId === attachmentId)
+    ? undefined
+    : "Cover attachment is not linked to this item";
 }
 
 function* validateCoverAttachment(
@@ -559,14 +632,12 @@ function* validateCoverAttachment(
   attachmentId: string | null,
 ) {
   if (attachmentId === null) return;
-  const attachment = yield* attachmentById({ id: attachmentId });
-  if (!attachment || !isImageAttachmentType(attachment.mimeType)) {
-    throw new Error("Cover must be an image attachment");
-  }
-  const links = yield* itemAttachmentLinks({ parentType, parentId });
-  if (!links.some((link) => link.attachmentId === attachmentId)) {
-    throw new Error("Cover attachment is not linked to this item");
-  }
+  const problem = yield* coverAttachmentProblem(
+    parentType,
+    parentId,
+    attachmentId,
+  );
+  if (problem) throw new Error(problem);
 }
 
 export const setItemCoverAttachment = action({
@@ -596,7 +667,9 @@ function* clearItemCoverAttachment(
       ? taskTemplatesTable
       : parentType === noteType
         ? notesTable
-        : tasksTable;
+        : parentType === mindmapNodeType
+          ? mindmapNodesTable
+          : tasksTable;
   const item = yield* selectFrom(table, "byId")
     .where((q) => q.eq("id", parentId))
     .first();
@@ -663,6 +736,16 @@ function* removeInlineReferences(
       attachmentIds,
     );
     if (next) yield* upsert(taskTemplatesTable, [next]);
+    return;
+  }
+  if (parentType === mindmapNodeType) {
+    const next = withoutInlineReferences(
+      yield* selectFrom(mindmapNodesTable, "byId")
+        .where((q) => q.eq("id", parentId))
+        .first(),
+      attachmentIds,
+    );
+    if (next) yield* upsert(mindmapNodesTable, [next]);
     return;
   }
   if (parentType === noteType) {
@@ -805,7 +888,12 @@ export function* copyAttachmentsToItemCopies(
   }[],
 ) {
   const links: ItemAttachment[] = [];
-  for (const parentType of [taskType, taskTemplateType, noteType] as const) {
+  for (const parentType of [
+    taskType,
+    taskTemplateType,
+    noteType,
+    mindmapNodeType,
+  ] as const) {
     links.push(
       ...(yield* itemAttachmentLinksOfParents(
         parentType,

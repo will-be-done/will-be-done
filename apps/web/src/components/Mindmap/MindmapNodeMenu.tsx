@@ -172,6 +172,13 @@ export function MindmapNodeMenu({
             </>
           )}
           <DropdownMenuGroup>
+            {!item && (
+              <DropdownMenuItem onSelect={() => actions.editDescription(id)}>
+                <FileText />
+                Edit description
+                <DropdownMenuShortcut>e</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
             {!item && !isRoot && (
               <>
                 <DropdownMenuItem onSelect={() => actions.convert(id, "task")}>

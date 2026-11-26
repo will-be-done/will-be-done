@@ -294,12 +294,17 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
   // Which side of the root a main branch sits on; ignored on deeper nodes.
   side: mindmapNodeSide,
   // A task or note node shows and edits its Task or Note; a topic node, with
-  // neither set, owns its title. noteId is optional so rows written before
-  // notes could join a map stay valid.
+  // neither set, owns its title, description, files and cover. noteId is
+  // optional so rows written before notes could join a map stay valid.
   taskId: v.union(v.string(), v.null()),
   noteId: v.optional(v.string()),
   title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
   titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
+  coverAttachmentId: v
+    .optional(v.union(v.string(), v.null()))
+    .with(undoIgnore()),
   collapsed: v.boolean(),
   createdAt: v.number(),
 })
@@ -308,9 +313,7 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
   .index("byTaskId", ["taskId"])
   .index("byNoteId", ["noteId"]);
 registerSpaceSyncableTable(mindmapNodesTable, mindmapNodeType);
-registerRichTextFields(mindmapNodesTable.tableName, [
-  { docField: "titleDoc", textField: "title", kind: "title" },
-]);
+registerRichTextFields(mindmapNodesTable.tableName, itemRichTextFields);
 
 export type MindmapNode = ExtractSchema<typeof mindmapNodesTable>;
 export type MindmapNodeSide = MindmapNode["side"];
@@ -385,11 +388,13 @@ export type Attachment = ExtractSchema<typeof attachmentsTable>;
 export const isAttachment = isObjectType<Attachment>(attachmentType);
 
 export const itemAttachmentType = "itemAttachment";
-// The items this version links files to.
+// The items this version links files to. Mindmap nodes own files only as
+// topics.
 export const attachmentParentType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
   v.literal(noteType),
+  v.literal(mindmapNodeType),
 );
 // A file shown as the background of a surface, named by `parentId`:
 // `<model>:<id>` such as `project:<id>`, or a view name such as `timeline`.

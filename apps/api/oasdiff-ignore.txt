@@ -1,0 +1,5 @@
+GET /api/v1/spaces/{spaceId}/sections/{sectionId}/items added `subschema #1, subschema #2` to the `items/items/` response property `oneOf` list for the response status `200`
+GET /api/v1/spaces/{spaceId}/attachments added the new `mindmapNode` enum value to the `attachments/items/usages/items/parentType` response property for the response status `200`
+GET /api/v1/spaces/{spaceId}/attachments/{attachmentId} added the new `mindmapNode` enum value to the `attachment/usages/items/parentType` response property for the response status `200`
+GET /api/v1/spaces/{spaceId}/item-attachments added the new `mindmapNode` enum value to the `itemAttachments/items/parentType` response property for the response status `200`
+POST /api/v1/spaces/{spaceId}/item-attachments added the new `mindmapNode` enum value to the `itemAttachment/parentType` response property for the response status `201`
