@@ -68,7 +68,6 @@ jobs:
         run: pnpm -C apps/${{ matrix.package }} ts
 
       - name: Test @apps/${{ matrix.package }}
-        if: matrix.package == 'api' || matrix.package == 'slices'
         run: pnpm -C apps/${{ matrix.package }} test
 
       - name: Check OpenAPI snapshot
