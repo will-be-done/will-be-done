@@ -9,7 +9,7 @@
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "client:generate": "orval --config ./orval.config.ts --clean --formatter prettier --fail-on-warnings",
+    "client:generate": "orval --config ./orval.config.ts --clean --formatter prettier --fail-on-warnings && node scripts/normalize-client-headers.mjs",
     "openapi:check": "bun run src/generateOpenApi.ts --check",
     "openapi:generate": "bun run src/generateOpenApi.ts",
     "test": "WBD_DB_ENGINE=sqlite bun test --path-ignore-patterns 'src/e2e/**'",
@@ -22,7 +22,7 @@
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^16.5.0",
-    "orval": "^8.23.0",
+    "orval": "^8.41.0",
     "prettier": "^3.8.4",
     "typescript-eslint": "^8.48.0",
     "vitest": "^4.1.0"
